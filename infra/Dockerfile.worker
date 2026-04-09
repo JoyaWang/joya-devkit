@@ -9,12 +9,14 @@ COPY . .
 RUN pnpm --filter @srs/shared-kernel run build
 RUN pnpm --filter @srs/worker run build
 
+# Produce a flat production node_modules for the worker
+RUN pnpm deploy --prod --legacy --filter @srs/worker /app/worker-prod
+
 FROM node:20-alpine AS runner
-RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 COPY --from=builder /app/apps/worker/dist ./dist
-COPY --from=builder /app/apps/worker/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/shared-kernel/dist ./packages/shared-kernel/dist
-COPY --from=builder /app/packages/shared-kernel/package.json ./packages/shared-kernel/package.json
+
+# Copy the flat production node_modules (includes @srs/shared-kernel)
+COPY --from=builder /app/worker-prod/node_modules ./node_modules
+
 CMD ["node", "dist/index.js"]

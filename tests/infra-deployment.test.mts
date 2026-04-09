@@ -183,38 +183,117 @@ describe("Dockerfile.api - prisma generate", () => {
   });
 });
 
-describe("Dockerfile.api - runner stage includes all api dependencies", () => {
+/**
+ * Runner image must produce a dependency layout where `node dist/index.js`
+ * can actually resolve all imports at runtime.  The root cause of the
+ * `ERR_MODULE_NOT_FOUND: Cannot find package 'fastify'` crash is that
+ * pnpm installs direct deps under `apps/api/node_modules/` as symlinks,
+ * but the runner stage only copies the root `/app/node_modules/` --
+ * leaving `apps/api/node_modules/` entirely absent.
+ *
+ * The fix must ensure that, in the runner image, every package that
+ * `apps/api` imports is resolvable from `/app/dist/index.js` via standard
+ * Node.js module resolution (walking up to `/app/node_modules/`).
+ *
+ * Strategy: use `pnpm deploy --prod` in the builder to produce a
+ * self-contained, symlink-free node_modules that can be COPYed directly
+ * into the runner.
+ */
+describe("Dockerfile.api - runner resolves all runtime imports", () => {
   const dockerfile = readFileContent("infra/Dockerfile.api");
 
-  it("MUST include auth package dist in runner", () => {
-    // Find the runner stage
-    const runnerStageStart = dockerfile.indexOf("FROM node:20-alpine AS runner");
+  /**
+   * Helper: extract the runner stage content (after the last FROM for runner).
+   */
+  function getRunnerStage(): string {
+    const idx = dockerfile.indexOf("AS runner");
+    expect(idx).toBeGreaterThan(-1);
+    return dockerfile.slice(idx);
+  }
+
+  it("MUST use pnpm deploy (or equivalent) to produce a flat, symlink-free node_modules for the runner", () => {
+    const builderStage = dockerfile.slice(0, dockerfile.indexOf("AS runner"));
+    // The builder must include a step that generates a production-only
+    // node_modules without pnpm symlinks, e.g. `pnpm deploy --prod`
+    const hasDeployStep = /pnpm\s+deploy|--prod.*install|npm\s+ci|npm\s+install\s+--production/.test(builderStage);
+    expect(hasDeployStep).toBe(true);
+  });
+
+  it("MUST copy the production node_modules to runner WITHOUT copying .pnpm store", () => {
+    const runner = getRunnerStage();
+    // The runner should NOT copy /app/node_modules directly (which has .pnpm)
+    // Instead it should copy a deploy target or explicitly exclude .pnpm
+    const copyNodeModules = runner.match(/COPY\s+--from=builder\s+\S+\s+\.\/node_modules/);
+    if (copyNodeModules) {
+      // If copying node_modules, the source must be a deploy target, not the raw root node_modules
+      // i.e. should NOT be "/app/node_modules" which contains .pnpm symlinks
+      const sourceMatch = runner.match(/COPY\s+--from=builder\s+(\/\S+)\s+\.\/node_modules/);
+      expect(sourceMatch).toBeTruthy();
+      // The source should be a dedicated deploy directory, not the pnpm root
+      expect(sourceMatch![1]).not.toBe("/app/node_modules");
+    }
+  });
+
+  it("MUST make 'fastify' resolvable at runtime (not just present in .pnpm store)", () => {
+    // This test verifies the Dockerfile structure ensures the fix;
+    // the actual runtime proof is the docker build + run verification.
+    // We check that either pnpm deploy is used OR the node_modules copy
+    // comes from a flattened directory.
+    const builderStage = dockerfile.slice(0, dockerfile.indexOf("AS runner"));
+    const runnerStage = getRunnerStage();
+
+    // Either: pnpm deploy produces flat node_modules, or
+    // the runner explicitly copies from a deploy target
+    const usesDeploy = builderStage.includes("pnpm deploy");
+    const usesCustomCopy = runnerStage.includes("/app/api-prod/") ||
+                           runnerStage.includes("/app/deploy/") ||
+                           runnerStage.includes("/app/api-deploy/");
+
+    expect(usesDeploy || usesCustomCopy).toBe(true);
+  });
+
+  it("MUST NOT rely on pnpm symlink structure for runtime resolution", () => {
+    const runner = getRunnerStage();
+    // Only check non-comment lines for pnpm/corepack instructions
+    const codeLines = runner
+      .split("\n")
+      .map((l: string) => l.trim())
+      .filter((l: string) => l.length > 0 && !l.startsWith("#"));
+    const hasPnpmInstruction = codeLines.some(
+      (l: string) => l.includes("corepack enable") || l.startsWith("RUN pnpm") || l.includes("pnpm install") || l.includes("pnpm deploy")
+    );
+    expect(hasPnpmInstruction).toBe(false);
+  });
+});
+
+describe("Dockerfile.api - runner stage includes all runtime dependencies", () => {
+  const dockerfile = readFileContent("infra/Dockerfile.api");
+
+  // With pnpm deploy, all workspace packages (@srs/auth, etc.) are bundled
+  // into the flat node_modules via api-prod/node_modules/@srs/*.  The runner
+  // no longer needs separate COPY lines for packages/*/dist.
+  it("MUST copy a flat node_modules from pnpm deploy target", () => {
+    const runnerStageStart = dockerfile.indexOf("AS runner");
     expect(runnerStageStart).toBeGreaterThan(-1);
-
     const runnerStage = dockerfile.slice(runnerStageStart);
-    expect(runnerStage).toContain("packages/auth");
+    // Must copy from the deploy target, not raw /app/node_modules
+    expect(runnerStage).toContain("api-prod/node_modules");
   });
 
-  it("MUST include object-service package dist in runner", () => {
-    const runnerStageStart = dockerfile.indexOf("FROM node:20-alpine AS runner");
+  it("MUST NOT separately copy packages/*/dist (handled by pnpm deploy)", () => {
+    const runnerStageStart = dockerfile.indexOf("AS runner");
     const runnerStage = dockerfile.slice(runnerStageStart);
-    expect(runnerStage).toContain("packages/object-service");
-  });
-
-  it("MUST include project-context package dist in runner", () => {
-    const runnerStageStart = dockerfile.indexOf("FROM node:20-alpine AS runner");
-    const runnerStage = dockerfile.slice(runnerStageStart);
-    expect(runnerStage).toContain("packages/project-context");
-  });
-
-  it("MUST include shared-kernel package dist in runner", () => {
-    const runnerStageStart = dockerfile.indexOf("FROM node:20-alpine AS runner");
-    const runnerStage = dockerfile.slice(runnerStageStart);
-    expect(runnerStage).toContain("packages/shared-kernel");
+    // After pnpm deploy, workspace packages are inside node_modules/@srs/*
+    // so separate COPY lines for packages/auth/dist etc. are unnecessary
+    const hasSeparatePackageCopy = runnerStage.includes("packages/auth/dist") ||
+      runnerStage.includes("packages/object-service/dist") ||
+      runnerStage.includes("packages/project-context/dist") ||
+      runnerStage.includes("packages/shared-kernel/dist");
+    expect(hasSeparatePackageCopy).toBe(false);
   });
 
   it("MUST expose port 3010 (not 3000)", () => {
-    const runnerStageStart = dockerfile.indexOf("FROM node:20-alpine AS runner");
+    const runnerStageStart = dockerfile.indexOf("AS runner");
     const runnerStage = dockerfile.slice(runnerStageStart);
     const exposeMatch = runnerStage.match(/EXPOSE\s+(\d+)/);
     expect(exposeMatch).toBeTruthy();

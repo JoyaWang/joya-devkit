@@ -10,6 +10,7 @@ COPY apps/api/package.json ./apps/api/package.json
 COPY packages/auth/package.json ./packages/auth/package.json
 COPY packages/object-service/package.json ./packages/object-service/package.json
 COPY packages/project-context/package.json ./packages/project-context/package.json
+COPY packages/release-service/package.json ./packages/release-service/package.json
 COPY packages/shared-kernel/package.json ./packages/shared-kernel/package.json
 
 # Install dependencies
@@ -28,27 +29,22 @@ RUN pnpm --filter @srs/auth run build
 RUN pnpm --filter @srs/object-service run build
 RUN pnpm --filter @srs/api run build
 
+# Produce a flat, symlink-free production node_modules for the api app.
+# pnpm deploy resolves all workspace: protocol links into real copies
+# (including dist/ outputs), so the runner never needs pnpm or symlinks.
+RUN pnpm deploy --prod --legacy --filter @srs/api /app/api-prod
+
 FROM node:20-alpine AS runner
-RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 # Copy api build output
 COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package.json ./
 COPY --from=builder /app/apps/api/src/generated ./src/generated
 
-# Copy node_modules
-COPY --from=builder /app/node_modules ./node_modules
-
-# Copy all workspace packages that api depends on
-COPY --from=builder /app/packages/auth/dist ./packages/auth/dist
-COPY --from=builder /app/packages/auth/package.json ./packages/auth/package.json
-COPY --from=builder /app/packages/object-service/dist ./packages/object-service/dist
-COPY --from=builder /app/packages/object-service/package.json ./packages/object-service/package.json
-COPY --from=builder /app/packages/project-context/dist ./packages/project-context/dist
-COPY --from=builder /app/packages/project-context/package.json ./packages/project-context/package.json
-COPY --from=builder /app/packages/shared-kernel/dist ./packages/shared-kernel/dist
-COPY --from=builder /app/packages/shared-kernel/package.json ./packages/shared-kernel/package.json
+# Copy the flat production node_modules (no symlinks, no .pnpm store).
+# This includes third-party deps (fastify, pg, etc.) AND workspace packages
+# (@srs/auth, @srs/object-service, etc.) with their dist/ outputs.
+COPY --from=builder /app/api-prod/node_modules ./node_modules
 
 EXPOSE 3010
 CMD ["node", "dist/index.js"]
