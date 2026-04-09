@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../apps/api/src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Object {
+  id           String    @id @default(cuid())
+  projectKey   String    @map("project_key")
+  env          String
+  domain       String
+  scope        String
+  entityId     String    @map("entity_id")
+  fileKind     String    @map("file_kind")
+  objectKey    String    @unique @map("object_key")
+  fileName     String    @map("file_name")
+  contentType  String    @map("content_type")
+  size         Int
+  checksum     String?
+  visibility   String    @default("private")
+  uploaderType String    @map("uploader_type")
+  uploaderId   String    @map("uploader_id")
+  status       String    @default("pending_upload")
+  purpose      String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  @@map("objects")
+}
+
+model AppRelease {
+  id                 String   @id @default(cuid())
+  projectKey         String   @map("project_key")
+  platform           String
+  env                String
+  appVersion         String   @map("app_version")
+  buildNumber        Int      @map("build_number")
+  semanticVersion    String   @map("semantic_version")
+  distributionTarget String   @map("distribution_target")
+  distributionUrl    String   @map("distribution_url")
+  artifactObjectKey  String?  @map("artifact_object_key")
+  releaseNotes       String?  @map("release_notes")
+  changelog          String?
+  forceUpdate        Boolean  @default(false) @map("force_update")
+  minSupportedVersion String? @map("min_supported_version")
+  rolloutStatus      String   @default("draft") @map("rollout_status")
+  createdBy          String   @map("created_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("app_releases")
+}
+
+model ReleaseChannel {
+  id             String   @id @default(cuid())
+  projectKey     String   @map("project_key")
+  platform       String
+  env            String
+  channel        String
+  activeReleaseId String? @map("active_release_id")
+
+  @@unique([projectKey, platform, env, channel])
+  @@map("release_channels")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  actorType String   @map("actor_type")
+  actorId   String   @map("actor_id")
+  resource  String
+  detail    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+model ProjectManifest {
+  id          String   @id @default(cuid())
+  projectKey  String   @unique @map("project_key")
+  displayName String   @map("display_name")
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("project_manifests")
+}
+
+model ProjectServiceBinding {
+  id          String   @id @default(cuid())
+  projectKey  String   @map("project_key")
+  serviceType String   @map("service_type")
+  provider    String
+  config      String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([projectKey, serviceType])
+  @@map("project_service_bindings")
+}

@@ -1,0 +1,42 @@
+{
+  "name": "shared-runtime-services",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared runtime services for cross-project object storage and release management",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint",
+    "dev:api": "pnpm --filter @srs/api run dev",
+    "dev:worker": "pnpm --filter @srs/worker run dev",
+    "db:generate": "prisma generate --schema=prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@10.26.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "@prisma/engines",
+      "prisma"
+    ]
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
+    "dotenv": "^17.4.1",
+    "pg": "^8.20.0",
+    "prisma": "^7.7.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.20.0",
+    "vitest": "^4.1.3"
+  }
+}

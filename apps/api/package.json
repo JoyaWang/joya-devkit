@@ -1,0 +1,29 @@
+{
+  "name": "@srs/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint: todo'",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.7.0",
+    "@prisma/adapter-pg": "^7.7.0",
+    "@srs/auth": "workspace:*",
+    "@srs/object-service": "workspace:*",
+    "@srs/project-context": "workspace:*",
+    "@srs/shared-kernel": "workspace:*",
+    "dotenv": "^17.4.1",
+    "fastify": "^5.3.3",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
