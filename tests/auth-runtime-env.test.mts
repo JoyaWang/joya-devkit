@@ -12,10 +12,10 @@ beforeEach(() => {
 describe("EnvTokenValidator runtime env behavior", () => {
   it("reads SERVICE_TOKENS at validate-time so late-loaded env is honored", async () => {
     const validator = new EnvTokenValidator();
-    process.env.SERVICE_TOKENS = "dev-token-infov=infov,dev-token-laicai=laicai";
+    process.env.SERVICE_TOKENS = "dev-token-infov=infov:dev,prd-token-laicai=laicai:prd";
 
     const result = await validator.validate("dev-token-infov");
 
-    expect(result).toEqual({ valid: true, projectKey: "infov" });
+    expect(result).toEqual({ valid: true, projectKey: "infov", runtimeEnv: "dev" });
   });
 });

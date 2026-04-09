@@ -69,8 +69,9 @@ shared-runtime-services/
 
 ### auth
 - project service token 校验
-- 为运行时注入 `projectKey`
-- 项目协议层后续通过 `projectKey` 继续解析 `ProjectManifest` 与 `ProjectServiceBinding`
+- 为运行时注入 `projectKey` 与 `runtimeEnv`
+- 项目协议层通过 `projectKey + runtimeEnv + serviceType` 继续解析 `ProjectManifest` 与 `ProjectServiceBinding`
+- 请求体中的 `project` / `env` 只做一致性校验，不作为最终资源路由真相源
 - 后续扩展 user-scoped action context 校验
 
 ## API 设计
@@ -100,10 +101,11 @@ shared-runtime-services/
 | 生命周期 / 版本化 | 非 Phase 1 contract | 可选 | 可选 | 供应商特性不得泄漏到通用 API |
 
 ### 项目协议层与资源绑定解析
-- 调用方默认只暴露 `projectKey`，不直接传 `bucket` / `provider` / `region` / 凭据等底层资源细节
-- 共享运行时服务内部通过 `ProjectManifest` 记录项目身份与注册状态，通过 `ProjectServiceBinding` 记录某项目某共享能力的 provider 与资源绑定
-- Object Service 在运行时根据 `projectKey + serviceType=object_storage` 解析 binding，再由 `ObjectStorageAdapterFactory` 创建对应的 `ObjectStorageAdapter`
-- 因此 provider-neutral contract 保持不变，但 adapter 的实例化方式从“全局单例 + 全局 env”升级为“项目级 binding 解析 + 工厂创建”
+- 调用方默认只暴露 `projectKey` 与 `runtimeEnv`，不直接传 `bucket` / `provider` / `region` / 凭据等底层资源细节
+- 共享运行时服务内部通过 `ProjectManifest` 记录项目身份与注册状态，通过 `ProjectServiceBinding` 记录某项目某运行环境某共享能力的 provider 与资源绑定
+- Object Service 在运行时根据 `projectKey + runtimeEnv + serviceType=object_storage` 解析 binding，再由 `ObjectStorageAdapterFactory` 创建对应的 `ObjectStorageAdapter`
+- 因此 provider-neutral contract 保持不变，但 adapter 的实例化方式从“全局单例 + 全局 env”升级为“项目级 + 环境级 binding 解析 + 工厂创建”
+- 认证真相源升级为 `token -> projectKey + runtimeEnv`；请求体中的 `project` / `env` 只做一致性校验
 - Phase 1 默认生产 provider 仍为 `CosObjectStorageAdapter`，但它将作为“按项目配置创建的 provider 实现”存在，而不是全局唯一实例
 
 ## Object Service
@@ -127,8 +129,9 @@ laicai/prod/release/android/1.0.1+12/apk/app-release.apk
 - Object Service 只调用 `ObjectStorageAdapter#createUploadRequest`
 - 不允许在 route / service 中直接拼 COS SDK 参数或返回 COS 专有语义给上层
 - **项目归属真相源**：`projectKey` 由 token 解析得出，`body.project` 必须与之完全一致，否则 403 拒绝
-- **objectKey 生成**：必须使用 token 的 `projectKey`，不得信任 `body.project`
-- **一致性保证**：DB `project_key` 与 `objectKey` 前缀的项目部分必须语义一致
+- **运行环境真相源**：`runtimeEnv` 由 token 解析得出，`body.env` 必须与之完全一致，否则拒绝请求
+- **objectKey 生成**：必须使用 token 的 `projectKey` 与 `runtimeEnv`，不得信任 `body.project` / `body.env`
+- **一致性保证**：DB `project_key`、DB `env` 与 `objectKey` 前缀中的项目/环境部分必须语义一致
 
 请求核心字段：
 - project
@@ -198,6 +201,14 @@ laicai/prod/release/android/1.0.1+12/apk/app-release.apk
 ### `POST /v1/releases`
 用途：创建 release 记录。
 
+**distributionUrl 生成规则**：
+- CI 调用时**无需传 distributionUrl**，只需传 `artifactObjectKey`（上传到 Object Service 后获得）。
+- SRS 根据 `env` 自动拼接生成 distributionUrl：
+  - `dev` -> `https://dl-dev.infinex.cn/{artifactObjectKey}`
+  - `staging` -> `https://dl-dev.infinex.cn/{artifactObjectKey}`
+  - `prod` -> `https://dl.infinex.cn/{artifactObjectKey}`
+- 若 CI 显式传入 `distributionUrl`，则保留调用方传入值，不被自动覆盖。
+
 请求核心字段：
 - project
 - platform
@@ -206,8 +217,7 @@ laicai/prod/release/android/1.0.1+12/apk/app-release.apk
 - buildNumber
 - semanticVersion
 - distributionTarget
-- distributionUrl
-- artifactObjectKey
+- **artifactObjectKey**（必传，用于自动生成 distributionUrl）
 - releaseNotes
 - changelog
 
@@ -296,6 +306,7 @@ laicai/prod/release/android/1.0.1+12/apk/app-release.apk
 ### `project_service_bindings`
 - id
 - project_key
+- runtime_env
 - service_type
 - provider
 - config

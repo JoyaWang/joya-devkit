@@ -67,6 +67,32 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
 
       const prisma = getPrisma();
 
+      // Auto-generate distributionUrl if not provided
+      let distributionUrl = body.distributionUrl;
+      if (!distributionUrl && body.artifactObjectKey) {
+        const env = body.env!;
+        let baseUrl: string;
+        switch (env) {
+          case "dev":
+            baseUrl = "https://dl-dev.infinex.cn";
+            break;
+          case "staging":
+            baseUrl = "https://dl-dev.infinex.cn";
+            break;
+          case "prod":
+            baseUrl = "https://dl.infinex.cn";
+            break;
+          default:
+            baseUrl = "";
+        }
+        if (baseUrl) {
+          distributionUrl = `${baseUrl}/${body.artifactObjectKey}`;
+        }
+      }
+      if (!distributionUrl) {
+        distributionUrl = "";
+      }
+
       // Create release record
       const release = await prisma.appRelease.create({
         data: {
@@ -77,7 +103,7 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
           buildNumber: body.buildNumber!,
           semanticVersion: body.semanticVersion!,
           distributionTarget: body.distributionTarget!,
-          distributionUrl: body.distributionUrl ?? "",
+          distributionUrl,
           artifactObjectKey: body.artifactObjectKey ?? null,
           releaseNotes: body.releaseNotes ?? null,
           changelog: body.changelog ?? null,

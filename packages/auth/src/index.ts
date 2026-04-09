@@ -7,6 +7,7 @@
 export interface AuthResult {
   valid: boolean;
   projectKey?: string;
+  runtimeEnv?: string;
   error?: string;
 }
 
@@ -15,17 +16,17 @@ export interface TokenValidator {
 }
 
 /**
- * EnvTokenValidator — maps service tokens to project keys via environment variable.
+ * EnvTokenValidator — maps service tokens to project key + runtime environment via environment variable.
  *
  * Environment variable format:
- *   SERVICE_TOKENS=token1=projectKey1,token2=projectKey2
+ *   SERVICE_TOKENS=token1=projectKey1:runtimeEnv1,token2=projectKey2:runtimeEnv2
  *
  * Example:
- *   SERVICE_TOKENS=dev-token-infov=infov,dev-token-laicai=laicai
+ *   SERVICE_TOKENS=dev-token-infov=infov:dev,prd-token-laicai=laicai:prd
  */
 export class EnvTokenValidator implements TokenValidator {
-  private readTokenMap(): Map<string, string> {
-    const tokenMap = new Map<string, string>();
+  private readTokenMap(): Map<string, { projectKey: string; runtimeEnv: string }> {
+    const tokenMap = new Map<string, { projectKey: string; runtimeEnv: string }>();
     const raw = process.env.SERVICE_TOKENS ?? "";
     if (!raw) {
       return tokenMap;
@@ -38,9 +39,16 @@ export class EnvTokenValidator implements TokenValidator {
       }
 
       const token = pair.slice(0, eqIndex).trim();
-      const projectKey = pair.slice(eqIndex + 1).trim();
-      if (token && projectKey) {
-        tokenMap.set(token, projectKey);
+      const mapping = pair.slice(eqIndex + 1).trim();
+      const separatorIndex = mapping.lastIndexOf(":");
+      if (separatorIndex <= 0 || separatorIndex === mapping.length - 1) {
+        continue;
+      }
+
+      const projectKey = mapping.slice(0, separatorIndex).trim();
+      const runtimeEnv = mapping.slice(separatorIndex + 1).trim();
+      if (token && projectKey && runtimeEnv) {
+        tokenMap.set(token, { projectKey, runtimeEnv });
       }
     }
 
@@ -53,10 +61,18 @@ export class EnvTokenValidator implements TokenValidator {
     }
 
     const tokenMap = this.readTokenMap();
-    const projectKey = tokenMap.get(token);
-    if (!projectKey) {
+    const resolved = tokenMap.get(token);
+    if (!resolved) {
+      const raw = process.env.SERVICE_TOKENS ?? "";
+      const hasLegacyMapping = raw
+        .split(",")
+        .map((pair) => pair.trim())
+        .some((pair) => pair.startsWith(`${token}=`));
+      if (hasLegacyMapping) {
+        return { valid: false, error: "invalid token mapping: runtimeEnv is required" };
+      }
       return { valid: false, error: "invalid token" };
     }
-    return { valid: true, projectKey };
+    return { valid: true, projectKey: resolved.projectKey, runtimeEnv: resolved.runtimeEnv };
   }
 }

@@ -25,6 +25,11 @@ afterEach(() => {
 
 describe("loadProjectEnv", () => {
   it("loads the repo-root .env when the API runs from apps/api", () => {
+    // Ensure a clean slate: external env vars must not leak into this test.
+    // dotenv.config({ override: false }) won't overwrite existing values,
+    // so any pre-existing SERVICE_TOKENS would cause a false assertion.
+    delete process.env.SERVICE_TOKENS;
+
     const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "srs-env-loader-"));
     createdDirs.push(repoRoot);
 
@@ -33,7 +38,7 @@ describe("loadProjectEnv", () => {
     fs.mkdirSync(srcDir, { recursive: true });
     fs.writeFileSync(
       path.join(repoRoot, ".env"),
-      "SERVICE_TOKENS=dev-token-infov=infov,dev-token-laicai=laicai\n",
+      "SERVICE_TOKENS=dev-token-infov=infov:dev,prd-token-laicai=laicai:prd\n",
       "utf8",
     );
 
@@ -44,6 +49,6 @@ describe("loadProjectEnv", () => {
     });
 
     expect(loaded).toContain(path.join(repoRoot, ".env"));
-    expect(process.env.SERVICE_TOKENS).toBe("dev-token-infov=infov,dev-token-laicai=laicai");
+    expect(process.env.SERVICE_TOKENS).toBe("dev-token-infov=infov:dev,prd-token-laicai=laicai:prd");
   });
 });

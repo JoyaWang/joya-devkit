@@ -11,9 +11,9 @@
 
 | 模块 | 说明 |
 |------|------|
-| Object Service | 上传签名、下载签名、完成登记、删除、scope 校验、provider adapter contract |
+| Object Service | 上传签名、下载签名、完成登记、删除、scope 校验、provider adapter contract、多环境 binding 路由 |
 | Release Service | release 创建、最新版本查询、rollout / force update 更新 |
-| 鉴权 | project service token 校验 |
+| 鉴权 | project service token 校验、`runtimeEnv` 解析与一致性约束 |
 | 基础设施 | api / worker / postgres / redis / docker-compose 基础可用性 |
 
 ### 不在范围内
@@ -70,6 +70,9 @@ npm test
 | # | 流程 | 优先级 | 阶段 |
 |---|------|--------|------|
 | O-01 | 申请上传签名 | P0 | 1 |
+| O-01b | body.project 不一致拒绝 | P0 | 1 |
+| O-01c | body.env / runtimeEnv 不一致拒绝 | P0 | 1 |
+| O-01d | 同项目不同环境命中不同 bucket | P0 | 1 |
 | O-02 | 上传完成登记 | P0 | 1 |
 | O-03 | 申请下载签名 | P0 | 1 |
 | O-04 | 删除合法对象 | P1 | 2 |
@@ -90,6 +93,7 @@ npm test
 |---|------|--------|------|
 | I-01 | healthcheck 可用 | P0 | 1 |
 | I-02 | project token 校验 | P0 | 1 |
+| I-02b | token 解析 runtimeEnv | P0 | 1 |
 | I-03 | docker-compose 启动成功 | P0 | 1 |
 
 ## 5. 分阶段实施

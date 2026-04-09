@@ -46,3 +46,21 @@
 - **根因**：项目协议层引入后，"项目已注册但未绑定服务" 与 "项目根本未注册" 已经是两种不同的契约错误，但测试数据和断言没有同步细分
 - **解法**：在 seed / token / E2E 中同时保留 `unbound` 与 `ghost` 两类项目，分别验证 `service_binding_missing` 与 `project_not_registered`
 - **规则**：凡是共享运行时引入协议层状态机后，测试必须按错误语义逐类覆盖，不能只测一个模糊的失败场景
+
+### 2026-04-09: 仅按 projectKey 路由不够，多环境必须进入正式协议
+- **问题**：首轮项目协议层虽然解决了“不同项目命中不同 bucket”，但仍默认同一项目只有一条 object_storage binding，无法覆盖 dev / prd 各自不同 bucket 的真实生产形态
+- **根因**：把环境维度留在 objectKey 或请求体里，却没有进入 binding 真相源与认证真相源，导致资源路由仍然不完整
+- **解法**：将正式协议升级为 `projectKey + runtimeEnv + serviceType`，并把 `runtimeEnv` 纳入 token 解析、binding 唯一键、resolver、factory cache key 与 E2E 覆盖
+- **规则**：以后任何共享运行时服务只要涉及不同环境命中不同底层资源，必须把环境维度写进正式协议层，不能只在请求体或命名约定里临时携带
+
+### 2026-04-09: 必填新列上线时，优先走“补列→回填→收紧约束”的增量迁移
+- **问题**：本地数据库已有旧 `project_service_bindings` 数据时，Prisma 直接 `db push` 无法为新增必填列 `runtime_env` 落地，因为存量行没有默认值
+- **根因**：把“schema 设计完成”误当成“数据库迁移可直接执行”，忽略了存量数据过渡步骤
+- **解法**：先增量补列并允许空值，回填旧数据到安全默认环境（本轮为 `dev`），再切换为 `NOT NULL` 并升级唯一键，最后再运行新 seed
+- **规则**：以后共享运行时的协议层字段升级只要碰到存量数据，就优先设计 non-destructive migration path，禁止为了省事直接 reset 本地数据库
+
+### 2026-04-09: binding 更新后，运行中的 adapter cache 不是自动刷新的
+- **问题**：把 `laicai/prd` 的 bucket 从 dev 桶改为真实 prd 桶并重新 seed 后，首轮 E2E 仍继续命中旧 dev bucket，看起来像协议路由失败
+- **根因**：真正的问题不是 resolver 或 binding 查询错了，而是运行中的 API 进程已经通过 `ObjectStorageAdapterFactory` 缓存了旧 adapter；数据库 binding 更新不会自动让进程内 cache 失效
+- **解法**：确认 seed 成功后，重启 API 进程并重新执行 E2E；重启后 `laicai/prd` 立即命中真实 prd bucket，59/59 断言通过
+- **规则**：以后共享运行时只要采用进程内 adapter/cache 复用，任何 binding/provider 配置变更验证前都必须显式刷新进程或提供 cache invalidation 机制，不能默认认为“改库后运行中实例会自动拿到新配置”

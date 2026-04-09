@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+*.js.map
+*.d.ts.map
+
+# Test & coverage
+tests
+coverage
+*.test.mts
+*.test.ts
+*.spec.mts
+*.spec.ts
+
+# Development
+.env
+.env.*
+!.env.example
+tmp
+log
+logs
+*.log
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation (not needed in runtime)
+*.md
+!README.md
+steering
+ref-docs
+
+# Serena
+.serena

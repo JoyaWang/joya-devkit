@@ -45,14 +45,15 @@
 - 提供合法 project token
 - 提供合法 project / env / domain / scope / entityId / fileKind
 - body.project 必须与 token 解析出的 projectKey 一致
+- body.env 必须与 token 解析出的 runtimeEnv 一致
 
 **断言（必须全部通过）**:
 - 返回 `objectKey`
 - 返回 `uploadUrl`
 - 返回 `expiresAt`
-- `objectKey` 前缀必须使用 token 的 projectKey（真相源），而非 body.project
+- `objectKey` 前缀必须使用 token 的 projectKey 与 runtimeEnv（真相源），而非 body.project / body.env
 - `objectKey` 符合约定路径规则
-- DB `project_key` 与 `objectKey` 前缀的项目部分语义一致
+- DB `project_key` / `env` 与 `objectKey` 前缀中的项目/环境部分语义一致
 
 ### O-01b: 项目归属不一致被拒绝
 **优先级**: P0 | **阶段**: 1
@@ -67,16 +68,29 @@
 - 错误信息明确指出 body.project 与认证项目不匹配
 - 不生成 objectKey / uploadUrl
 
-### O-01c: 跨项目一致请求成功
+### O-01c: 环境归属不一致被拒绝
 **优先级**: P0 | **阶段**: 1
 
 **前置条件**:
-- 提供合法 project token（如 laicai token）
-- body.project 与 token 的 projectKey 一致（如 body.project=laicai）
+- 提供合法 project token，且 token 解析出的 `runtimeEnv=dev`
+- body.env 与 token 的 `runtimeEnv` 不一致（如 body.env=prd）
 
 **断言（必须全部通过）**:
-- 返回 201 状态码
-- `objectKey` 前缀为 token 的 projectKey（如 `laicai/...`）
+- 返回拒绝状态码
+- 错误信息明确指出 body.env 与认证环境不匹配
+- 不生成 objectKey / uploadUrl
+
+### O-01d: 同项目不同环境命中不同 bucket
+**优先级**: P0 | **阶段**: 1
+
+**前置条件**:
+- 准备同一项目的 dev / prd 两种 token
+- 已注册对应 `ProjectServiceBinding(projectKey, runtimeEnv, object_storage)`
+
+**断言（必须全部通过）**:
+- dev token 请求命中 dev bucket
+- prd token 请求命中 prd bucket
+- 两次返回的 `objectKey` 环境段不同且与 token 解析结果一致
 
 ### O-02: 非法 scope 被拒绝
 **优先级**: P0 | **阶段**: 1
@@ -124,6 +138,7 @@
 
 **断言（必须全部通过）**:
 - 合法 token 可访问接口
+- token 可同时解析 `projectKey` 与 `runtimeEnv`
 - 非法 token 被拒绝
 - 缺失 token 被拒绝
 

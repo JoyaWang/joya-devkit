@@ -26,6 +26,7 @@ export interface ProjectManifest {
 /** Provider-neutral representation of a project-service binding. */
 export interface ProjectServiceBinding {
   projectKey: string;
+  runtimeEnv: string;
   serviceType: ServiceType;
   provider: string;
   config: string; // JSON-encoded provider config

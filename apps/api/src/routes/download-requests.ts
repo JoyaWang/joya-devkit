@@ -28,23 +28,9 @@ export async function registerDownloadRequestsRoute(
     "/v1/objects/download-requests",
     async (request: FastifyRequest, reply: FastifyReply) => {
       const projectKey = request.projectKey;
-      if (!projectKey) {
+      const runtimeEnv = request.runtimeEnv;
+      if (!projectKey || !runtimeEnv) {
         return reply.status(401).send({ error: "unauthorized" });
-      }
-
-      // Resolve project binding
-      let adapter;
-      try {
-        const ctx = await deps.resolver.resolve(projectKey, "object_storage");
-        adapter = deps.factory.getOrCreate(ctx.binding);
-      } catch (err) {
-        if (err instanceof ProjectContextError) {
-          return reply.status(err.statusCode).send({
-            error: err.code,
-            message: err.message,
-          });
-        }
-        throw err;
       }
 
       const body = request.body as Partial<DownloadRequestBody>;
@@ -56,6 +42,29 @@ export async function registerDownloadRequestsRoute(
       const formatResult = validateObjectKeyFormat(body.objectKey);
       if (!formatResult.valid) {
         return reply.status(400).send({ error: formatResult.error });
+      }
+
+      const [, objectEnv] = body.objectKey.split("/");
+      if (objectEnv !== runtimeEnv) {
+        return reply.status(403).send({
+          error: "env_mismatch",
+          message: `objectKey env "${objectEnv}" does not match authenticated runtimeEnv "${runtimeEnv}"`,
+        });
+      }
+
+      // Resolve project binding
+      let adapter;
+      try {
+        const ctx = await deps.resolver.resolve(projectKey, runtimeEnv, "object_storage");
+        adapter = deps.factory.getOrCreate(ctx.binding);
+      } catch (err) {
+        if (err instanceof ProjectContextError) {
+          return reply.status(err.statusCode).send({
+            error: err.code,
+            message: err.message,
+          });
+        }
+        throw err;
       }
 
       // Check object exists in DB and belongs to this project

@@ -27,7 +27,7 @@
 1. GitHub Actions 构建 Android APK / AAB。
 2. CI 调用 Object Service 获取 release 上传签名。
 3. CI 将正式安装包上传到 COS / Object Service。
-4. CI 调用 Release Service 创建 release，写入版本号、build 号、objectKey、distributionUrl、release notes 等。
+4. CI 调用 Release Service 创建 release，传入版本号、build 号、artifactObjectKey、release notes 等。**distributionUrl 无需 CI 提供**，SRS 会根据 env 自动拼接生成（dev/staging -> `https://dl-dev.infinex.cn/{objectKey}`，prod -> `https://dl.infinex.cn/{objectKey}`）。
 5. GitHub Actions 创建 GitHub Release，但只写 release notes 与外部分发链接，不上传安装包。
 
 ### 流程 4: iOS Release 发布

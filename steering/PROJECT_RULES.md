@@ -25,7 +25,10 @@
 - 数据库 schema 与 migration 基线默认围绕 Prisma 建立，不再在 Phase 1 引入第二套 ORM。
 - 对象存储供应商 SDK 只能出现在 adapter 实现层；route / service / domain 层不得直接依赖 COS 专有 API。
 - Object Service route / service 不得直接 `new` 具体 provider adapter；adapter 必须通过项目级 binding 解析 + `ObjectStorageAdapterFactory` 创建。
+- Object Service 的项目/环境归属真相源来自认证结果中的 `projectKey + runtimeEnv`；请求体里的 `project` / `env` 只做一致性校验，不能自由指定要命中的 bucket。
 - 新项目接入共享服务前，必须先注册 `ProjectManifest` 与对应的 `ProjectServiceBinding`，不得靠修改共享服务代码或散落 env 来接入。
+- `ProjectServiceBinding` 的正式唯一键为 `projectKey + runtimeEnv + serviceType`，不再把“一个项目一条 object_storage binding”当成长期协议。
+- Release Service 中的发布环境 `env` 与 Object Service 的资源绑定 `runtimeEnv` 虽可能取值相同，但语义不同，代码与文档中禁止混用。
 - 任何业务项目接入时，不允许把共享服务内部逻辑重新复制回业务仓库。
 - 关键写操作默认要求审计日志。
 

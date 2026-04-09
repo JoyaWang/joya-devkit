@@ -57,16 +57,25 @@
   - API 启动增加项目根 `.env` 自动发现与加载，避免从 `apps/api` 目录启动时漏掉根配置
   - EnvTokenValidator 改为 validate 时动态读取 `SERVICE_TOKENS`，避免模块初始化过早缓存旧环境值
   - 全部 typecheck / build / test / E2E 通过
+- 多环境资源绑定协议已正式落地并验证通过：
+  - `AuthResult` / `EnvTokenValidator` / Fastify request 上下文已升级为 `projectKey + runtimeEnv`
+  - `ProjectServiceBinding` 类型、resolver 查询键、factory cache key 全部升级到 `projectKey + runtimeEnv + serviceType`
+  - Object Service 四个路由已增加 `env_mismatch` 拒绝逻辑，请求体与 objectKey 里的环境都必须与认证环境一致
+  - `prisma/schema.prisma` 已将 `project_service_bindings` 升级为 `runtime_env` + 新唯一键
+  - `scripts/seed-projects.ts`、`.env.example`、本地 `.env`、E2E 脚本已升级为 dev / prd 双环境协议
+  - Vitest 全量 42 tests passed，增强版 E2E 59 assertions passed
 
 ## 进行中
-- 等待首次 git commit
-- 等待首批接入项目（InfoV / Laicai）真实 COS 凭据接入验证
+- Docker Compose 环境完善（含 Redis）
+- 为本轮 `runtime_env` 协议升级补正式 Prisma migration，替代手工增量 SQL
+- admin-platform 的 project manifest / per-env binding 控制面规划
+- InfoV 独立 prd 对象存储配置来源待补齐（当前只发现单一 COS bucket 配置）
 
 ## 接下来
-- 首次 git commit 提交所有代码
-- 首批项目（InfoV / Laicai）真实 COS 凭据接入验证
+- 优先补正式 Prisma migration，固化 `project_service_bindings.runtime_env` 升级路径
+- 推进 InfoV 独立 prd bucket / secret 配置进入真相源，再补一轮真实 dev/prd 分离验证
 - Docker Compose 环境完善（含 Redis）
-- Release Service 也切到项目协议层（如需按项目分发）
+- Worker 异步任务能力增强
 - admin-platform 集成（项目注册 / binding 管理 UI）
 
 ## 长期遗留 / 风险
@@ -75,9 +84,39 @@
 - TECH_STACK.md 中 Docker Compose 部分提到了 gateway，但当前 docker-compose.yml 未加入，待后续确认是否需要
 - Redis 尚未实际使用（无 Redis 相关运行时代码）
 - Docker Compose 中 PostgreSQL 镜像在本地网络环境下拉取慢，当前使用本地 PostgreSQL
-- Release Service 尚未切到项目协议层（当前不需要按项目路由不同存储）
+- Release Service 仅部分协议化；当前建议延后到真正引入外部分发资源配置时再接入项目协议层
 
 ## 日期日志
+### 2026-04-09 (深夜收尾 — Laicai prd 真实分桶验证 & Release 评估)
+- 从 `Laicai/backend/.env.dev.example`、`.env.prod.example` 与 `ENVIRONMENT_SWITCHING.md` 确认 Laicai dev / prd 应使用不同 COS bucket；prod 模板 bucket 为 `laicai-storage-1321178972`。
+- 将 `shared-runtime-services/.env` 中 `LAICAI_PRD_COS_BUCKET` 切到真实 prd 桶名，重新执行 `pnpm exec tsx scripts/seed-projects.ts` 成功。
+- 首次 E2E 58/59 失败，根因不是协议错误，而是运行中的 API 进程继续持有旧 `ObjectStorageAdapterFactory` cache；显式以 `PORT=3010 pnpm dev:api` 重启后，增强版 E2E 59/59 通过。
+- 当前验证结论：Laicai 已完成真实 dev / prd 分桶路由验证；InfoV 目前仅发现单一 `infov-storage-1321178972` 配置，尚未发现独立 prd bucket 配置来源。
+- Release Service 评估结论：当前只算“部分协议化”（`projectKey` 真相源已接入，`runtimeEnv` / binding 未接入）；现阶段建议延后到真正需要外部分发资源配置时再升级到完整项目协议层。
+
+### 2026-04-09 (深夜 — 多环境协议文档升级)
+- 用户确认共享运行时正式协议需从 `projectKey + serviceType` 升级为 `projectKey + runtimeEnv + serviceType`，以覆盖同一项目 dev / prd 不同 bucket 的真实生产形态。
+- 已完成 joya-ai-sys canonical 文档升级：`doc-template/steering/{AI_RULES_BASE,BACKEND_STRUCTURE,TECH_STACK,IMPLEMENTATION_PLAN}.md`、`skills/{delivery-execution,project-bootstrap,preview-release}/SKILL.md`、`shared_memories/经验教训登记册.md`。
+- 已完成 `shared-runtime-services` 项目合同升级：`steering/{PRD,TECH_STACK,BACKEND_STRUCTURE,IMPLEMENTATION_PLAN,PROJECT_RULES,SESSION_CONTEXT,LESSONS_LEARNED}.md` 已统一改为多环境 binding 协议。
+- 正式锁定：调用方只暴露 `projectKey + runtimeEnv`；鉴权真相源升级为 `token -> projectKey:runtimeEnv`；`ProjectServiceBinding` 正式唯一键升级为 `projectKey + runtimeEnv + serviceType`；请求体 `project` / `env` 仅作一致性校验。
+- 下一步进入 TDD 改造：schema、auth、resolver、factory、object routes、seed、`.env.example` 与 E2E。
+
+### 2026-04-09 (深夜后段 — 多环境协议实现与验证闭环)
+- 按 TDD 完成 auth / resolver / adapter factory / object routes 的多环境协议改造，并新增 route 级 runtimeEnv 一致性测试。
+- `SERVICE_TOKENS` 正式升级为 `token=projectKey:runtimeEnv` 形式；`AuthResult` 与 Fastify request 均携带 `runtimeEnv`。
+- `ProjectServiceBinding` 与 Prisma schema 升级为 `runtime_env` 列与 `projectKey + runtimeEnv + serviceType` 唯一键。
+- `scripts/seed-projects.ts` 升级为 infov / laicai 的 dev / prd 双环境 binding seed；`.env.example` 与本地 `.env` 已同步为 env-aware 协议示例。
+- 由于本地数据库已有旧数据，未使用 destructive reset，而是先增量补列、把旧 binding 安全回填为 `dev`，再切换唯一键，保证迁移过程非破坏。
+- 验证结果：`pnpm build` 通过、`pnpm typecheck` 通过、`pnpm test` 通过（42 tests）、增强版 `scripts/e2e-verify.sh` 通过（59 passed, 0 failed）。
+
+### 2026-04-09 (晚间 — 真实 COS 凭据接入验证闭环)
+- 修复 `tests/api-env-loader.test.mts` 测试隔离问题：`dotenv.config({ override: false })` 不会覆盖外部已注入的 `SERVICE_TOKENS`，导致断言失败。修复方式为在测试内部调用 `loadProjectEnv` 前先 `delete process.env.SERVICE_TOKENS`。
+- 更新 `scripts/e2e-verify.sh`：将 InfoV / Laicai bucket 断言改为读取 `EXPECTED_INFOV_BUCKET` / `EXPECTED_LAICAI_BUCKET` 环境变量，并保留对 placeholder dev bucket 的 fallback，避免把真实 bucket 写死进仓库。
+- 本地 `.env` 已补齐并校正首批项目真实 COS 配置输入；InfoV 命中 `infov-storage-1321178972`，Laicai 命中 `laicai-storage-dev-1321178972`。
+- 重新执行 `pnpm typecheck`、`pnpm test`、`pnpm exec tsx scripts/seed-projects.ts`，均通过。
+- 使用真实 COS 凭据执行 e2e 验证：InfoV / Laicai 两个项目都命中真实 bucket，51 个断言全部通过。
+- 真实 COS 凭据接入验证闭环完成。
+
 ### 2026-04-09 (下午 — 项目协议层落地)
 - 完成 Object Service 从全局 COS 单例到项目级 binding 解析 + adapter 工厂创建的完整迁移。
 - Prisma schema 新增 `ProjectManifest` 和 `ProjectServiceBinding` 两个 model，数据库同步完成。

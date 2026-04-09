@@ -28,7 +28,7 @@
 - 支持统一 objectKey 规范与 scope 校验
 - 支持记录对象的元数据和审计信息
 - Object Service 内部通过 provider adapter 对接具体对象存储供应商，上层 contract 不直接绑定 COS SDK
-- Object Service 通过项目协议层按 `projectKey` 解析项目级存储资源绑定，调用方不直接传 bucket / provider / region 等底层细节
+- Object Service 通过项目协议层按 `projectKey + runtimeEnv + serviceType` 解析项目级存储资源绑定，调用方只暴露项目/环境身份，不直接传 bucket / provider / region 等底层细节
 - Phase 1 默认生产 provider 为腾讯云 COS，但架构允许后续切换到其他对象存储供应商
 
 ### F2: Release Service
@@ -51,14 +51,15 @@
 - 控制面与运行时边界清晰，不把 admin-platform 当作运行时真相源
 
 ### F4: 项目协议层
-**用户故事：** 作为 shared-runtime-services，我想让接入项目通过统一项目协议声明自身身份和共享能力绑定，以便运行时根据 `projectKey` 自动解析正确的 provider 配置和资源，而不是在每个项目里散落 bucket、provider 与凭据细节。
+**用户故事：** 作为 shared-runtime-services，我想让接入项目通过统一项目协议声明自身身份、运行环境与共享能力绑定，以便运行时根据 `projectKey + runtimeEnv + serviceType` 自动解析正确的 provider 配置和资源，而不是在每个项目里散落 bucket、provider 与凭据细节。
 
 **验收标准：**
-- 支持以 `projectKey` 为项目身份真相源
+- 支持以认证结果中的 `projectKey + runtimeEnv` 作为项目/环境身份真相源
 - 支持通过 `ProjectManifest` 记录项目注册状态
-- 支持通过 `ProjectServiceBinding` 记录某项目某共享能力的 provider 与资源绑定
-- 运行时根据 `projectKey + serviceType` 解析 binding，并创建对应 adapter 实例
-- 未注册项目或未绑定目标共享能力时返回明确协议错误，而不是静默回退为全局单例配置
+- 支持通过 `ProjectServiceBinding` 记录某项目某运行环境某共享能力的 provider 与资源绑定
+- 运行时根据 `projectKey + runtimeEnv + serviceType` 解析 binding，并创建对应 adapter 实例
+- 请求体中的 `project` / `env` 只做一致性校验，不作为最终资源路由真相源
+- 未注册项目、未绑定目标共享能力或环境不匹配时返回明确协议错误，而不是静默回退为全局单例配置
 
 ## MVP 明确排除的功能
 - 完整的 AI Service Layer

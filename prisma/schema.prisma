@@ -91,12 +91,13 @@ model ProjectManifest {
 model ProjectServiceBinding {
   id          String   @id @default(cuid())
   projectKey  String   @map("project_key")
+  runtimeEnv  String   @map("runtime_env")
   serviceType String   @map("service_type")
   provider    String
   config      String
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  @@unique([projectKey, serviceType])
+  @@unique([projectKey, runtimeEnv, serviceType])
   @@map("project_service_bindings")
 }

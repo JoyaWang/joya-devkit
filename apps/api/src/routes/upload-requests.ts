@@ -44,23 +44,9 @@ export async function registerUploadRequestsRoute(
     "/v1/objects/upload-requests",
     async (request: FastifyRequest, reply: FastifyReply) => {
       const projectKey = request.projectKey;
-      if (!projectKey) {
+      const runtimeEnv = request.runtimeEnv;
+      if (!projectKey || !runtimeEnv) {
         return reply.status(401).send({ error: "unauthorized" });
-      }
-
-      // Resolve project binding
-      let adapter;
-      try {
-        const ctx = await deps.resolver.resolve(projectKey, "object_storage");
-        adapter = deps.factory.getOrCreate(ctx.binding);
-      } catch (err) {
-        if (err instanceof ProjectContextError) {
-          return reply.status(err.statusCode).send({
-            error: err.code,
-            message: err.message,
-          });
-        }
-        throw err;
       }
 
       const body = request.body as Partial<UploadRequestBody>;
@@ -87,16 +73,38 @@ export async function registerUploadRequestsRoute(
         });
       }
 
+      if (body.env! !== runtimeEnv) {
+        return reply.status(403).send({
+          error: "env_mismatch",
+          message: `body.env "${body.env}" does not match authenticated runtimeEnv "${runtimeEnv}"`,
+        });
+      }
+
+      // Resolve project binding
+      let adapter;
+      try {
+        const ctx = await deps.resolver.resolve(projectKey, runtimeEnv, "object_storage");
+        adapter = deps.factory.getOrCreate(ctx.binding);
+      } catch (err) {
+        if (err instanceof ProjectContextError) {
+          return reply.status(err.statusCode).send({
+            error: err.code,
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+
       // Scope validation
       const scopeResult = validateScope(body.scope!, body.domain!);
       if (!scopeResult.valid) {
         return reply.status(400).send({ error: scopeResult.error });
       }
 
-      // Generate objectKey using token's projectKey as the source of truth
+      // Generate objectKey using token's projectKey + runtimeEnv as the source of truth
       const objectKeyInput: NormalizeObjectKeyInput = {
         project: projectKey,
-        env: body.env!,
+        env: runtimeEnv,
         domain: body.domain!,
         scope: body.scope!,
         entityId: body.entityId!,
@@ -118,7 +126,7 @@ export async function registerUploadRequestsRoute(
       await prisma.object.create({
         data: {
           projectKey,
-          env: body.env!,
+          env: runtimeEnv,
           domain: body.domain!,
           scope: body.scope!,
           entityId: body.entityId!,

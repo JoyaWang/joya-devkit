@@ -47,6 +47,7 @@
 - [x] 建立 ObjectStorageAdapter 抽象与 provider 配置基线
 - [x] 建立 Prisma schema 与 migration 机制
 - [x] 编写 Docker Compose 基础编排
+- [ ] 完成生产部署硬化（clean Docker build、Prisma generate、Nginx 反代、GitHub `prd` environment）
 
 ### 验收标准
 - [x] Docker Compose 可一键启动基础环境（本地使用本地 PostgreSQL）
@@ -99,35 +100,37 @@
 - [x] iOS 可返回 TestFlight 链接
 - [x] GitHub Release 不再承担正式二进制分发
 
-## Phase 3.5: 项目资源绑定协议实现
+## Phase 3.5: 多环境项目资源绑定协议实现
 ### 目标
-建立以 `projectKey` 为入口的项目协议层，让共享运行时服务能够按项目解析 provider 配置与资源绑定，替代当前全局单例 adapter 模式。
+建立以 `projectKey + runtimeEnv + serviceType` 为入口的项目协议层，让共享运行时服务能够按项目与运行环境解析 provider 配置与资源绑定，替代当前全局单例 adapter 模式。
 
 ### 任务清单
-- [ ] 新增 `project_manifests` / `project_service_bindings` 数据模型
-- [ ] 建立 `ProjectManifest` / `ProjectServiceBinding` 类型与解析器
-- [ ] 建立 `ObjectStorageAdapterFactory`
-- [ ] 将 `CosObjectStorageAdapter` 重构为显式配置驱动
-- [ ] 将 Object Service 四个路由从模块级 adapter 单例重构为按项目解析 binding + 工厂创建
-- [ ] 为 `infov` / `laicai` 准备首批项目 binding 数据
-- [ ] 补齐单元测试、路由测试和 E2E 验证
+- [x] 为 `project_service_bindings` 新增 `runtime_env` 字段并升级唯一键
+- [x] 建立 `ProjectManifest` / `ProjectServiceBinding` 类型与解析器
+- [x] 将鉴权真相源升级为 `token -> projectKey + runtimeEnv`
+- [x] 建立 `ObjectStorageAdapterFactory`
+- [x] 将 `CosObjectStorageAdapter` 保持显式配置驱动，并让 factory 按项目+环境 binding 创建实例
+- [x] 将 Object Service 四个路由从模块级 adapter 单例重构为按项目+环境解析 binding + 工厂创建
+- [x] 为 `infov` / `laicai` 准备 dev / prd 首批项目 binding 数据
+- [x] 补齐单元测试、路由测试和 E2E 验证
 
 ### 验收标准
-- [ ] 不同 `projectKey` 请求可路由到不同对象存储资源
-- [ ] 未注册项目或未绑定对象存储能力时返回明确协议错误
-- [ ] Object Service route 文件不再直接 `new CosObjectStorageAdapter()`
-- [ ] 全部 build / typecheck / test / E2E 通过
+- [x] 不同 `projectKey` / `runtimeEnv` 请求可路由到不同对象存储资源
+- [x] 请求体中的 `project` / `env` 只做一致性校验，最终路由真相源来自认证结果
+- [x] 未注册项目、未绑定对象存储能力或环境不匹配时返回明确协议错误
+- [x] Object Service route 文件不再直接 `new CosObjectStorageAdapter()`
+- [x] 全部 build / typecheck / test / E2E 通过
 
 ## Phase 4: 首批项目接入
 ### 目标
 让共享服务真正跑在现有项目上，而不只是文档和空 API。
 
 ### 任务清单
-- [ ] 为 InfoV 注册 `ProjectManifest` 与首批共享能力 binding
-- [ ] InfoV Object Service 协议接入验证
+- [ ] 为 InfoV 注册 `ProjectManifest` 与 dev / prd 首批共享能力 binding
+- [ ] InfoV Object Service dev / prd 协议接入验证
 - [ ] InfoV 发布链路接入 Release Service
-- [ ] 为 Laicai 注册 `ProjectManifest` 与首批共享能力 binding
-- [ ] Laicai Object Service 协议接入验证
+- [ ] 为 Laicai 注册 `ProjectManifest` 与 dev / prd 首批共享能力 binding
+- [ ] Laicai Object Service dev / prd 协议接入验证
 - [ ] Laicai 发布链路接入 Release Service
 - [ ] 对比迁移前后的重复逻辑与维护成本
 - [ ] 更新接入项目的 `TECH_STACK.md` / `BACKEND_STRUCTURE.md` / `IMPLEMENTATION_PLAN.md`

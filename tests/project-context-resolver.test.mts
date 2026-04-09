@@ -11,7 +11,7 @@ import {
 
 function buildFakeDb(overrides: {
   manifest?: Record<string, { projectKey: string; displayName: string; status: string; createdAt: Date; updatedAt: Date }>;
-  binding?: Record<string, { projectKey: string; serviceType: string; provider: string; config: string; createdAt: Date; updatedAt: Date }>;
+  binding?: Record<string, { projectKey: string; runtimeEnv: string; serviceType: string; provider: string; config: string; createdAt: Date; updatedAt: Date }>;
 }): ProjectDatabaseClient {
   return {
     projectManifest: {
@@ -21,8 +21,8 @@ function buildFakeDb(overrides: {
       },
     },
     projectServiceBinding: {
-      findUnique: async ({ where: { projectKey_serviceType: { projectKey, serviceType } } }) => {
-        const key = `${projectKey}:${serviceType}`;
+      findUnique: async ({ where: { projectKey_runtimeEnv_serviceType: { projectKey, runtimeEnv, serviceType } } }) => {
+        const key = `${projectKey}:${runtimeEnv}:${serviceType}`;
         const row = overrides.binding?.[key];
         return row ?? null;
       },
@@ -40,11 +40,12 @@ describe("ProjectContextResolver", () => {
           infov: { projectKey: "infov", displayName: "InfoV", status: "active", createdAt: now, updatedAt: now },
         },
         binding: {
-          "infov:object_storage": {
+          "infov:dev:object_storage": {
             projectKey: "infov",
+            runtimeEnv: "dev",
             serviceType: "object_storage",
             provider: "cos",
-            config: JSON.stringify({ bucket: "infov-bucket", region: "ap-guangzhou", secretId: "id", secretKey: "key" }),
+            config: JSON.stringify({ bucket: "infov-dev-bucket", region: "ap-guangzhou", secretId: "id", secretKey: "key" }),
             createdAt: now,
             updatedAt: now,
           },
@@ -52,12 +53,13 @@ describe("ProjectContextResolver", () => {
       });
 
       const resolver = new ProjectContextResolver(db);
-      const ctx = await resolver.resolve("infov", "object_storage");
+      const ctx = await resolver.resolve("infov", "dev", "object_storage");
 
       expect(ctx.manifest.projectKey).toBe("infov");
       expect(ctx.manifest.status).toBe("active");
+      expect(ctx.binding.runtimeEnv).toBe("dev");
       expect(ctx.binding.provider).toBe("cos");
-      expect(ctx.binding.config).toContain("infov-bucket");
+      expect(ctx.binding.config).toContain("infov-dev-bucket");
     });
   });
 
@@ -67,7 +69,7 @@ describe("ProjectContextResolver", () => {
       const resolver = new ProjectContextResolver(db);
 
       try {
-        await resolver.resolve("unknown", "object_storage");
+        await resolver.resolve("unknown", "dev", "object_storage");
         expect.unreachable("should have thrown");
       } catch (err) {
         expect(err).toBeInstanceOf(ProjectContextError);
@@ -88,7 +90,7 @@ describe("ProjectContextResolver", () => {
       const resolver = new ProjectContextResolver(db);
 
       try {
-        await resolver.resolve("suspended", "object_storage");
+        await resolver.resolve("suspended", "dev", "object_storage");
         expect.unreachable("should have thrown");
       } catch (err) {
         expect(err).toBeInstanceOf(ProjectContextError);
@@ -108,13 +110,14 @@ describe("ProjectContextResolver", () => {
       const resolver = new ProjectContextResolver(db);
 
       try {
-        await resolver.resolve("infov", "object_storage");
+        await resolver.resolve("infov", "prd", "object_storage");
         expect.unreachable("should have thrown");
       } catch (err) {
         expect(err).toBeInstanceOf(ProjectContextError);
         const e = err as ProjectContextError;
         expect(e.code).toBe("service_binding_missing");
         expect(e.statusCode).toBe(422);
+        expect(e.runtimeEnv).toBe("prd");
         expect(e.serviceType).toBe("object_storage");
       }
     });
@@ -128,19 +131,30 @@ describe("ProjectContextResolver", () => {
           laicai: { projectKey: "laicai", displayName: "Laicai", status: "active", createdAt: now, updatedAt: now },
         },
         binding: {
-          "infov:object_storage": {
+          "infov:dev:object_storage": {
             projectKey: "infov",
+            runtimeEnv: "dev",
             serviceType: "object_storage",
             provider: "cos",
-            config: JSON.stringify({ bucket: "infov-bucket", region: "ap-guangzhou", secretId: "id1", secretKey: "key1" }),
+            config: JSON.stringify({ bucket: "infov-dev-bucket", region: "ap-guangzhou", secretId: "id1", secretKey: "key1" }),
             createdAt: now,
             updatedAt: now,
           },
-          "laicai:object_storage": {
-            projectKey: "laicai",
+          "infov:prd:object_storage": {
+            projectKey: "infov",
+            runtimeEnv: "prd",
             serviceType: "object_storage",
             provider: "cos",
-            config: JSON.stringify({ bucket: "laicai-bucket", region: "ap-shanghai", secretId: "id2", secretKey: "key2" }),
+            config: JSON.stringify({ bucket: "infov-prd-bucket", region: "ap-guangzhou", secretId: "id3", secretKey: "key3" }),
+            createdAt: now,
+            updatedAt: now,
+          },
+          "laicai:dev:object_storage": {
+            projectKey: "laicai",
+            runtimeEnv: "dev",
+            serviceType: "object_storage",
+            provider: "cos",
+            config: JSON.stringify({ bucket: "laicai-dev-bucket", region: "ap-shanghai", secretId: "id2", secretKey: "key2" }),
             createdAt: now,
             updatedAt: now,
           },
@@ -148,11 +162,13 @@ describe("ProjectContextResolver", () => {
       });
 
       const resolver = new ProjectContextResolver(db);
-      const infovCtx = await resolver.resolve("infov", "object_storage");
-      const laicaiCtx = await resolver.resolve("laicai", "object_storage");
+      const infovDevCtx = await resolver.resolve("infov", "dev", "object_storage");
+      const infovPrdCtx = await resolver.resolve("infov", "prd", "object_storage");
+      const laicaiDevCtx = await resolver.resolve("laicai", "dev", "object_storage");
 
-      expect(infovCtx.binding.config).toContain("infov-bucket");
-      expect(laicaiCtx.binding.config).toContain("laicai-bucket");
+      expect(infovDevCtx.binding.config).toContain("infov-dev-bucket");
+      expect(infovPrdCtx.binding.config).toContain("infov-prd-bucket");
+      expect(laicaiDevCtx.binding.config).toContain("laicai-dev-bucket");
     });
   });
 });

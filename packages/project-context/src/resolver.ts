@@ -18,7 +18,7 @@ export interface ProjectDatabaseClient {
     findUnique(args: { where: { projectKey: string } }): Promise<ProjectManifestRow | null>;
   };
   projectServiceBinding: {
-    findUnique(args: { where: { projectKey_serviceType: { projectKey: string; serviceType: string } } }): Promise<ProjectServiceBindingRow | null>;
+    findUnique(args: { where: { projectKey_runtimeEnv_serviceType: { projectKey: string; runtimeEnv: string; serviceType: string } } }): Promise<ProjectServiceBindingRow | null>;
   };
 }
 
@@ -32,6 +32,7 @@ export interface ProjectManifestRow {
 
 export interface ProjectServiceBindingRow {
   projectKey: string;
+  runtimeEnv: string;
   serviceType: string;
   provider: string;
   config: string;
@@ -52,6 +53,7 @@ function rowToManifest(row: ProjectManifestRow): ProjectManifest {
 function rowToBinding(row: ProjectServiceBindingRow): ProjectServiceBinding {
   return {
     projectKey: row.projectKey,
+    runtimeEnv: row.runtimeEnv,
     serviceType: row.serviceType,
     provider: row.provider,
     config: row.config,
@@ -68,14 +70,14 @@ export class ProjectContextResolver {
   }
 
   /**
-   * Resolve a projectKey + serviceType to a full project context.
+   * Resolve a projectKey + runtimeEnv + serviceType to a full project context.
    *
    * Throws ProjectContextError on resolution failures:
    * - project_not_registered (422): no manifest found
    * - project_inactive (403): manifest status is not "active"
-   * - service_binding_missing (422): no binding for the service type
+   * - service_binding_missing (422): no binding for the runtime environment + service type
    */
-  async resolve(projectKey: string, serviceType: string): Promise<ResolvedProjectContext> {
+  async resolve(projectKey: string, runtimeEnv: string, serviceType: string): Promise<ResolvedProjectContext> {
     const manifestRow = await this.db.projectManifest.findUnique({
       where: { projectKey },
     });
@@ -90,12 +92,12 @@ export class ProjectContextResolver {
 
     const bindingRow = await this.db.projectServiceBinding.findUnique({
       where: {
-        projectKey_serviceType: { projectKey, serviceType },
+        projectKey_runtimeEnv_serviceType: { projectKey, runtimeEnv, serviceType },
       },
     });
 
     if (!bindingRow) {
-      throw serviceBindingMissing(projectKey, serviceType);
+      throw serviceBindingMissing(projectKey, runtimeEnv, serviceType);
     }
 
     return {

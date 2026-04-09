@@ -3,7 +3,7 @@
  *
  * Extracts Bearer token from Authorization header,
  * validates via EnvTokenValidator, and attaches
- * projectKey to the request.
+ * projectKey + runtimeEnv to the request.
  */
 
 import type { FastifyRequest, FastifyReply } from "fastify";
@@ -14,6 +14,7 @@ const validator = new EnvTokenValidator();
 declare module "fastify" {
   interface FastifyRequest {
     projectKey?: string;
+    runtimeEnv?: string;
   }
 }
 
@@ -41,4 +42,5 @@ export async function authPreHandler(
   }
 
   request.projectKey = result.projectKey;
+  request.runtimeEnv = result.runtimeEnv;
 }

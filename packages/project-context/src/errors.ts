@@ -13,6 +13,7 @@ export class ProjectContextError extends Error {
   readonly code: ProjectContextErrorCode;
   readonly statusCode: number;
   readonly projectKey: string;
+  readonly runtimeEnv?: string;
   readonly serviceType?: string;
 
   constructor(params: {
@@ -20,6 +21,7 @@ export class ProjectContextError extends Error {
     message: string;
     statusCode: number;
     projectKey: string;
+    runtimeEnv?: string;
     serviceType?: string;
   }) {
     super(params.message);
@@ -27,6 +29,7 @@ export class ProjectContextError extends Error {
     this.code = params.code;
     this.statusCode = params.statusCode;
     this.projectKey = params.projectKey;
+    this.runtimeEnv = params.runtimeEnv;
     this.serviceType = params.serviceType;
   }
 }
@@ -60,13 +63,15 @@ export function projectInactive(projectKey: string): ProjectContextError {
  */
 export function serviceBindingMissing(
   projectKey: string,
+  runtimeEnv: string,
   serviceType: string,
 ): ProjectContextError {
   return new ProjectContextError({
     code: "service_binding_missing",
-    message: `Project "${projectKey}" has no binding for service "${serviceType}"`,
+    message: `Project "${projectKey}" has no binding for runtimeEnv "${runtimeEnv}" and service "${serviceType}"`,
     statusCode: 422,
     projectKey,
+    runtimeEnv,
     serviceType,
   });
 }

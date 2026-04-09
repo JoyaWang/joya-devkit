@@ -5,13 +5,15 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
+    env_file:
+      - ../.env
     ports:
-      - "3000:3000"
+      - "3010:3010"
     environment:
       NODE_ENV: production
-      PORT: 3000
-      DATABASE_URL: postgres://srs:srs@postgres:5432/srs
-      REDIS_URL: redis://redis:6379
+      PORT: 3010
+      DATABASE_URL: ${DATABASE_URL:-postgres://srs:srs@postgres:5432/srs}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy
@@ -23,10 +25,12 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile.worker
+    env_file:
+      - ../.env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://srs:srs@postgres:5432/srs
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL:-postgres://srs:srs@postgres:5432/srs}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,8 +40,6 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_USER: srs
       POSTGRES_PASSWORD: srs
@@ -52,8 +54,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:

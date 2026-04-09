@@ -2,8 +2,8 @@
  * ObjectStorageAdapterFactory -- creates ObjectStorageAdapter instances
  * from project-level service bindings.
  *
- * The factory caches adapters by (projectKey, serviceType) so that the same
- * provider instance is reused across requests for the same project.
+ * The factory caches adapters by (projectKey, runtimeEnv, serviceType) so that the same
+ * provider instance is reused across requests for the same project environment.
  */
 
 import type { ObjectStorageAdapter } from "./adapter.js";
@@ -17,10 +17,10 @@ export class ObjectStorageAdapterFactory {
   /**
    * Get or create an ObjectStorageAdapter for the given binding.
    *
-   * The adapter is cached by `${projectKey}:${serviceType}`.
+   * The adapter is cached by `${projectKey}:${runtimeEnv}:${serviceType}`.
    */
   getOrCreate(binding: ProjectServiceBinding): ObjectStorageAdapter {
-    const cacheKey = `${binding.projectKey}:${binding.serviceType}`;
+    const cacheKey = `${binding.projectKey}:${binding.runtimeEnv}:${binding.serviceType}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
       return cached;
@@ -34,8 +34,8 @@ export class ObjectStorageAdapterFactory {
   /**
    * Clear a specific cached adapter (useful when binding config changes).
    */
-  invalidate(projectKey: string, serviceType: string): void {
-    this.cache.delete(`${projectKey}:${serviceType}`);
+  invalidate(projectKey: string, runtimeEnv: string, serviceType: string): void {
+    this.cache.delete(`${projectKey}:${runtimeEnv}:${serviceType}`);
   }
 
   /**
