@@ -64,3 +64,15 @@
 - **根因**：真正的问题不是 resolver 或 binding 查询错了，而是运行中的 API 进程已经通过 `ObjectStorageAdapterFactory` 缓存了旧 adapter；数据库 binding 更新不会自动让进程内 cache 失效
 - **解法**：确认 seed 成功后，重启 API 进程并重新执行 E2E；重启后 `laicai/prd` 立即命中真实 prd bucket，59/59 断言通过
 - **规则**：以后共享运行时只要采用进程内 adapter/cache 复用，任何 binding/provider 配置变更验证前都必须显式刷新进程或提供 cache invalidation 机制，不能默认认为“改库后运行中实例会自动拿到新配置”
+
+### 2026-04-10: Worker 型容器必须显式保持事件循环活跃
+- **问题**：生产服务器上 `infra-worker-1` 持续 `Restarting (0)`，日志只重复打印 `started, waiting for tasks...`，看起来像“已启动”但实际上容器一直在重启
+- **根因**：worker 入口只有启动日志和信号处理器，没有任何长生命周期任务；Node 进程因此以 `exit=0` 立即退出，Docker 依据 restart policy 不断重启容器
+- **解法**：先用 `tests/worker-lifecycle.test.mts` 把“启动后至少存活 2 秒”和“收到 SIGTERM 优雅退出”两个行为写成失败测试，再在 `apps/worker/src/index.ts` 中增加最小 keep-alive `setInterval`，并在 shutdown 时清理它
+- **规则**：以后任何 Worker / Daemon / Queue consumer 型入口都必须有生命周期测试，且实现上要么接入真实消费循环，要么显式保持事件循环活跃；只打印 `started` 日志不代表容器能持续运行
+
+### 2026-04-10: 用 `git archive HEAD` 部署时，未提交热修复不会进入服务器
+- **问题**：本地已经修好 worker 快速退出问题，但服务器重建后仍继续跑旧代码，导致误以为热修复无效
+- **根因**：部署同步使用的是 `git archive HEAD | ssh tar`，它只会导出已提交树；本地未提交的 `apps/worker/src/index.ts` 与新增测试文件不会被带到远端
+- **解法**：先确认 `git status` 中确实存在未提交热修复，再显式用 `scp` 同步工作区文件到服务器后重建；之后 worker 立即稳定 `Up`
+- **规则**：以后凡是采用归档同步或基于提交树的部署方式，必须先确认目标修复已提交；如果还处于未提交热修复阶段，就必须显式同步工作区文件并在部署后核对远端源码/镜像内容

@@ -63,7 +63,12 @@
   - Object Service 四个路由已增加 `env_mismatch` 拒绝逻辑，请求体与 objectKey 里的环境都必须与认证环境一致
   - `prisma/schema.prisma` 已将 `project_service_bindings` 升级为 `runtime_env` + 新唯一键
   - `scripts/seed-projects.ts`、`.env.example`、本地 `.env`、E2E 脚本已升级为 dev / prd 双环境协议
-  - Vitest 全量 42 tests passed，增强版 E2E 59 assertions passed
+  - Vitest 全量 79 tests passed，增强版 E2E 59 assertions passed
+- 生产部署闭环已完成：
+  - 服务器 `124.222.37.77` 上的 `infra-api-1` 与 `infra-worker-1` 均稳定运行
+  - Nginx 已新增 `srs.infinex.cn -> 127.0.0.1:3010` 反代
+  - 现有 Let’s Encrypt 证书已扩展到 `srs.infinex.cn`
+  - `https://srs.infinex.cn/health` 已验证返回 `{"status":"ok"}`
 
 ## 进行中
 - Docker Compose 环境完善（含 Redis）
@@ -87,6 +92,16 @@
 - Release Service 仅部分协议化；当前建议延后到真正引入外部分发资源配置时再接入项目协议层
 
 ## 日期日志
+### 2026-04-10 (凌晨 — 生产部署闭环完成)
+- 远端生产重建后，`infra-api-1` 已恢复健康，但 `infra-worker-1` 持续 `Restarting (0)`；进一步检查 `docker inspect` 发现 worker 以 `exit=0` 快速退出，不是 crash，而是进程启动后没有保持事件循环活跃。
+- 按 TDD 新增 `tests/worker-lifecycle.test.mts`，先让“worker 启动 2 秒内不应退出 / SIGTERM 应优雅退出”失败，再对 `apps/worker/src/index.ts` 做最小热修复：增加 keep-alive `setInterval`，并在 shutdown 时 `clearInterval`。
+- 新增验证结果：`pnpm test -- tests/worker-lifecycle.test.mts` 通过、`pnpm typecheck` 通过；worker 生命周期行为被锁定。
+- 部署阶段踩到一个真实交付坑：`git archive HEAD` 只会同步已提交内容，未提交的 worker 热修复不会进服务器；因此本轮改为显式 `scp` 同步工作区中的 `apps/worker/src/index.ts` 与测试文件，再重建 worker。
+- 远端最终状态：`infra-api-1` 与 `infra-worker-1` 均稳定 `Up`，`curl http://127.0.0.1:3010/health` 返回 `{"status":"ok"}`。
+- 入口层闭环：已在服务器新增 `/etc/nginx/sites-available/srs.infinex.cn`，将 `srs.infinex.cn -> 127.0.0.1:3010` 反代到 SRS；随后通过 `certbot --nginx --expand --cert-name infinex.cn ... -d srs.infinex.cn` 将新域名加入现有证书。
+- 线上验证结果：`curl -fsS -H 'Host: srs.infinex.cn' http://124.222.37.77/health` 返回 `{"status":"ok"}`，`curl -fsS https://srs.infinex.cn/health` 也返回 `{"status":"ok"}`，说明 Docker / Compose / Nginx / TLS / Cloudflare 全链路已闭环。
+- 当前注意事项：worker keep-alive 热修复和对应测试仍处于本地未提交状态，但服务器已运行这版代码；下次若继续用归档同步，必须先提交或显式同步工作区文件。
+
 ### 2026-04-09 (深夜收尾 — Laicai prd 真实分桶验证 & Release 评估)
 - 从 `Laicai/backend/.env.dev.example`、`.env.prod.example` 与 `ENVIRONMENT_SWITCHING.md` 确认 Laicai dev / prd 应使用不同 COS bucket；prod 模板 bucket 为 `laicai-storage-1321178972`。
 - 将 `shared-runtime-services/.env` 中 `LAICAI_PRD_COS_BUCKET` 切到真实 prd 桶名，重新执行 `pnpm exec tsx scripts/seed-projects.ts` 成功。

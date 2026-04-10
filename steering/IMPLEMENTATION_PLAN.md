@@ -47,7 +47,7 @@
 - [x] 建立 ObjectStorageAdapter 抽象与 provider 配置基线
 - [x] 建立 Prisma schema 与 migration 机制
 - [x] 编写 Docker Compose 基础编排
-- [ ] 完成生产部署硬化（clean Docker build、Prisma generate、Nginx 反代、GitHub `prd` environment）
+- [x] 完成生产部署硬化（clean Docker build、Prisma generate、Nginx 反代、GitHub `prd` environment）
 
 ### 验收标准
 - [x] Docker Compose 可一键启动基础环境（本地使用本地 PostgreSQL）

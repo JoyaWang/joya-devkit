@@ -14,10 +14,10 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 `shared-runtime-services` 是新的共享运行时服务项目，面向 InfoV、Laicai 与后续活跃项目，统一承载 Object Service 与 Release Service 等跨项目重复能力；`admin-platform` 只作为控制面，不再承载共享运行时真相源。
 
 ## Current Slice
-- Phase: `生产构建与部署硬化`
-- Status: `projectKey + runtimeEnv + serviceType` 协议层与本地联调已闭环；当前阻塞已切到生产交付路径，重点是 clean build、Docker、Compose、GitHub environment 与服务器反代闭环
-- Active slice: 先修复 API / worker 的生产 Docker build 与 Compose 配置，再创建 GitHub `prd` environment，并将服务经现有 Nginx 反代到 `srs.infinex.cn`
-- Why this slice now: 用户目标已经从本地协议验证推进到正式上线；如果生产构建链路不先收口，后续 push / environment / deploy 都会建立在不稳定基础上
+- Phase: `生产部署闭环已完成，进入发布收尾`
+- Status: `projectKey + runtimeEnv + serviceType` 协议层、本地联调、生产 Docker/Compose、Nginx 反代、TLS 证书与线上健康检查均已闭环；当前需要做的是回填文档、整理热修复经验，并决定是否将未提交的 worker 热修复与测试正式提交到仓库
+- Active slice: 回填 `SESSION_CONTEXT.md` / `progress.md` / `LESSONS_LEARNED.md`，保留最新生产状态，并把下一默认动作切到“提交当前热修复或继续推进项目接入”
+- Why this slice now: 运行层和入口层都已验证通过，继续保留旧的“部署中”上下文会让后续会话误判当前阻塞
 
 ## Locked Decisions
 - 新建独立项目 `shared-runtime-services`
@@ -40,7 +40,7 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - 鉴权真相源已从 `SERVICE_TOKENS: token -> projectKey` 升级为 `token -> projectKey:runtimeEnv`
 - 请求体中的 `project` / `env` 只做一致性校验，不作为最终资源路由真相源
 - Scope 校验：白名单机制，objectKey 格式不变
-- 测试框架：Vitest（42 单元测试）+ E2E 脚本（59 断言）
+- 测试框架：Vitest（79 测试）+ E2E 脚本（59 断言）
 - Release 默认 rolloutStatus=draft，通过 PATCH 推进
 - Release Service 当前仅部分协议化；在真正引入按环境外部分发资源配置之前，暂不强制接入完整项目协议层
 - DELETE /v1/objects 使用软删除
@@ -50,18 +50,17 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - 关键写操作默认写审计日志
 
 ## Next Default Action
-1. 用 TDD 先补生产构建 contract tests（Dockerfile / Compose / .dockerignore），锁定 clean build 要求
-2. 修复 API / worker Dockerfile：补齐 workspace manifests、Prisma generate、运行时依赖复制
-3. 修复生产 Compose：API 改走 3010，Postgres / Redis 不暴露公网端口，适配现有 Nginx 反代
-4. 完成本地构建验证后，创建 GitHub `prd` environment 并写入生产变量
-5. 在服务器部署并验证 `https://srs.infinex.cn/health`
+1. 如果用户要求把当前线上状态固化到仓库，先提交 `apps/worker/src/index.ts`、`tests/worker-lifecycle.test.mts` 与本轮文档回填
+2. 继续推进 Phase 4：补齐 InfoV / Laicai 的接入收口与控制面规划
+3. 若要继续做生产运维完善，优先处理 `infra/docker-compose.yml` 里的 `version` 过时告警与下载域名 `dl*.infinex.cn` 的正式落地
 
 ## Blockers / Watchouts
 - Docker Compose 中 PostgreSQL 镜像在本地网络环境下拉取很慢（本地开发可直接用本地 PostgreSQL）
-- docker-compose.yml 当前不含 gateway
+- docker-compose.yml 当前不含 gateway，且仍有 `version` 过时告警
 - Redis 尚未实际使用
 - InfoV 当前仅发现单一 COS bucket 配置，独立 prd bucket / secret 来源尚未确认；因此 InfoV 的真实 dev / prd 分离验证还不能算完成
 - ObjectStorageAdapterFactory 目前按进程内 cache 复用 adapter，binding 变更后需要重启或显式失效缓存才能让运行中进程看到新配置
+- 当前服务器已运行包含 worker keep-alive 热修复的代码，但这些变更尚未提交到仓库；后续若再次使用 `git archive HEAD` 同步，必须先提交或显式同步工作区文件
 
 ## Key Files
 - `steering/PRD.md`
@@ -88,8 +87,8 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - `packages/project-context/src/errors.ts` — 项目协议层错误类型
 - `packages/project-context/src/resolver.ts` — ProjectContextResolver
 - `scripts/seed-projects.ts` — 首批项目 seed 数据
-- `scripts/e2e-verify.sh` — 端到端 API 验证脚本（51 断言）
-- `tests/` — Vitest 单元测试（35 测试）
+- `scripts/e2e-verify.sh` — 端到端 API 验证脚本（59 断言）
+- `tests/` — Vitest 单元与契约测试（79 测试）
 - `vitest.config.mts` — Vitest 配置
 - `progress.md`
 
