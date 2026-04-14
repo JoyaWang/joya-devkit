@@ -8,25 +8,28 @@ datasource db {
 }
 
 model Object {
-  id           String    @id @default(cuid())
-  projectKey   String    @map("project_key")
-  env          String
-  domain       String
-  scope        String
-  entityId     String    @map("entity_id")
-  fileKind     String    @map("file_kind")
-  objectKey    String    @unique @map("object_key")
-  fileName     String    @map("file_name")
-  contentType  String    @map("content_type")
-  size         Int
-  checksum     String?
-  visibility   String    @default("private")
-  uploaderType String    @map("uploader_type")
-  uploaderId   String    @map("uploader_id")
-  status       String    @default("pending_upload")
-  purpose      String?
-  createdAt    DateTime  @default(now()) @map("created_at")
-  deletedAt    DateTime? @map("deleted_at")
+  id              String                  @id @default(cuid())
+  projectKey      String                  @map("project_key")
+  env             String
+  domain          String
+  scope           String
+  entityId        String                  @map("entity_id")
+  fileKind        String                  @map("file_kind")
+  objectKey       String                  @unique @map("object_key")
+  fileName        String                  @map("file_name")
+  contentType     String                  @map("content_type")
+  size            Int
+  checksum        String?
+  visibility      String                  @default("private")
+  objectProfile   String?                 @map("object_profile")
+  accessClass     String?                 @map("access_class")
+  uploaderType    String                  @map("uploader_type")
+  uploaderId      String                  @map("uploader_id")
+  status          String                  @default("pending_upload")
+  purpose         String?
+  createdAt       DateTime                @default(now()) @map("created_at")
+  deletedAt       DateTime?               @map("deleted_at")
+  storageLocations ObjectStorageLocation[]
 
   @@map("objects")
 }
@@ -89,15 +92,55 @@ model ProjectManifest {
 }
 
 model ProjectServiceBinding {
-  id          String   @id @default(cuid())
-  projectKey  String   @map("project_key")
-  runtimeEnv  String   @map("runtime_env")
-  serviceType String   @map("service_type")
-  provider    String
-  config      String
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id               String                @id @default(cuid())
+  projectKey       String                @map("project_key")
+  runtimeEnv       String                @map("runtime_env")
+  serviceType      String                @map("service_type")
+  provider         String
+  config           String
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  sourceMigrations StorageMigrationJob[] @relation("SourceBindingMigrations")
+  targetMigrations StorageMigrationJob[] @relation("TargetBindingMigrations")
+  storageLocations ObjectStorageLocation[]
 
   @@unique([projectKey, runtimeEnv, serviceType])
   @@map("project_service_bindings")
+}
+
+model ObjectStorageLocation {
+  id                 String                @id @default(cuid())
+  objectId           String                @map("object_id")
+  bindingId          String                @map("binding_id")
+  provider           String
+  locationRole       String                @map("location_role")
+  status             String                @default("active")
+  checksumVerifiedAt DateTime?             @map("checksum_verified_at")
+  lastHeadAt         DateTime?             @map("last_head_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  object             Object                @relation(fields: [objectId], references: [id])
+  binding            ProjectServiceBinding @relation(fields: [bindingId], references: [id])
+
+  @@index([objectId, locationRole])
+  @@map("object_storage_locations")
+}
+
+model StorageMigrationJob {
+  id              String                @id @default(cuid())
+  projectKey      String                @map("project_key")
+  runtimeEnv      String                @map("runtime_env")
+  serviceType     String                @map("service_type")
+  sourceBindingId String                @map("source_binding_id")
+  targetBindingId String                @map("target_binding_id")
+  selector        String?
+  status          String                @default("pending")
+  detail          String?
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  sourceBinding   ProjectServiceBinding @relation("SourceBindingMigrations", fields: [sourceBindingId], references: [id])
+  targetBinding   ProjectServiceBinding @relation("TargetBindingMigrations", fields: [targetBindingId], references: [id])
+
+  @@index([projectKey, runtimeEnv, serviceType, status])
+  @@map("storage_migration_jobs")
 }

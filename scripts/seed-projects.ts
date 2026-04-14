@@ -8,6 +8,7 @@
 import "dotenv/config";
 import { PrismaClient } from "../apps/api/src/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { resolveObjectStorageSeedConfig } from "./seed-projects-config.js";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
@@ -21,6 +22,7 @@ async function upsertObjectStorageBinding(params: {
   region: string;
   secretId: string;
   secretKey: string;
+  downloadDomain?: string;
 }) {
   const binding = await prisma.projectServiceBinding.upsert({
     where: {
@@ -37,6 +39,7 @@ async function upsertObjectStorageBinding(params: {
         region: params.region,
         secretId: params.secretId,
         secretKey: params.secretKey,
+        downloadDomain: params.downloadDomain,
       }),
     },
     create: {
@@ -49,6 +52,7 @@ async function upsertObjectStorageBinding(params: {
         region: params.region,
         secretId: params.secretId,
         secretKey: params.secretKey,
+        downloadDomain: params.downloadDomain,
       }),
     },
   });
@@ -80,41 +84,28 @@ async function main() {
   console.log("Upserted manifest:", unbound.projectKey);
 
   // Seed object_storage bindings by project + runtimeEnv
-  await upsertObjectStorageBinding({
-    projectKey: "infov",
-    runtimeEnv: "dev",
-    bucket: process.env.INFOV_DEV_COS_BUCKET ?? process.env.INFOV_COS_BUCKET ?? "infov-dev-bucket-1250000000",
-    region: process.env.INFOV_DEV_COS_REGION ?? process.env.INFOV_COS_REGION ?? "ap-guangzhou",
-    secretId: process.env.INFOV_DEV_COS_SECRET_ID ?? process.env.INFOV_COS_SECRET_ID ?? "placeholder-secret-id",
-    secretKey: process.env.INFOV_DEV_COS_SECRET_KEY ?? process.env.INFOV_COS_SECRET_KEY ?? "placeholder-secret-key",
-  });
+  for (const target of [
+    { projectKey: "infov", runtimeEnv: "dev" },
+    { projectKey: "infov", runtimeEnv: "prd" },
+    { projectKey: "laicai", runtimeEnv: "dev" },
+    { projectKey: "laicai", runtimeEnv: "prd" },
+  ] as const) {
+    const config = resolveObjectStorageSeedConfig({
+      projectKey: target.projectKey,
+      runtimeEnv: target.runtimeEnv,
+      env: process.env,
+    });
 
-  await upsertObjectStorageBinding({
-    projectKey: "infov",
-    runtimeEnv: "prd",
-    bucket: process.env.INFOV_PRD_COS_BUCKET ?? process.env.INFOV_COS_BUCKET ?? "infov-prd-bucket-1250000000",
-    region: process.env.INFOV_PRD_COS_REGION ?? process.env.INFOV_COS_REGION ?? "ap-guangzhou",
-    secretId: process.env.INFOV_PRD_COS_SECRET_ID ?? process.env.INFOV_COS_SECRET_ID ?? "placeholder-secret-id",
-    secretKey: process.env.INFOV_PRD_COS_SECRET_KEY ?? process.env.INFOV_COS_SECRET_KEY ?? "placeholder-secret-key",
-  });
-
-  await upsertObjectStorageBinding({
-    projectKey: "laicai",
-    runtimeEnv: "dev",
-    bucket: process.env.LAICAI_DEV_COS_BUCKET ?? process.env.LAICAI_COS_BUCKET ?? "laicai-dev-bucket-1250000000",
-    region: process.env.LAICAI_DEV_COS_REGION ?? process.env.LAICAI_COS_REGION ?? "ap-shanghai",
-    secretId: process.env.LAICAI_DEV_COS_SECRET_ID ?? process.env.LAICAI_COS_SECRET_ID ?? "placeholder-secret-id",
-    secretKey: process.env.LAICAI_DEV_COS_SECRET_KEY ?? process.env.LAICAI_COS_SECRET_KEY ?? "placeholder-secret-key",
-  });
-
-  await upsertObjectStorageBinding({
-    projectKey: "laicai",
-    runtimeEnv: "prd",
-    bucket: process.env.LAICAI_PRD_COS_BUCKET ?? process.env.LAICAI_COS_BUCKET ?? "laicai-prd-bucket-1250000000",
-    region: process.env.LAICAI_PRD_COS_REGION ?? process.env.LAICAI_COS_REGION ?? "ap-shanghai",
-    secretId: process.env.LAICAI_PRD_COS_SECRET_ID ?? process.env.LAICAI_COS_SECRET_ID ?? "placeholder-secret-id",
-    secretKey: process.env.LAICAI_PRD_COS_SECRET_KEY ?? process.env.LAICAI_COS_SECRET_KEY ?? "placeholder-secret-key",
-  });
+    await upsertObjectStorageBinding({
+      projectKey: target.projectKey,
+      runtimeEnv: target.runtimeEnv,
+      bucket: config.bucket,
+      region: config.region,
+      secretId: config.secretId,
+      secretKey: config.secretKey,
+      downloadDomain: config.downloadDomain,
+    });
+  }
 
   console.log("\nSeed complete.");
   await prisma.$disconnect();

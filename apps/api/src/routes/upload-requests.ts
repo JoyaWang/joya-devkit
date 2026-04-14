@@ -10,6 +10,7 @@ import type { NormalizeObjectKeyInput } from "@srs/object-service";
 import type { ProjectContextResolver } from "@srs/project-context";
 import { ProjectContextError } from "@srs/project-context";
 import type { ObjectStorageAdapterFactory } from "@srs/object-service";
+import { deriveDefaultPolicy } from "@srs/delivery-policy";
 import { getPrisma } from "../db.js";
 
 interface UploadRequestBody {
@@ -121,6 +122,15 @@ export async function registerUploadRequestsRoute(
         checksum: body.checksum,
       });
 
+      // Derive default object policy
+      const policy = deriveDefaultPolicy({
+        domain: body.domain!,
+        scope: body.scope!,
+        fileKind: body.fileKind!,
+        fileName: body.fileName!,
+        contentType: body.contentType!,
+      });
+
       // Write to database
       const prisma = getPrisma();
       await prisma.object.create({
@@ -137,6 +147,8 @@ export async function registerUploadRequestsRoute(
           size: body.size!,
           checksum: body.checksum ?? null,
           visibility: "private",
+          objectProfile: policy.objectProfile,
+          accessClass: policy.accessClass,
           uploaderType: "service_token",
           uploaderId: projectKey,
           status: "pending_upload",

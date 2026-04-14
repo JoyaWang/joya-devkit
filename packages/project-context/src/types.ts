@@ -25,6 +25,7 @@ export interface ProjectManifest {
 
 /** Provider-neutral representation of a project-service binding. */
 export interface ProjectServiceBinding {
+  id: string;
   projectKey: string;
   runtimeEnv: string;
   serviceType: ServiceType;
@@ -41,6 +42,7 @@ export interface CosProviderConfig {
   secretId: string;
   secretKey: string;
   signExpiresSeconds?: number;
+  downloadDomain?: string;
 }
 
 /** Minio-specific provider config (stored as JSON in binding.config). */

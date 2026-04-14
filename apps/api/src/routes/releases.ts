@@ -8,6 +8,7 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { DeliveryPolicyResolver } from "@srs/delivery-policy";
 import { getPrisma } from "../db.js";
 
 // --- Create Release ---
@@ -30,6 +31,14 @@ const VALID_PLATFORMS = ["ios", "android", "desktop"];
 const VALID_ENVS = ["dev", "staging", "prod"];
 
 export async function registerReleasesRoutes(app: FastifyInstance): Promise<void> {
+  // Initialize delivery policy resolver
+  const resolver = new DeliveryPolicyResolver({
+    publicStableDomains: {
+      dev: "https://dl-dev.infinex.cn",
+      staging: "https://dl-dev.infinex.cn",
+      prod: "https://dl.infinex.cn",
+    },
+  });
   // POST /v1/releases
   app.post(
     "/v1/releases",
@@ -67,26 +76,30 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
 
       const prisma = getPrisma();
 
-      // Auto-generate distributionUrl if not provided
+      // Auto-generate distributionUrl using delivery policy resolver
       let distributionUrl = body.distributionUrl;
       if (!distributionUrl && body.artifactObjectKey) {
-        const env = body.env!;
-        let baseUrl: string;
-        switch (env) {
-          case "dev":
-            baseUrl = "https://dl-dev.infinex.cn";
-            break;
-          case "staging":
-            baseUrl = "https://dl-dev.infinex.cn";
-            break;
-          case "prod":
-            baseUrl = "https://dl.infinex.cn";
-            break;
-          default:
-            baseUrl = "";
-        }
-        if (baseUrl) {
-          distributionUrl = `${baseUrl}/${body.artifactObjectKey}`;
+        // Look up object metadata for accessClass truth source
+        const objectRecord = await prisma.object.findUnique({
+          where: { objectKey: body.artifactObjectKey },
+        });
+
+        // Determine accessClass: use object's accessClass if found, fallback to conservative public-stable
+        const accessClass = objectRecord?.accessClass || "public-stable";
+        const objectProfile = objectRecord?.objectProfile || "release_artifact";
+
+        const result = resolver.resolve({
+          env: body.env!,
+          accessClass,
+          objectKey: body.artifactObjectKey,
+          objectProfile,
+        });
+
+        if (result.type === "public_url" && result.url) {
+          distributionUrl = result.url;
+        } else {
+          // If resolver rejects (e.g., not public-stable), leave empty
+          distributionUrl = "";
         }
       }
       if (!distributionUrl) {

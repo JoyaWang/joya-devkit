@@ -72,6 +72,7 @@ export class ObjectStorageAdapterFactory {
       secretId: parsed.secretId,
       secretKey: parsed.secretKey,
       signExpiresSeconds: parsed.signExpiresSeconds,
+      downloadDomain: parsed.downloadDomain,
     };
   }
 }

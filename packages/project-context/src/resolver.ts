@@ -31,6 +31,7 @@ export interface ProjectManifestRow {
 }
 
 export interface ProjectServiceBindingRow {
+  id: string;
   projectKey: string;
   runtimeEnv: string;
   serviceType: string;
@@ -52,6 +53,7 @@ function rowToManifest(row: ProjectManifestRow): ProjectManifest {
 
 function rowToBinding(row: ProjectServiceBindingRow): ProjectServiceBinding {
   return {
+    id: row.id,
     projectKey: row.projectKey,
     runtimeEnv: row.runtimeEnv,
     serviceType: row.serviceType,

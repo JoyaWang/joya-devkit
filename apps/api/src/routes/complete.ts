@@ -56,8 +56,10 @@ export async function registerCompleteRoute(
 
       // Resolve project binding
       let adapter;
+      let binding;
       try {
         const ctx = await deps.resolver.resolve(projectKey, runtimeEnv, "object_storage");
+        binding = ctx.binding;
         adapter = deps.factory.getOrCreate(ctx.binding);
       } catch (err) {
         if (err instanceof ProjectContextError) {
@@ -109,6 +111,43 @@ export async function registerCompleteRoute(
         where: { objectKey: body.objectKey },
         data: updateData,
       });
+
+      await prisma.objectStorageLocation.create({
+        data: {
+          objectId: objectRecord.id,
+          bindingId: binding.id,
+          provider: binding.provider,
+          locationRole: "primary",
+          status: "active",
+        },
+      });
+
+      const activeDualWriteJob = await prisma.storageMigrationJob.findFirst({
+        where: {
+          projectKey,
+          runtimeEnv,
+          serviceType: "object_storage",
+          status: "dual_write",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (activeDualWriteJob && activeDualWriteJob.targetBindingId !== binding.id) {
+        await prisma.objectStorageLocation.createMany({
+          data: [
+            {
+              objectId: objectRecord.id,
+              bindingId: activeDualWriteJob.targetBindingId,
+              provider: binding.provider,
+              locationRole: "replica",
+              status: "pending_backfill",
+            },
+          ],
+          skipDuplicates: true,
+        });
+      }
 
       // Write audit log
       await prisma.auditLog.create({
