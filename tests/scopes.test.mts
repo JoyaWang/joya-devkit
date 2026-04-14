@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { validateScope, validateObjectKeyFormat } from "@srs/object-service";
+import { validateScope, validateObjectKeyFormat, sanitizeKeySegment } from "@srs/object-service";
 
 describe("validateScope", () => {
   it("accepts valid scope+domain combinations", () => {
@@ -63,5 +63,24 @@ describe("validateObjectKeyFormat", () => {
     );
     expect(result.valid).toBe(false);
     expect(result.error).toContain("2 digits");
+  });
+});
+
+describe("sanitizeKeySegment", () => {
+  it("replaces + with dash (version numbers)", () => {
+    expect(sanitizeKeySegment("1.0.2+7")).toBe("1.0.2_7");
+  });
+
+  it("replaces spaces with dash", () => {
+    expect(sanitizeKeySegment("my file name")).toBe("my_file_name");
+  });
+
+  it("leaves safe characters untouched", () => {
+    expect(sanitizeKeySegment("android")).toBe("android");
+    expect(sanitizeKeySegment("release-1.0.2")).toBe("release-1.0.2");
+  });
+
+  it("replaces multiple unsafe characters", () => {
+    expect(sanitizeKeySegment("a+b#c")).toBe("a_b_c");
   });
 });

@@ -20,6 +20,21 @@ export interface ScopeValidationResult {
 }
 
 /**
+ * Sanitize a single objectKey path segment so it is URL-safe for
+ * COS / S3 signing.  Characters that would require percent-encoding
+ * (and therefore break signature round-trips) are replaced with `-`.
+ *
+ * We deliberately keep the set small and targeted — only characters
+ * known to cause signature mismatches — so that segments remain
+ * human-readable.
+ */
+const UNSAFE_SEGMENT_RE = /[+/\\?#{}\[\]<>|^~`"\s]/g;
+
+export function sanitizeKeySegment(segment: string): string {
+  return segment.replace(UNSAFE_SEGMENT_RE, "_");
+}
+
+/**
  * Validate a scope against the allowed scope registry.
  * Checks that scope is known and domain is permitted within that scope.
  */

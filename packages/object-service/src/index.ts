@@ -22,5 +22,5 @@ export { CosObjectStorageAdapter } from './cos-adapter.js';
 export type { CosProviderConfig, CosObjectStorageAdapterOptions } from './cos-adapter.js';
 export { MinioObjectStorageAdapter } from './minio-adapter.js';
 export { ObjectStorageAdapterFactory } from './adapter-factory.js';
-export { validateScope, validateObjectKeyFormat } from './scopes.js';
+export { validateScope, validateObjectKeyFormat, sanitizeKeySegment } from './scopes.js';
 export type { ScopeValidationResult } from './scopes.js';

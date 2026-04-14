@@ -5,6 +5,7 @@
  * Real MinIO SDK integration will be wired when local dev environment is set up.
  */
 
+import { sanitizeKeySegment } from './scopes.js';
 import type {
   ObjectStorageAdapter,
   UploadRequestInput,
@@ -41,7 +42,7 @@ export class MinioObjectStorageAdapter implements ObjectStorageAdapter {
     const yyyy = now.getFullYear().toString();
     const mm = (now.getMonth() + 1).toString().padStart(2, '0');
     const uuid = crypto.randomUUID();
-    const objectKey = `${input.project}/${input.env}/${input.domain}/${input.scope}/${input.entityId}/${input.fileKind}/${yyyy}/${mm}/${uuid}-${input.fileName}`;
+    const objectKey = `${sanitizeKeySegment(input.project)}/${sanitizeKeySegment(input.env)}/${sanitizeKeySegment(input.domain)}/${sanitizeKeySegment(input.scope)}/${sanitizeKeySegment(input.entityId)}/${sanitizeKeySegment(input.fileKind)}/${yyyy}/${mm}/${uuid}-${sanitizeKeySegment(input.fileName)}`;
     return { objectKey };
   }
 }

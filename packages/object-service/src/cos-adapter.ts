@@ -18,6 +18,7 @@
  */
 
 import COS from "cos-nodejs-sdk-v5";
+import { sanitizeKeySegment } from "./scopes.js";
 import type {
   ObjectStorageAdapter,
   UploadRequestInput,
@@ -51,6 +52,7 @@ export interface CosProviderConfig {
   secretId: string;
   secretKey: string;
   signExpiresSeconds?: number;
+  downloadDomain?: string;
 }
 
 export interface CosObjectStorageAdapterOptions {
@@ -66,6 +68,7 @@ export class CosObjectStorageAdapter implements ObjectStorageAdapter {
   private readonly signExpiresSeconds: number;
   private readonly secretId?: string;
   private readonly secretKey?: string;
+  private readonly downloadDomain?: string;
   private readonly injectedClient?: CosLikeClient;
 
   constructor(options?: CosObjectStorageAdapterOptions) {
@@ -76,6 +79,7 @@ export class CosObjectStorageAdapter implements ObjectStorageAdapter {
       this.secretId = options.config.secretId;
       this.secretKey = options.config.secretKey;
       this.signExpiresSeconds = options.config.signExpiresSeconds ?? 900;
+      this.downloadDomain = this.normalizeDownloadDomain(options.config.downloadDomain);
     } else {
       // Legacy env-var fallback (not the formal long-term architecture)
       this.bucket = process.env.COS_BUCKET ?? "placeholder-bucket";
@@ -83,6 +87,7 @@ export class CosObjectStorageAdapter implements ObjectStorageAdapter {
       this.signExpiresSeconds = this.parseSignExpiresSeconds(process.env.COS_SIGN_EXPIRES_SECONDS);
       this.secretId = process.env.COS_SECRET_ID;
       this.secretKey = process.env.COS_SECRET_KEY;
+      this.downloadDomain = this.normalizeDownloadDomain(process.env.COS_DOWNLOAD_DOMAIN);
     }
     this.injectedClient = options?.client;
   }
@@ -144,6 +149,8 @@ export class CosObjectStorageAdapter implements ObjectStorageAdapter {
       Sign: true,
       Expires: this.signExpiresSeconds,
       Method: "GET",
+      Domain: this.downloadDomain,
+      ForceSignHost: this.downloadDomain ? false : undefined,
     });
 
     return {
@@ -225,7 +232,7 @@ export class CosObjectStorageAdapter implements ObjectStorageAdapter {
     const yyyy = now.getFullYear().toString();
     const mm = (now.getMonth() + 1).toString().padStart(2, "0");
     const uuid = crypto.randomUUID();
-    const objectKey = `${input.project}/${input.env}/${input.domain}/${input.scope}/${input.entityId}/${input.fileKind}/${yyyy}/${mm}/${uuid}-${input.fileName}`;
+    const objectKey = `${sanitizeKeySegment(input.project)}/${sanitizeKeySegment(input.env)}/${sanitizeKeySegment(input.domain)}/${sanitizeKeySegment(input.scope)}/${sanitizeKeySegment(input.entityId)}/${sanitizeKeySegment(input.fileKind)}/${yyyy}/${mm}/${uuid}-${sanitizeKeySegment(input.fileName)}`;
     return { objectKey };
   }
 
@@ -256,6 +263,32 @@ export class CosObjectStorageAdapter implements ObjectStorageAdapter {
       return 900;
     }
     return Math.floor(value);
+  }
+
+  private normalizeDownloadDomain(raw: string | undefined): string | undefined {
+    if (!raw) {
+      return undefined;
+    }
+
+    const normalized = raw.trim().replace(/\/+$/, "");
+    if (!normalized) {
+      return undefined;
+    }
+
+    if (this.isSharedDeliveryHost(normalized)) {
+      throw new Error("COS provider downloadDomain must not use shared delivery hosts");
+    }
+
+    return normalized;
+  }
+
+  private isSharedDeliveryHost(value: string): boolean {
+    try {
+      const url = new URL(value);
+      return url.hostname === "dl-dev.infinex.cn" || url.hostname === "dl.infinex.cn";
+    } catch {
+      return value === "dl-dev.infinex.cn" || value === "dl.infinex.cn";
+    }
   }
 
   private computeExpiresAt(): string {
