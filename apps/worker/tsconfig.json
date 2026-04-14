@@ -2,7 +2,13 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": ".",
+    "baseUrl": "../..",
+    "paths": {
+      "@srs/object-service": ["packages/object-service/dist/index.d.ts"],
+      "@srs/project-context": ["packages/project-context/dist/index.d.ts"],
+      "@srs/shared-kernel": ["packages/shared-kernel/dist/index.d.ts"]
+    }
   },
   "include": ["src"]
 }

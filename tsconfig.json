@@ -8,8 +8,10 @@
       "@srs/object-service": ["packages/object-service/src/index.ts"],
       "@srs/auth": ["packages/auth/src/index.ts"],
       "@srs/release-service": ["packages/release-service/src/index.ts"],
-      "@srs/shared-kernel": ["packages/shared-kernel/src/index.ts"]
+      "@srs/shared-kernel": ["packages/shared-kernel/src/index.ts"],
+      "@srs/project-context": ["packages/project-context/src/index.ts"],
+      "@srs/delivery-policy": ["packages/delivery-policy/src/index.ts"]
     }
   },
-  "include": ["tests", "vitest.config.mts"]
+  "include": ["apps", "packages", "tests", "vitest.config.mts"]
 }

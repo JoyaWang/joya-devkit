@@ -14,6 +14,7 @@
     "@prisma/client": "^7.7.0",
     "@prisma/adapter-pg": "^7.7.0",
     "@srs/auth": "workspace:*",
+    "@srs/delivery-policy": "workspace:*",
     "@srs/object-service": "workspace:*",
     "@srs/project-context": "workspace:*",
     "@srs/shared-kernel": "workspace:*",

@@ -42,6 +42,9 @@ importers:
       '@srs/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@srs/delivery-policy':
+        specifier: workspace:*
+        version: link:../../packages/delivery-policy
       '@srs/object-service':
         specifier: workspace:*
         version: link:../../packages/object-service
@@ -92,6 +95,15 @@ importers:
       '@srs/shared-kernel':
         specifier: workspace:*
         version: link:../shared-kernel
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.19.17
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
+  packages/delivery-policy:
     devDependencies:
       '@types/node':
         specifier: ^22.15.3

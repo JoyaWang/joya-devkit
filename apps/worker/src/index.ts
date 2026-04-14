@@ -1,23 +1,31 @@
 /**
  * Worker entry point.
  *
- * Phase 1: minimal skeleton that starts, logs readiness, and keeps running.
- * Future: async task processing, audit compensation, scheduled jobs.
+ * Current phase: starts the process, loads runtime dependencies,
+ * and runs the pending backfill verification loop on an interval.
  */
 
-let keepAliveTimer: ReturnType<typeof setInterval>;
+import { createWorkerRuntime } from "./bootstrap.js";
 
-const shutdown = (signal: string) => {
+let runtime: Awaited<ReturnType<typeof createWorkerRuntime>> | null = null;
+
+const shutdown = async (signal: string) => {
   console.log(`[worker] received ${signal}, shutting down`);
-  clearInterval(keepAliveTimer);
+  runtime?.backfillLoop.stop();
+  await runtime?.prisma.$disconnect();
   process.exit(0);
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
+});
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
+});
 
-// Keep the event loop alive so the container does not restart in a loop.
-// Replaced with a real task queue / job scheduler in a future phase.
-keepAliveTimer = setInterval(() => {}, 60_000);
+const start = async () => {
+  runtime = await createWorkerRuntime();
+  console.log("[worker] started, backfill verification loop running...");
+};
 
-console.log('[worker] started, waiting for tasks...');
+void start();

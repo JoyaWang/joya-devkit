@@ -8,6 +8,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 # Copy all workspace package manifests that api depends on
 COPY apps/api/package.json ./apps/api/package.json
 COPY packages/auth/package.json ./packages/auth/package.json
+COPY packages/delivery-policy/package.json ./packages/delivery-policy/package.json
 COPY packages/object-service/package.json ./packages/object-service/package.json
 COPY packages/project-context/package.json ./packages/project-context/package.json
 COPY packages/release-service/package.json ./packages/release-service/package.json
@@ -24,6 +25,7 @@ RUN DATABASE_URL=postgres://placeholder:placeholder@localhost:5432/placeholder p
 
 # Build workspace packages in dependency order
 RUN pnpm --filter @srs/shared-kernel run build
+RUN pnpm --filter @srs/delivery-policy run build
 RUN pnpm --filter @srs/project-context run build
 RUN pnpm --filter @srs/auth run build
 RUN pnpm --filter @srs/object-service run build
