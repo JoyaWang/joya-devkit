@@ -76,3 +76,15 @@
 - **根因**：部署同步使用的是 `git archive HEAD | ssh tar`，它只会导出已提交树；本地未提交的 `apps/worker/src/index.ts` 与新增测试文件不会被带到远端
 - **解法**：先确认 `git status` 中确实存在未提交热修复，再显式用 `scp` 同步工作区文件到服务器后重建；之后 worker 立即稳定 `Up`
 - **规则**：以后凡是采用归档同步或基于提交树的部署方式，必须先确认目标修复已提交；如果还处于未提交热修复阶段，就必须显式同步工作区文件并在部署后核对远端源码/镜像内容
+
+### 2026-04-10: 腾讯 CDN 的 directory 回源规则不要写尾斜杠
+- **问题**：为 `dl-dev.infinex.cn` / `dl.infinex.cn` 配置 shared prefix 回源时，`Origin.PathBasedOrigin` 多次返回格式错误，导致共享入口迟迟不能切流
+- **根因**：腾讯 CDN 的 `RuleType=directory` 对 `RulePaths` 的真实格式要求比文档更严格；`/infov/`、`/laicai/` 这类尾斜杠写法会被判定为不合法或无法稳定生效
+- **解法**：最终使用不带尾斜杠的目录规则：`["/infov", "/laicai"]`
+- **规则**：以后腾讯 CDN 的 directory 级高级回源规则默认使用不带尾斜杠的目录前缀；命中异常时优先先检查 `RulePaths` 格式，而不是先怀疑后端服务
+
+### 2026-04-10: 腾讯 CDN 的域名 origin 方案未收口前，不要替代当前稳定 IP origin
+- **问题**：虽然腾讯 CDN 配置中可以把 shared prefix 的 `Origin` 写成 `srs.infinex.cn`，但公网实际访问 shared objectKey 时仍可能回落到旧 COS 默认源站，表现为 `Server: tencent-cos` 的 404
+- **根因**：当前“域名 origin -> Nginx bridge -> SRS”的公网行为并不稳定，说明 CDN 对该配置的真实回源行为还有未收口因素；问题不在 SRS route 或宿主机 Nginx 本身
+- **解法**：将共享前缀回退并固定为 `Origin=["124.222.37.77"]`，再通过宿主机 Nginx + `Tencent-Acceleration-Domain-Name` 头桥接到 SRS；回退后 shared prefix 公网稳定恢复 302
+- **规则**：在域名 origin 的根因未明确之前，`dl-dev` / `dl` 的生产 shared prefix 回源以 `124.222.37.77` 为当前稳定方案；禁止把 `Origin=["srs.infinex.cn"]` 当作已完成、可直接替代的生产结论

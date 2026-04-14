@@ -40,13 +40,15 @@
 ## 已锁定的关键决策
 
 - 新建独立项目 `shared-runtime-services`
-- 第一阶段采用 **Docker Compose** 部署
+- 本项目是**共享运行时平台**，不是单一 storage 服务仓库
+- 第一阶段采用 **Docker Compose** 部署，并作为后续多个 shared service 的统一编排入口
 - 运行时主技术栈采用 **Node.js + TypeScript + Fastify + PostgreSQL + Redis**
 - 数据库访问层采用 **Prisma**
 - 对象存储采用 provider adapter 架构，COS 仅作为 Phase 1 默认生产 provider
 - `admin-platform` 只做控制面，不再承载共享运行时真相源
 - 正式发布二进制不上传 GitHub Release；GitHub Release 只保留 release notes 与外部分发链接
 - iOS 正式分发默认走 TestFlight；Android / 桌面安装包默认走 COS / Object Service
+- 后续每个共享能力可按需要拆为独立容器或独立 runtime module，对外提供服务，但整体仍通过统一 compose 部署
 - Supabase 即使后续保留，也只允许停留在控制面辅助层，不进入共享运行时主内核
 
 ## 下一步

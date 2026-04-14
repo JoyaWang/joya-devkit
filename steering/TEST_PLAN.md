@@ -11,8 +11,8 @@
 
 | 模块 | 说明 |
 |------|------|
-| Object Service | 上传签名、下载签名、完成登记、删除、scope 校验、provider adapter contract、多环境 binding 路由 |
-| Release Service | release 创建、最新版本查询、rollout / force update 更新 |
+| Object Service | 上传签名、下载签名、完成登记、删除、scope 校验、provider adapter contract、多环境 binding 路由、物理落点真相源写入、候选读位置解析 |
+| Release Service | release 创建、最新版本查询、rollout / force update 更新、distributionUrl 策略化生成 |
 | 鉴权 | project service token 校验、`runtimeEnv` 解析与一致性约束 |
 | 基础设施 | api / worker / postgres / redis / docker-compose 基础可用性 |
 
@@ -28,10 +28,10 @@
 
 | 测试层级 | 是否启用 | 工具 | 说明 |
 |----------|---------|------|------|
-| 单元测试 | ✅ | 待定（Vitest / Jest） | 模块级 contract 与规则校验 |
-| 集成测试 | ✅ | 待定 | API + DB + Redis + COS adapter |
-| E2E 测试 | ✅ | 待定 | 以 HTTP API 为主 |
-| 回归测试 | ✅ | 待定 | Object / Release 核心流程 |
+| 单元测试 | ✅ | Vitest | 模块级 contract 与规则校验；命令：`pnpm test`（即 `vitest run`） |
+| 集成测试 | ✅ | Vitest | API + DB + adapter |
+| E2E 测试 | ✅ | `scripts/e2e-verify.sh` | 以 HTTP API 为主，59 断言 |
+| 回归测试 | ✅ | Vitest | Object / Release 核心流程 |
 | 冒烟测试 | ✅ | curl / script | healthcheck 与基本路由 |
 | 兼容性测试 | ❌ | - | Phase 1 暂不优先 |
 | 性能测试 | ❌ | - | Phase 1 暂不优先 |
@@ -40,6 +40,25 @@
 ### 自动化目标
 - P0 核心路径自动化率：80%+
 - 回归测试自动化率：70%+
+
+### 常用测试命令
+
+```bash
+# 全部测试
+pnpm test
+
+# 监听模式（开发时）
+pnpm test:watch
+
+# 类型检查（全部子包）
+pnpm typecheck
+
+# E2E 验证脚本
+bash scripts/e2e-verify.sh
+
+# 单个测试文件
+pnpm exec vitest run tests/seed-projects-config.test.mts
+```
 
 ## 3. 测试环境
 
@@ -58,9 +77,17 @@
 ### 环境配置
 
 ```bash
-# 预期最小运行命令（待项目初始化后补齐）
+# Docker Compose 启动（本地 PostgreSQL）
 docker compose up -d
-npm test
+
+# 运行测试
+pnpm test
+
+# 类型检查
+pnpm typecheck
+
+# E2E 验证
+bash scripts/e2e-verify.sh
 ```
 
 ## 4. 业务流程清单
@@ -74,7 +101,13 @@ npm test
 | O-01c | body.env / runtimeEnv 不一致拒绝 | P0 | 1 |
 | O-01d | 同项目不同环境命中不同 bucket | P0 | 1 |
 | O-02 | 上传完成登记 | P0 | 1 |
+| O-02b | 对象策略元数据默认写入 | P0 | 1 |
+| O-02c | complete 后写入 primary storage location | P0 | 1 |
+| O-02d | dual-write 任务存在时 complete 补写 `pending_backfill` replica location | P0 | 1 |
+| O-02e | backfill runner 校验 `pending_backfill` replica location 并在 worker 启动后自动调度推进 | P0 | 1 |
 | O-03 | 申请下载签名 | P0 | 1 |
+| O-03b | 下载按 `primary -> replica/fallback -> resolver` 顺序命中候选位置 | P0 | 1 |
+| O-03c | 公共分发入口按 `primary -> replica/fallback -> resolver` 顺序命中候选位置 | P0 | 1 |
 | O-04 | 删除合法对象 | P1 | 2 |
 | O-05 | 拒绝非法 scope | P0 | 1 |
 
@@ -83,6 +116,8 @@ npm test
 | # | 流程 | 优先级 | 阶段 |
 |---|------|--------|------|
 | R-01 | 创建 release | P0 | 1 |
+| R-01b | `artifactObjectKey` 通过 delivery resolver 自动生成稳定公共 URL | P0 | 1 |
+| R-01c | 非 `public-stable` 对象拒绝生成公共分发 URL | P0 | 1 |
 | R-02 | 查询最新版本 | P0 | 1 |
 | R-03 | 更新 rollout / force update | P1 | 2 |
 | R-04 | 查询 release 列表 | P1 | 2 |

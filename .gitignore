@@ -31,3 +31,5 @@ data/
 storage/
 uploads/
 artifacts/
+
+test-reports/screenshots/

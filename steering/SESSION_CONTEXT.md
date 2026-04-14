@@ -7,89 +7,65 @@ It should stay short and answer:
 2. Which slice is active right now?
 3. What decisions are already locked?
 4. What should the agent do next by default?
+5. If long-running mode is enabled, where is the runtime companion state?
 
 Do not turn this file into a dated work log. Detailed history belongs in `progress.md`.
 
 ## Project Positioning
-`shared-runtime-services` 是新的共享运行时服务项目，面向 InfoV、Laicai 与后续活跃项目，统一承载 Object Service 与 Release Service 等跨项目重复能力；`admin-platform` 只作为控制面，不再承载共享运行时真相源。
+`shared-runtime-services` 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 及后续活跃项目，统一承载 Object Service、Release Service 与 Shared Delivery Plane。`admin-platform` 是控制面，不是 runtime 真相源。真相源围绕 `projectKey + runtimeEnv + serviceType`。
+
+## Current Mode
+- Mode: `autonomous`
+- Runtime companion: `.agent/runtime/execution-state.json`
 
 ## Current Slice
-- Phase: `生产部署闭环已完成，进入发布收尾`
-- Status: `projectKey + runtimeEnv + serviceType` 协议层、本地联调、生产 Docker/Compose、Nginx 反代、TLS 证书与线上健康检查均已闭环；当前需要做的是回填文档、整理热修复经验，并决定是否将未提交的 worker 热修复与测试正式提交到仓库
-- Active slice: 回填 `SESSION_CONTEXT.md` / `progress.md` / `LESSONS_LEARNED.md`，保留最新生产状态，并把下一默认动作切到“提交当前热修复或继续推进项目接入”
-- Why this slice now: 运行层和入口层都已验证通过，继续保留旧的“部署中”上下文会让后续会话误判当前阻塞
+- Phase: `compliance-baseline-and-runtime-stabilization`
+- Status: `completed` / `human_gate` — onboarding baseline 已完成，等待下一个 slice 方向选择
+- Active slice: `p4-onboarding-and-runtime-stabilization`（已收尾）
+- Latest checkpoint: `onboarding-2026-04-13T22-30-00+0800`（passed）
+- 已通过的验证：seed-config test (3/3)、root typecheck (passed)、full test suite (138/138)
 
 ## Locked Decisions
-- 新建独立项目 `shared-runtime-services`
-- 第一阶段采用 Docker Compose 起步（当前不含 gateway，待后续视需要加入）
-- 主栈采用 Node.js 20+ / TypeScript / Fastify / PostgreSQL / Redis
-- 包管理器：pnpm 10（已锁定）
-- 首期只做 Object Service 与 Release Service
-- 对象存储采用 provider adapter 架构，COS 仅作为 Phase 1 默认生产 provider
-- `ObjectStorageAdapter` 接口已定义并保持不变
-- `CosObjectStorageAdapter` 已重构为显式配置驱动（`CosProviderConfig`），保留 env fallback 和 client 注入
-- 项目协议层已实现：`ProjectManifest` / `ProjectServiceBinding` / `ProjectContextResolver` / `ObjectStorageAdapterFactory`
-- Prisma schema 已新增 `ProjectManifest` 和 `ProjectServiceBinding` 两个 model，且 `ProjectServiceBinding` 正式唯一键已升级为 `projectKey + runtimeEnv + serviceType`
-- 新增 `packages/project-context/` 包（types + errors + resolver）
-- 新增 `packages/object-service/src/adapter-factory.ts`
-- 4 个对象路由已从模块级单例重构为 resolver + factory 模式，并追加 runtimeEnv 一致性校验
-- 错误语义固定：project_not_registered(422) / project_inactive(403) / service_binding_missing(422) / env_mismatch(403)
-- 首批 seed 数据已覆盖 infov / laicai / unbound / ghost，且 infov / laicai 已具备 dev / prd 双环境 binding
-- Laicai 已确认并验证 dev / prd 使用不同真实 bucket；InfoV 当前仅确认单一 bucket 配置，独立 prd 配置来源待补
-- 多环境正式协议已锁定并实现为 `projectKey + runtimeEnv + serviceType`
-- 鉴权真相源已从 `SERVICE_TOKENS: token -> projectKey` 升级为 `token -> projectKey:runtimeEnv`
-- 请求体中的 `project` / `env` 只做一致性校验，不作为最终资源路由真相源
-- Scope 校验：白名单机制，objectKey 格式不变
-- 测试框架：Vitest（79 测试）+ E2E 脚本（59 断言）
-- Release 默认 rolloutStatus=draft，通过 PATCH 推进
-- Release Service 当前仅部分协议化；在真正引入按环境外部分发资源配置之前，暂不强制接入完整项目协议层
-- DELETE /v1/objects 使用软删除
-- GitHub Release 只做说明页和外部分发链接
-- `admin-platform` 是 Control Plane，不是 Runtime 真相源
-- 数据库访问层锁定 Prisma 7
-- 关键写操作默认写审计日志
+- shared-runtime-services 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
+- 当前核心范围是统一 Object Service / Release Service / Shared Delivery Plane；admin-platform 是控制面，不是 runtime 真相源。
+- 真相源围绕 projectKey + runtimeEnv + serviceType。
+- provider-neutral、delivery plane 与 provider plane 分层是长期核心原则。
+- Object Service 通过 ObjectStorageAdapter 抽象与 provider 解耦；CosObjectStorageAdapter 是 Phase 1 默认生产 provider。
+- 测试框架：Vitest；命令：pnpm test / pnpm test:watch；类型检查：pnpm typecheck。
+- 当前 `.agent/runtime/` 状态层已初始化，项目具备 long-running / autonomous mode 的最小恢复能力。
+- `dl-dev.infinex.cn` / `dl.infinex.cn` 的长期角色是环境级共享公共分发入口，不应继续作为单一项目 bucket 的长期别名。
 
 ## Next Default Action
-1. 如果用户要求把当前线上状态固化到仓库，先提交 `apps/worker/src/index.ts`、`tests/worker-lifecycle.test.mts` 与本轮文档回填
-2. 继续推进 Phase 4：补齐 InfoV / Laicai 的接入收口与控制面规划
-3. 若要继续做生产运维完善，优先处理 `infra/docker-compose.yml` 里的 `version` 过时告警与下载域名 `dl*.infinex.cn` 的正式落地
+当前 onboarding slice 已完成。下一步方向由 human gate 确认：
+1. **Provider migration**：推进 dual-write / backfill 执行层，或进入 Phase 5 首批项目接入准备。
+2. **Delivery stabilization**：继续 Release Service / Public Delivery Plane 的稳定性验证。
+3. 不要把 InfoV / Laicai 接入任务当作本项目当前 active slice；它们是本项目上线稳定后的下游消费方。
+4. 如需恢复上下文，先读 `.agent/runtime/execution-state.json` 确认当前状态，再读本文件的 Next Default Action。
 
 ## Blockers / Watchouts
-- Docker Compose 中 PostgreSQL 镜像在本地网络环境下拉取很慢（本地开发可直接用本地 PostgreSQL）
-- docker-compose.yml 当前不含 gateway，且仍有 `version` 过时告警
-- Redis 尚未实际使用
-- InfoV 当前仅发现单一 COS bucket 配置，独立 prd bucket / secret 来源尚未确认；因此 InfoV 的真实 dev / prd 分离验证还不能算完成
-- ObjectStorageAdapterFactory 目前按进程内 cache 复用 adapter，binding 变更后需要重启或显式失效缓存才能让运行中进程看到新配置
-- 当前服务器已运行包含 worker keep-alive 热修复的代码，但这些变更尚未提交到仓库；后续若再次使用 `git archive HEAD` 同步，必须先提交或显式同步工作区文件
+- 当前无 active blocker；onboarding baseline 已收口，autonomous mode 可正常恢复上下文。
+- 不要在 autonomous mode 下引入脱离本项目语境的外部任务（如直接把 Laicai 接入方案写成本项目的恢复入口）。
+- ObjectStorageAdapterFactory 当前按进程内 cache 复用 adapter；binding 变更后需要重启才能让运行中进程看到新配置。
+- 当前已落地 provider migration 骨架（dual-write metadata / read fallback / backfill runner），但尚未在真实生产环境验证。
 
 ## Key Files
 - `steering/PRD.md`
+- `steering/APP_FLOW.md`
 - `steering/TECH_STACK.md`
 - `steering/BACKEND_STRUCTURE.md`
 - `steering/IMPLEMENTATION_PLAN.md`
-- `prisma/schema.prisma` — 数据库 schema（含 ProjectManifest / ProjectServiceBinding）
-- `prisma.config.ts` — Prisma 7 配置
-- `apps/api/src/index.ts` — API 入口（创建 resolver / factory，传给 route）
-- `apps/api/src/auth.ts` — token 校验 middleware
-- `apps/api/src/db.ts` — Prisma client 初始化
-- `apps/api/src/routes/upload-requests.ts` — 上传签名路由（resolver + factory 驱动）
-- `apps/api/src/routes/download-requests.ts` — 下载签名路由（resolver + factory 驱动）
-- `apps/api/src/routes/complete.ts` — 上传完成登记路由（resolver + factory 驱动）
-- `apps/api/src/routes/objects-delete.ts` — 对象删除路由（resolver + factory 驱动）
-- `apps/api/src/routes/releases.ts` — Release Service 全部路由
-- `apps/api/src/routes/audit-logs.ts` — 审计日志查询路由
-- `packages/auth/src/index.ts` — EnvTokenValidator
-- `packages/object-service/src/adapter.ts` — provider-neutral contract
-- `packages/object-service/src/cos-adapter.ts` — COS adapter（显式配置驱动）
-- `packages/object-service/src/adapter-factory.ts` — adapter 工厂（按 binding 创建 + 缓存）
-- `packages/object-service/src/scopes.ts` — scope 白名单与 objectKey 校验
-- `packages/project-context/src/types.ts` — 项目协议层类型定义
-- `packages/project-context/src/errors.ts` — 项目协议层错误类型
-- `packages/project-context/src/resolver.ts` — ProjectContextResolver
-- `scripts/seed-projects.ts` — 首批项目 seed 数据
-- `scripts/e2e-verify.sh` — 端到端 API 验证脚本（59 断言）
-- `tests/` — Vitest 单元与契约测试（79 测试）
-- `vitest.config.mts` — Vitest 配置
+- `steering/LESSONS_LEARNED.md`
+- `steering/TEST_PLAN.md`
+- `steering/TEST_CASES.md`
+- `steering/PROJECT_RULES.md`
+- `prisma/schema.prisma`
+- `apps/api/src/index.ts`
+- `apps/worker/src/index.ts`
+- `packages/object-service/src/adapter.ts`
+- `packages/object-service/src/cos-adapter.ts`
+- `packages/object-service/src/adapter-factory.ts`
+- `packages/project-context/src/resolver.ts`
+- `scripts/seed-projects-config.ts`
 - `progress.md`
 
 ## Update Triggers
@@ -98,12 +74,15 @@ Refresh it before archiving a session or before context compaction.
 
 ## Resume Checklist
 When a new session starts in this repository:
-1. Read `steering/SESSION_CONTEXT.md`
-2. Read `steering/IMPLEMENTATION_PLAN.md`
-3. Read `steering/BACKEND_STRUCTURE.md`
-4. Read `steering/TECH_STACK.md`
-5. Read `progress.md` only when you need milestone history or dated updates
-6. Resume from the `Next Default Action` section unless the user gives a higher-priority instruction
+1. Read `IDENTITY.md` — confirm "who am I"
+2. Read `SOUL.md` — load behavior guidelines
+3. Read `memory/` recent logs — restore short-term context
+4. Read `MEMORY.md` — load long-term memory
+5. Read `steering/SESSION_CONTEXT.md` — restore runtime state (this file)
+6. Read `.agent/runtime/execution-state.json` — load autonomous mode companion
+7. Read `steering/IMPLEMENTATION_PLAN.md` — understand current phase/slice
+8. Read `steering/TECH_STACK.md` and `steering/BACKEND_STRUCTURE.md` — understand project boundaries
+9. Resume from the `Next Default Action` section unless the user gives a higher-priority instruction
 
 ## References
 - `steering/PRD.md`

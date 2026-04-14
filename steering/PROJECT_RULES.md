@@ -14,8 +14,8 @@
 - 本项目 Phase 1 不实现完整 AI / Feedback / Crash / Domain / Config 模块，只保留扩展边界。
 
 ## File And Module Conventions
-- `apps/`：运行时入口（api / worker）
-- `packages/`：模块化共享能力（object-service / release-service / auth / shared-kernel）
+- `apps/`：运行时入口（api / worker，后续可继续扩成 object-api / release-api / feedback-worker / ai-worker 等）
+- `packages/`：模块化共享能力（object-service / release-service / auth / shared-kernel / delivery-policy ...）
 - `infra/`：容器编排、迁移、环境基础设施
 - `mock/`：跨阶段共享 mock 数据与 mock adapter
 - `steering/`：需求、方案、计划与恢复上下文的唯一文档合同
