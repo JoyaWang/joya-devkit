@@ -13,6 +13,7 @@ Thumbs.db
 node_modules/
 dist/
 generated/
+*.tsbuildinfo
 apps/api/src/generated/
 build/
 coverage/
