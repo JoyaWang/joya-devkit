@@ -11,7 +11,7 @@ import {
 
 function buildFakeDb(overrides: {
   manifest?: Record<string, { projectKey: string; displayName: string; status: string; createdAt: Date; updatedAt: Date }>;
-  binding?: Record<string, { projectKey: string; runtimeEnv: string; serviceType: string; provider: string; config: string; createdAt: Date; updatedAt: Date }>;
+  binding?: Record<string, { id: string; projectKey: string; runtimeEnv: string; serviceType: string; provider: string; config: string; createdAt: Date; updatedAt: Date }>;
 }): ProjectDatabaseClient {
   return {
     projectManifest: {
@@ -41,6 +41,7 @@ describe("ProjectContextResolver", () => {
         },
         binding: {
           "infov:dev:object_storage": {
+            id: "binding-infov-dev-object-storage",
             projectKey: "infov",
             runtimeEnv: "dev",
             serviceType: "object_storage",
@@ -132,6 +133,7 @@ describe("ProjectContextResolver", () => {
         },
         binding: {
           "infov:dev:object_storage": {
+            id: "binding-infov-dev-object-storage",
             projectKey: "infov",
             runtimeEnv: "dev",
             serviceType: "object_storage",
@@ -141,6 +143,7 @@ describe("ProjectContextResolver", () => {
             updatedAt: now,
           },
           "infov:prd:object_storage": {
+            id: "binding-infov-prd-object-storage",
             projectKey: "infov",
             runtimeEnv: "prd",
             serviceType: "object_storage",
@@ -150,6 +153,7 @@ describe("ProjectContextResolver", () => {
             updatedAt: now,
           },
           "laicai:dev:object_storage": {
+            id: "binding-laicai-dev-object-storage",
             projectKey: "laicai",
             runtimeEnv: "dev",
             serviceType: "object_storage",

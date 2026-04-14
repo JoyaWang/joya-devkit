@@ -10,6 +10,7 @@ const now = new Date();
 
 function makeBinding(overrides: Partial<ProjectServiceBinding> = {}): ProjectServiceBinding {
   return {
+    id: overrides.id ?? `binding-${overrides.projectKey ?? "infov"}-${overrides.runtimeEnv ?? "dev"}`,
     projectKey: overrides.projectKey ?? "infov",
     runtimeEnv: overrides.runtimeEnv ?? "dev",
     serviceType: overrides.serviceType ?? "object_storage",
@@ -76,6 +77,29 @@ describe("ObjectStorageAdapterFactory", () => {
       const laicaiAdapter = factory.getOrCreate(laicaiBinding);
 
       expect(infovAdapter).not.toBe(laicaiAdapter);
+    });
+
+    it("uses custom download domain from binding config for signed download URLs", async () => {
+      const factory = new ObjectStorageAdapterFactory();
+      const binding = makeBinding({
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        config: JSON.stringify({
+          bucket: "laicai-storage-dev-1321178972",
+          region: "ap-shanghai",
+          secretId: "test-id",
+          secretKey: "test-key",
+          downloadDomain: "https://download.example.com",
+        }),
+      });
+
+      const adapter = factory.getOrCreate(binding);
+      const result = await adapter.createDownloadRequest({
+        objectKey: "laicai/dev/release/android/1.0.2+6/apk/2026/04/test.apk",
+      });
+
+      expect(result.downloadUrl).toContain("https://download.example.com/");
+      expect(result.downloadUrl).not.toContain(".cos.ap-shanghai.myqcloud.com");
     });
   });
 

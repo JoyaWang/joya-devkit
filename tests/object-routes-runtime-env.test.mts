@@ -2,13 +2,27 @@
  * Route-level tests for runtime environment consistency checks.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const schemaPath = join(__dirname, "../prisma/schema.prisma");
 
 const mockPrisma = {
   object: {
     create: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
+  },
+  objectStorageLocation: {
+    create: vi.fn(),
+    createMany: vi.fn(),
+  },
+  storageMigrationJob: {
+    findFirst: vi.fn(),
   },
   auditLog: {
     create: vi.fn(),
@@ -76,21 +90,23 @@ function makeFactory(adapter: ReturnType<typeof makeAdapter>) {
 }
 
 function captureRoute<TDeps>(
-  register: (app: { post?: Function; delete?: Function }, deps: TDeps) => Promise<void>,
-  method: "post" | "delete",
+  register: (app: any, deps: TDeps) => Promise<void>,
+  _method: "post" | "delete",
   deps: TDeps,
 ) {
   let handler: any;
-  const app = {
+  const app: any = {
     post: vi.fn((_: string, fn: any) => {
       handler = fn;
+      return app;
     }),
     delete: vi.fn((_: string, fn: any) => {
       handler = fn;
+      return app;
     }),
   };
 
-  return register(app as any, deps).then(() => handler);
+  return register(app, deps).then(() => handler);
 }
 
 function makeReply() {
@@ -115,6 +131,9 @@ describe("object routes runtimeEnv consistency", () => {
     mockPrisma.object.create.mockResolvedValue(undefined);
     mockPrisma.object.findUnique.mockResolvedValue(null);
     mockPrisma.object.update.mockResolvedValue(undefined);
+    mockPrisma.objectStorageLocation.create.mockResolvedValue(undefined);
+    mockPrisma.objectStorageLocation.createMany.mockResolvedValue({ count: 0 });
+    mockPrisma.storageMigrationJob.findFirst.mockResolvedValue(null);
     mockPrisma.auditLog.create.mockResolvedValue(undefined);
   });
 
@@ -122,7 +141,7 @@ describe("object routes runtimeEnv consistency", () => {
     const resolver = makeResolver();
     const adapter = makeAdapter();
     const factory = makeFactory(adapter);
-    const handler = await captureRoute(registerUploadRequestsRoute, "post", { resolver, factory });
+    const handler = await captureRoute(registerUploadRequestsRoute, "post", { resolver, factory } as any);
     const reply = makeReply();
 
     await handler(
@@ -153,7 +172,7 @@ describe("object routes runtimeEnv consistency", () => {
     const resolver = makeResolver();
     const adapter = makeAdapter();
     const factory = makeFactory(adapter);
-    const handler = await captureRoute(registerUploadRequestsRoute, "post", { resolver, factory });
+    const handler = await captureRoute(registerUploadRequestsRoute, "post", { resolver, factory } as any);
     const reply = makeReply();
 
     await handler(
@@ -191,7 +210,7 @@ describe("object routes runtimeEnv consistency", () => {
       fileName: "head.png",
       status: "active",
     });
-    const handler = await captureRoute(registerDownloadRequestsRoute, "post", { resolver, factory });
+    const handler = await captureRoute(registerDownloadRequestsRoute, "post", { resolver, factory } as any);
     const reply = makeReply();
 
     await handler(
@@ -219,7 +238,7 @@ describe("object routes runtimeEnv consistency", () => {
       fileName: "head.png",
       status: "pending_upload",
     });
-    const handler = await captureRoute(registerCompleteRoute, "post", { resolver, factory });
+    const handler = await captureRoute(registerCompleteRoute, "post", { resolver, factory } as any);
     const reply = makeReply();
 
     await handler(
@@ -247,7 +266,7 @@ describe("object routes runtimeEnv consistency", () => {
       fileName: "head.png",
       status: "active",
     });
-    const handler = await captureRoute(registerObjectsDeleteRoute, "delete", { resolver, factory });
+    const handler = await captureRoute(registerObjectsDeleteRoute, "delete", { resolver, factory } as any);
     const reply = makeReply();
 
     await handler(
@@ -262,5 +281,172 @@ describe("object routes runtimeEnv consistency", () => {
     expect(reply.statusCode).toBe(403);
     expect(reply.payload.error).toBe("env_mismatch");
     expect(adapter.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it("defines migration truth-source models in prisma schema", () => {
+    const schema = readFileSync(schemaPath, "utf8");
+
+    expect(schema).toContain("model ObjectStorageLocation {");
+    expect(schema).toContain("@@map(\"object_storage_locations\")");
+    expect(schema).toMatch(/locationRole\s+String\s+@map\("location_role"\)/);
+    expect(schema).toMatch(/provider\s+String/);
+    expect(schema).toMatch(/bindingId\s+String\s+@map\("binding_id"\)/);
+    expect(schema).toMatch(/status\s+String\s+@default\("active"\)/);
+    expect(schema).toContain("model StorageMigrationJob {");
+    expect(schema).toContain("@@map(\"storage_migration_jobs\")");
+    expect(schema).toMatch(/sourceBindingId\s+String\s+@map\("source_binding_id"\)/);
+    expect(schema).toMatch(/targetBindingId\s+String\s+@map\("target_binding_id"\)/);
+    expect(schema).toMatch(/selector\s+String\?/);
+    expect(schema).toMatch(/detail\s+String\?/);
+  });
+
+  it("writes primary storage location after complete succeeds", async () => {
+    const resolver = makeResolver();
+    const adapter = makeAdapter();
+    const factory = makeFactory(adapter);
+    const objectId = "obj_123";
+    const bindingId = "binding_dev_cos";
+
+    resolver.resolve.mockResolvedValue({
+      manifest: {
+        projectKey: "infov",
+        displayName: "InfoV",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      binding: {
+        id: bindingId,
+        projectKey: "infov",
+        runtimeEnv: "dev",
+        serviceType: "object_storage",
+        provider: "cos",
+        config: JSON.stringify({ bucket: "infov-dev-bucket", region: "ap-guangzhou", secretId: "id", secretKey: "key" }),
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    mockPrisma.object.findUnique.mockResolvedValue({
+      id: objectId,
+      objectKey: devObjectKey,
+      projectKey: "infov",
+      env: "dev",
+      fileName: "head.png",
+      status: "pending_upload",
+    });
+    const handler = await captureRoute(registerCompleteRoute, "post", { resolver, factory } as any);
+    const reply = makeReply();
+
+    await handler(
+      {
+        projectKey: "infov",
+        runtimeEnv: "dev",
+        body: { objectKey: devObjectKey, size: 123, checksum: "sha256:abc" },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(mockPrisma.object.update).toHaveBeenCalledWith({
+      where: { objectKey: devObjectKey },
+      data: {
+        status: "active",
+        size: 123,
+        checksum: "sha256:abc",
+      },
+    });
+    expect(mockPrisma.objectStorageLocation.create).toHaveBeenCalledWith({
+      data: {
+        objectId,
+        bindingId,
+        provider: "cos",
+        locationRole: "primary",
+        status: "active",
+      },
+    });
+  });
+
+  it("writes pending replica location when active dual-write migration exists", async () => {
+    const resolver = makeResolver();
+    const adapter = makeAdapter();
+    const factory = makeFactory(adapter);
+    const objectId = "obj_dual_write";
+    const sourceBindingId = "binding_dev_cos";
+    const targetBindingId = "binding_target_cos";
+
+    resolver.resolve.mockResolvedValue({
+      manifest: {
+        projectKey: "infov",
+        displayName: "InfoV",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      },
+      binding: {
+        id: sourceBindingId,
+        projectKey: "infov",
+        runtimeEnv: "dev",
+        serviceType: "object_storage",
+        provider: "cos",
+        config: JSON.stringify({ bucket: "infov-dev-bucket", region: "ap-guangzhou", secretId: "id", secretKey: "key" }),
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    mockPrisma.object.findUnique.mockResolvedValue({
+      id: objectId,
+      objectKey: devObjectKey,
+      projectKey: "infov",
+      env: "dev",
+      fileName: "head.png",
+      status: "pending_upload",
+    });
+    mockPrisma.storageMigrationJob.findFirst.mockResolvedValue({
+      id: "job_dual_write",
+      projectKey: "infov",
+      runtimeEnv: "dev",
+      serviceType: "object_storage",
+      sourceBindingId,
+      targetBindingId,
+      status: "dual_write",
+      createdAt: now,
+    });
+
+    const handler = await captureRoute(registerCompleteRoute, "post", { resolver, factory } as any);
+    const reply = makeReply();
+
+    await handler(
+      {
+        projectKey: "infov",
+        runtimeEnv: "dev",
+        body: { objectKey: devObjectKey, size: 123, checksum: "sha256:abc" },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(mockPrisma.storageMigrationJob.findFirst).toHaveBeenCalledWith({
+      where: {
+        projectKey: "infov",
+        runtimeEnv: "dev",
+        serviceType: "object_storage",
+        status: "dual_write",
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    expect(mockPrisma.objectStorageLocation.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          objectId,
+          bindingId: targetBindingId,
+          provider: "cos",
+          locationRole: "replica",
+          status: "pending_backfill",
+        },
+      ],
+      skipDuplicates: true,
+    });
   });
 });

@@ -13,6 +13,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPrisma = {
+  object: {
+    findUnique: vi.fn(),
+  },
   appRelease: {
     create: vi.fn(),
   },
@@ -94,6 +97,8 @@ describe("Release Service distributionUrl auto-generation", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    // Default: object not found, use conservative fallback
+    mockPrisma.object.findUnique.mockResolvedValue(null);
     // Dynamic mock: return what was passed to create
     mockPrisma.appRelease.create.mockImplementation(({ data }: any) =>
       Promise.resolve(mockCreateReturn(data))

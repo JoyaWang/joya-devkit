@@ -14,7 +14,7 @@ type FakeCosClient = {
   deleteObject: (
     options: Record<string, unknown>,
     callback: (error: unknown, data?: unknown) => void,
-  ): void;
+  ) => void;
 };
 
 function buildFakeCosClient(overrides: Partial<FakeCosClient> = {}): FakeCosClient {
@@ -150,6 +150,82 @@ describe("CosObjectStorageAdapter", () => {
         Bucket: "infov-bucket-1250000000",
         Region: "ap-guangzhou",
       });
+    });
+
+    it("passes a custom provider download domain to COS SDK when configured", async () => {
+      const calls: Record<string, unknown>[] = [];
+      const adapter = new CosObjectStorageAdapter({
+        config: {
+          bucket: "laicai-storage-dev-1321178972",
+          region: "ap-shanghai",
+          secretId: "test-id",
+          secretKey: "test-key",
+          downloadDomain: "https://cos-download-dev.infinex.cn",
+        },
+        client: buildFakeCosClient({
+          getObjectUrl: (options) => {
+            calls.push(options);
+            return `https://cos-download-dev.infinex.cn/${String(options.Key)}?method=${String(options.Method)}`;
+          },
+        }) as never,
+      });
+
+      const result = await adapter.createDownloadRequest({
+        objectKey: "laicai/dev/release/android/1.0.2+6/apk/2026/04/test.apk",
+      });
+
+      expect(result.downloadUrl).toBe(
+        "https://cos-download-dev.infinex.cn/laicai/dev/release/android/1.0.2+6/apk/2026/04/test.apk?method=GET",
+      );
+      expect(calls[0]).toMatchObject({
+        Bucket: "laicai-storage-dev-1321178972",
+        Region: "ap-shanghai",
+        Domain: "https://cos-download-dev.infinex.cn",
+        ForceSignHost: false,
+      });
+    });
+
+    it("does not force host signing when using a custom provider download domain", async () => {
+      const calls: Record<string, unknown>[] = [];
+      const adapter = new CosObjectStorageAdapter({
+        config: {
+          bucket: "shared-dev-bucket-1321178972",
+          region: "ap-shanghai",
+          secretId: "test-id",
+          secretKey: "test-key",
+          downloadDomain: "https://origin-dev.infinex.cn",
+        },
+        client: buildFakeCosClient({
+          getObjectUrl: (options) => {
+            calls.push(options);
+            return `https://origin-dev.infinex.cn/${String(options.Key)}?method=${String(options.Method)}`;
+          },
+        }) as never,
+      });
+
+      await adapter.createDownloadRequest({
+        objectKey: "infov/dev/release/android/2.0.0+1/apk/2026/04/test.apk",
+      });
+
+      expect(calls[0]).toMatchObject({
+        Domain: "https://origin-dev.infinex.cn",
+        ForceSignHost: false,
+      });
+    });
+
+    it("rejects shared delivery hosts as provider download domains", () => {
+      expect(
+        () =>
+          new CosObjectStorageAdapter({
+            config: {
+              bucket: "laicai-storage-dev-1321178972",
+              region: "ap-shanghai",
+              secretId: "test-id",
+              secretKey: "test-key",
+              downloadDomain: "https://dl-dev.infinex.cn",
+            },
+          }),
+      ).toThrow("COS provider downloadDomain must not use shared delivery hosts");
     });
 
     it("uses signExpiresSeconds from config when provided", async () => {

@@ -348,6 +348,52 @@ describe("Dockerfile.worker - workspace manifests", () => {
     }
     expect(foundSharedKernelPackage).toBe(true);
   });
+
+  it("MUST copy packages/object-service/package.json when worker instantiates storage adapters", () => {
+    const lines = dockerfile.split("\n");
+    let installLineIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes("pnpm install")) {
+        installLineIndex = i;
+        break;
+      }
+    }
+
+    let foundObjectServicePackage = false;
+    for (let i = 0; i < installLineIndex; i++) {
+      if (
+        lines[i].includes("COPY") &&
+        lines[i].includes("packages/object-service/package.json")
+      ) {
+        foundObjectServicePackage = true;
+        break;
+      }
+    }
+    expect(foundObjectServicePackage).toBe(true);
+  });
+
+  it("MUST copy packages/project-context/package.json because object-service depends on it", () => {
+    const lines = dockerfile.split("\n");
+    let installLineIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes("pnpm install")) {
+        installLineIndex = i;
+        break;
+      }
+    }
+
+    let foundProjectContextPackage = false;
+    for (let i = 0; i < installLineIndex; i++) {
+      if (
+        lines[i].includes("COPY") &&
+        lines[i].includes("packages/project-context/package.json")
+      ) {
+        foundProjectContextPackage = true;
+        break;
+      }
+    }
+    expect(foundProjectContextPackage).toBe(true);
+  });
 });
 
 describe("docker-compose.yml - port configuration", () => {
