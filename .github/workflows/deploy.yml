@@ -1,0 +1,66 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+
+            PROJECT_DIR="/home/ubuntu/apps/shared-runtime-services"
+            BRANCH="main"
+            LOG_FILE="/var/log/srs-deploy.log"
+
+            echo "=== Deploy started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
+
+            # 1. Pull latest code
+            cd $PROJECT_DIR
+            git fetch origin $BRANCH
+            git reset --hard origin/$BRANCH
+            echo "[OK] Code pulled" | tee -a $LOG_FILE
+
+            # 2. Build images
+            docker compose -f infra/docker-compose.yml build api worker 2>&1 | tee -a $LOG_FILE
+            echo "[OK] Build complete" | tee -a $LOG_FILE
+
+            # 3. Restart api and worker (postgres/redis stay running)
+            docker compose -f infra/docker-compose.yml up -d --no-deps --build api worker 2>&1 | tee -a $LOG_FILE
+            echo "[OK] Services restarted" | tee -a $LOG_FILE
+
+            # 4. Run database migrations
+            docker compose -f infra/docker-compose.yml exec -T api npx prisma migrate deploy 2>&1 | tee -a $LOG_FILE
+            echo "[OK] Migrations applied" | tee -a $LOG_FILE
+
+            # 5. Health check
+            sleep 5
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3010/health || echo "000")
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+              echo "[OK] Health check passed (HTTP $HTTP_STATUS)" | tee -a $LOG_FILE
+            else
+              echo "[FAIL] Health check returned HTTP $HTTP_STATUS" | tee -a $LOG_FILE
+              docker compose -f infra/docker-compose.yml logs api --tail 20 2>&1 | tee -a $LOG_FILE
+              exit 1
+            fi
+
+            # 6. Verify worker is running
+            WORKER_STATUS=$(docker compose -f infra/docker-compose.yml ps worker --format json 2>/dev/null | grep -o '"Health":"[^"]*"' | head -1 || echo "unknown")
+            echo "[INFO] Worker status: $WORKER_STATUS" | tee -a $LOG_FILE
+
+            # 7. Clean up old images
+            docker image prune -f 2>&1 | tee -a $LOG_FILE
+
+            echo "=== Deploy finished at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
