@@ -26,7 +26,7 @@ RUN pnpm deploy --prod --legacy --filter @srs/worker /app/worker-prod
 FROM node:20-alpine AS runner
 WORKDIR /app
 COPY --from=builder /app/apps/worker/dist ./dist
-COPY --from=builder /app/apps/api/dist/generated ./apps/api/dist/generated
+COPY --from=builder /app/apps/api/dist/generated ./api/dist/generated
 
 # Copy the flat production node_modules (includes worker runtime deps and workspace packages)
 COPY --from=builder /app/worker-prod/node_modules ./node_modules
