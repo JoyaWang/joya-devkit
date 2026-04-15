@@ -19,11 +19,13 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - Runtime companion: `.agent/runtime/execution-state.json`
 
 ## Current Slice
-- Phase: `compliance-baseline-and-runtime-stabilization`
-- Status: `completed` / `human_gate` — onboarding baseline 已完成，等待下一个 slice 方向选择
-- Active slice: `p4-onboarding-and-runtime-stabilization`（已收尾）
-- Latest checkpoint: `onboarding-2026-04-13T22-30-00+0800`（passed）
-- 已通过的验证：seed-config test (3/3)、root typecheck (passed)、full test suite (138/138)
+- Phase: `shared-delivery-e2e-verification`
+- Status: `completed` — 双环境全链路 E2E 验证通过
+- Active slice: `shared-delivery-e2e-verification`（已收尾）
+- Latest checkpoint: 双环境全链路 E2E 通过（2026-04-15）
+- 已通过的验证：
+  - prd: `dl.infinex.cn` → SRS 302 → `origin.infinex.cn` CDN → COS shared bucket，SHA256 完整性通过
+  - dev: `dl-dev.infinex.cn` → SRS 302 → `origin-dev.infinex.cn` CDN → COS shared-dev bucket，SHA256 完整性通过
 
 ## Locked Decisions
 - shared-runtime-services 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
@@ -36,17 +38,19 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - `dl-dev.infinex.cn` / `dl.infinex.cn` 的长期角色是环境级共享公共分发入口，不应继续作为单一项目 bucket 的长期别名。
 
 ## Next Default Action
-当前 onboarding slice 已完成。下一步方向由 human gate 确认：
-1. **Provider migration**：推进 dual-write / backfill 执行层，或进入 Phase 5 首批项目接入准备。
-2. **Delivery stabilization**：继续 Release Service / Public Delivery Plane 的稳定性验证。
-3. 不要把 InfoV / Laicai 接入任务当作本项目当前 active slice；它们是本项目上线稳定后的下游消费方。
-4. 如需恢复上下文，先读 `.agent/runtime/execution-state.json` 确认当前状态，再读本文件的 Next Default Action。
+双环境全链路 E2E 已通过。下一步方向：
+1. **Laicai 真实接入**：修改 Laicai CI workflow（`production-android.yml`），将 upload/complete/release 调用指向 SRS，用真实 APK 跑一次完整发布链路。
+2. **seed 脚本同步**：把 `scripts/seed-projects-config.ts` 中的 bucket 配置从项目桶（`laicai-storage-*`）更新为共享桶（`shared-storage-*`）。
+3. **生产 binding 收敛**：确认 Laicai dev/prd binding 均指向共享桶 + 对应 downloadDomain。
+4. **Laicai dev 切片落地**：按 PRD 首条接入边界，在 Laicai 独立分支完成 dev release 主链路全量切换。
+5. 如需恢复上下文，先读本文件，再按需读 `progress.md`。
 
 ## Blockers / Watchouts
-- 当前无 active blocker；onboarding baseline 已收口，autonomous mode 可正常恢复上下文。
-- 不要在 autonomous mode 下引入脱离本项目语境的外部任务（如直接把 Laicai 接入方案写成本项目的恢复入口）。
-- ObjectStorageAdapterFactory 当前按进程内 cache 复用 adapter；binding 变更后需要重启才能让运行中进程看到新配置。
-- 当前已落地 provider migration 骨架（dual-write metadata / read fallback / backfill runner），但尚未在真实生产环境验证。
+- 当前无 active blocker。
+- Laicai binding 已切换到共享桶（dev: `shared-storage-dev-1321178972`，prd: `shared-storage-1321178972`），downloadDomain 已配（dev: `origin-dev.infinex.cn`，prd: `origin.infinex.cn`）。
+- CDN `origin.infinex.cn` 和 `origin-dev.infinex.cn` 已确认关闭「私有存储桶访问」，回源协议 HTTPS。
+- ObjectStorageAdapterFactory 按进程内 cache 复用 adapter；binding 变更后需重启 API。
+- Laicai CI workflow 尚未指向 SRS，仍是旧 COS 直传模式。
 
 ## Key Files
 - `steering/PRD.md`

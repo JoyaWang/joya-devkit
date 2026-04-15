@@ -6,6 +6,13 @@
 - 不要在这里重复维护"当前切片 / 下一步 / 恢复清单 / 会话书签"。
 
 ## 已完成
+- **共享桶 + 共享 CDN origin 双环境全链路 E2E 验证通过**（2026-04-15）：
+  - dev 共享桶 `shared-storage-dev-1321178972` + CDN `origin-dev.infinex.cn`
+  - prd 共享桶 `shared-storage-1321178972` + CDN `origin.infinex.cn`
+  - 双环境链路：upload → COS → complete → release → `dl-dev/dl.infinex.cn` → SRS 302 → `origin-dev/origin.infinex.cn` → COS
+  - SHA256 完整性验证通过（上传 = 下载）
+  - 根因修复：CDN「私有存储桶访问」关闭后，presigned URL 签名参数不再被 CDN 自身凭据覆盖
+  - prd binding 已恢复 `downloadDomain: https://origin.infinex.cn`
 - 新建项目目录：`/Users/joya/JoyaProjects/shared-runtime-services`
 - 建立标准根目录入口：`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`README.md`、`.gitignore`、`progress.md`
 - 建立标准 `steering/` 文档合同
@@ -71,15 +78,20 @@
   - `https://srs.infinex.cn/health` 已验证返回 `{"status":"ok"}`
 
 ## 进行中
+- Laicai 真实接入准备：CI workflow 改造、seed 脚本共享桶同步
 - provider 迁移机制实现（真相源骨架 + multi-candidate read fallback + dual-write 元数据落点已完成；下一步进入 backfill 执行层）
-- Phase 5 首批项目接入收口（优先 InfoV / Laicai 发布链路）
+- Phase 5 首批项目接入收口（优先 Laicai 发布链路）
 - Docker Compose 环境完善（含 Redis）
 - admin-platform 的 project manifest / per-env binding 控制面规划
-- InfoV 独立 prd 对象存储配置来源待补齐（当前只发现单一 COS bucket 配置）
 
 ## 接下来
-- 将 provider 迁移 playbook 继续落为实现层机制（下一步重点是 backfill 执行层与验收脚本；物理落点表 / 迁移批次模型 / multi-candidate read fallback / dual-write 元数据落点 已落地）
-- 推进 InfoV / Laicai 接入共享 Release Service / Delivery Plane，收口首批项目迁移路径
+- **Laicai 真实接入**（最高优先级）：
+  1. 修改 Laicai CI workflow（`production-android.yml`）指向 SRS API
+  2. 更新 seed 脚本 bucket 配置为共享桶
+  3. 在 Laicai 独立分支完成 dev release 主链路全量切换
+  4. 真实 APK 端到端验证
+- 将 provider 迁移 playbook 继续落为实现层机制（下一步重点是 backfill 执行层与验收脚本）
+- 推进 InfoV 接入共享 Release Service / Delivery Plane
 - 在未明确批准前，继续保持 legacy `/releases/android/...` 不迁移、不破坏
 - Docker Compose 环境完善（含 Redis）
 - Worker 异步任务能力增强
@@ -94,6 +106,17 @@
 - Release Service 仅部分协议化；当前建议延后到真正引入外部分发资源配置时再接入项目协议层
 
 ## 日期日志
+
+### 2026-04-15（双环境全链路 E2E 验证通过）
+- **共享桶切换**：Laicai binding 从项目桶（`laicai-storage-*`）切换到共享桶（`shared-storage-1321178972` / `shared-storage-dev-1321178972`）。
+- **CDN origin 配置**：`origin.infinex.cn` → prd 共享桶，`origin-dev.infinex.cn` → dev 共享桶。
+- **CDN 修复**：关闭两个 CDN 的「私有存储桶访问」，回源协议改为 HTTPS；修复了 presigned URL 签名被 CDN 自身凭据覆盖导致 `InvalidAccessKeyId` 的问题。
+- **`origin-dev.infinex.cn` SSL 证书**：发现并修复证书不匹配（CDN 默认返回 `*.cdn.myqcloud.com` 证书），用户在腾讯云控制台补配正确证书。
+- **prd binding downloadDomain 恢复**：测试期间被移除，已恢复为 `https://origin.infinex.cn`。
+- **E2E 验证结果**：
+  - prd：upload 100KB → COS → complete → release create → `dl.infinex.cn` 302 → `origin.infinex.cn` 200 → SHA256 一致 ✅
+  - dev：upload 100KB → COS → complete → release create → `dl-dev.infinex.cn` 302 → `origin-dev.infinex.cn` 200 → SHA256 一致 ✅
+- **阶段结论**：Shared Delivery Plane 双环境最小生产闭环已完成；下一步进入 Laicai 真实接入。
 
 ### 2026-04-13（夜间 — compliance baseline 与 autonomous runtime onboarding 完成）
 - **补齐项目身份层**：`IDENTITY.md`（Salomé 全栈专家角色定位）与 `SOUL.md`（TDD 纪律、文档先行、autonomous mode 协议）已补全内容，与项目定位一致。
