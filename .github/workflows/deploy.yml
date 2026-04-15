@@ -23,7 +23,7 @@ jobs:
 
             PROJECT_DIR="/home/ubuntu/apps/shared-runtime-services"
             BRANCH="main"
-            LOG_FILE="/var/log/srs-deploy.log"
+            LOG_FILE="$PROJECT_DIR/deploy.log"
 
             echo "=== Deploy started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
 
