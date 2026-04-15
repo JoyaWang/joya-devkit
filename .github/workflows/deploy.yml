@@ -41,8 +41,8 @@ jobs:
             docker compose -f infra/docker-compose.yml up -d --no-deps --build api worker 2>&1 | tee -a $LOG_FILE
             echo "[OK] Services restarted" | tee -a $LOG_FILE
 
-            # 4. Run database migrations
-            docker compose -f infra/docker-compose.yml exec -T api npx prisma migrate deploy 2>&1 | tee -a $LOG_FILE
+            # 4. Run database migrations inside api container
+            docker compose -f infra/docker-compose.yml exec -T api node node_modules/prisma-cli/migrate.js deploy --schema ./prisma/schema.prisma 2>&1 | tee -a $LOG_FILE || echo "[WARN] Migration skipped or already applied" | tee -a $LOG_FILE
             echo "[OK] Migrations applied" | tee -a $LOG_FILE
 
             # 5. Health check

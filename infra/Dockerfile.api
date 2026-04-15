@@ -48,5 +48,10 @@ COPY --from=builder /app/apps/api/src/generated ./src/generated
 # (@srs/auth, @srs/object-service, etc.) with their dist/ outputs.
 COPY --from=builder /app/api-prod/node_modules ./node_modules
 
+# Copy prisma schema and migrations for prisma migrate deploy
+COPY --from=builder /app/prisma ./prisma
+# Copy prisma CLI binary for migration support
+COPY --from=builder /app/node_modules/.pnpm/prisma@*/node_modules/prisma ./node_modules/prisma-cli
+
 EXPOSE 3010
 CMD ["node", "dist/index.js"]
