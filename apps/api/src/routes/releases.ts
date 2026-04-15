@@ -28,7 +28,7 @@ interface CreateReleaseBody {
 }
 
 const VALID_PLATFORMS = ["ios", "android", "desktop"];
-const VALID_ENVS = ["dev", "staging", "prod"];
+const VALID_ENVS = ["dev", "staging", "prod", "prd"];
 
 export async function registerReleasesRoutes(app: FastifyInstance): Promise<void> {
   // Initialize delivery policy resolver

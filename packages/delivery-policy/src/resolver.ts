@@ -17,11 +17,12 @@ export interface DeliveryPolicyResolverConfig {
     dev: string;
     staging: string;
     prod: string;
+    prd?: string; // alias for prod
   };
 }
 
 export interface ResolveInput {
-  env: "dev" | "staging" | "prod";
+  env: "dev" | "staging" | "prod" | "prd";
   accessClass: string;
   objectKey: string;
   objectProfile?: string;
@@ -51,8 +52,9 @@ export class DeliveryPolicyResolver {
       };
     }
 
-    // Resolve domain based on env
-    const domain = this.config.publicStableDomains[env];
+    // Resolve domain based on env (prd is alias for prod)
+    const normalizedEnv = env === "prd" ? "prod" : env;
+    const domain = this.config.publicStableDomains[normalizedEnv] ?? this.config.publicStableDomains[env];
     if (!domain) {
       return {
         type: "signed_url_only",
