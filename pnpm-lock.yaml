@@ -76,9 +76,30 @@ importers:
 
   apps/worker:
     dependencies:
+      '@prisma/adapter-pg':
+        specifier: ^7.7.0
+        version: 7.7.0
+      '@prisma/client':
+        specifier: ^7.7.0
+        version: 7.7.0(prisma@7.7.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3))(typescript@5.9.3)
+      '@srs/object-service':
+        specifier: workspace:*
+        version: link:../../packages/object-service
+      '@srs/project-context':
+        specifier: workspace:*
+        version: link:../../packages/project-context
       '@srs/shared-kernel':
         specifier: workspace:*
         version: link:../../packages/shared-kernel
+      dotenv:
+        specifier: ^17.4.1
+        version: 17.4.1
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
+      prisma:
+        specifier: ^7.7.0
+        version: 7.7.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
     devDependencies:
       '@types/node':
         specifier: ^22.15.3
