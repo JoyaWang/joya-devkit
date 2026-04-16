@@ -50,6 +50,7 @@ model AppRelease {
   forceUpdate        Boolean  @default(false) @map("force_update")
   minSupportedVersion String? @map("min_supported_version")
   rolloutStatus      String   @default("draft") @map("rollout_status")
+  rolloutPercent     Int      @default(100) @map("rollout_percent")
   createdBy          String   @map("created_by")
   createdAt          DateTime @default(now()) @map("created_at")
 
@@ -143,4 +144,39 @@ model StorageMigrationJob {
 
   @@index([projectKey, runtimeEnv, serviceType, status])
   @@map("storage_migration_jobs")
+}
+
+model FeedbackSubmission {
+  id                String    @id @default(cuid())
+  projectKey        String    @map("project_key")
+  type              String
+  errorMessage      String?   @map("error_message")
+  errorType         String?   @map("error_type")
+  stackTrace        String?   @map("stack_trace")
+  source            String?
+  logs              String?
+  deviceInfo        String?   @map("device_info")
+  userId            String?   @map("user_id")
+  username          String?
+  currentRoute      String?   @map("current_route")
+  appVersion        String?   @map("app_version")
+  buildNumber       String?   @map("build_number")
+  githubIssueUrl    String?   @map("github_issue_url")
+  githubIssueNumber Int?      @map("github_issue_number")
+  status            String    @default("pending")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([projectKey, type, createdAt])
+  @@index([projectKey, status])
+  @@map("feedback_submissions")
+}
+
+model FeedbackClientSettings {
+  id                    String   @id @default(cuid())
+  projectKey            String   @unique @map("project_key")
+  errorReportingEnabled Boolean  @default(true) @map("error_reporting_enabled")
+  crashReportingEnabled Boolean  @default(true) @map("crash_reporting_enabled")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("feedback_client_settings")
 }

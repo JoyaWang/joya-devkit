@@ -13,6 +13,7 @@ import { registerObjectsDeleteRoute } from "./routes/objects-delete.js";
 import { registerReleasesRoutes } from "./routes/releases.js";
 import { registerAuditLogsRoute } from "./routes/audit-logs.js";
 import { registerPublicDeliveryRoute } from "./routes/public-delivery.js";
+import { registerFeedbackRoutes } from "./routes/feedback.js";
 import { ProjectContextResolver } from "@srs/project-context";
 import { ObjectStorageAdapterFactory } from "@srs/object-service";
 import { DeliveryPolicyResolver } from "@srs/delivery-policy";
@@ -67,6 +68,9 @@ await registerReleasesRoutes(app);
 
 // Register Audit Logs route
 await registerAuditLogsRoute(app);
+
+// Register Feedback Service routes
+await registerFeedbackRoutes(app);
 
 // Start
 const start = async () => {

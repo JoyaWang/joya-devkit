@@ -30,6 +30,18 @@ interface CreateReleaseBody {
 const VALID_PLATFORMS = ["ios", "android", "desktop"];
 const VALID_ENVS = ["dev", "staging", "prod", "prd"];
 
+/**
+ * Hash a device seed to a bucket in [0, 99].
+ * Must match the Dart client's VersionCheckService.hashToBucket exactly.
+ */
+function hashToBucket(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash * 31 + seed.charCodeAt(i)) & 0xffffffff) >>> 0;
+  }
+  return hash % 100;
+}
+
 export async function registerReleasesRoutes(app: FastifyInstance): Promise<void> {
   // Initialize delivery policy resolver
   const resolver = new DeliveryPolicyResolver({
@@ -163,7 +175,7 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
     }
   );
 
-  // GET /v1/releases/latest?project=infov&platform=android&env=prod
+  // GET /v1/releases/latest?platform=android&env=prod&deviceId=xxx
   app.get(
     "/v1/releases/latest",
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -175,6 +187,7 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
       const query = request.query as Record<string, string | undefined>;
       const platform = query.platform;
       const env = query.env;
+      const deviceId = query.deviceId;
 
       if (!platform || !VALID_PLATFORMS.includes(platform)) {
         return reply.status(400).send({ error: "query param \"platform\" is required (ios|android|desktop)" });
@@ -189,6 +202,7 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
           projectKey,
           platform,
           env,
+          rolloutStatus: { in: ["active"] },
         },
         orderBy: {
           createdAt: "desc",
@@ -197,6 +211,13 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
 
       if (!release) {
         return reply.status(404).send({ error: "no release found" });
+      }
+
+      const rolloutPercent = release.rolloutPercent;
+      let rolloutAllowed: boolean | undefined;
+      if (deviceId) {
+        const bucket = hashToBucket(deviceId);
+        rolloutAllowed = bucket < rolloutPercent;
       }
 
       return reply.status(200).send({
@@ -209,6 +230,8 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
         distributionUrl: release.distributionUrl,
         releaseNotes: release.releaseNotes,
         rolloutStatus: release.rolloutStatus,
+        rolloutPercent,
+        ...(rolloutAllowed !== undefined && { rolloutAllowed }),
         createdAt: release.createdAt.toISOString(),
       });
     }
