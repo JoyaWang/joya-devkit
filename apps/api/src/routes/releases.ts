@@ -315,6 +315,7 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
       // Whitelist of updatable fields
       const allowedFields = new Set([
         "rolloutStatus",
+        "rolloutPercent",
         "forceUpdate",
         "minSupportedVersion",
         "distributionTarget",
