@@ -238,7 +238,7 @@
       "id": "3.4",
       "title": "joya_feedback_kit：崩溃上报",
       "phase": "P2",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "reportCrash() 收集完整崩溃信息（error, stackTrace, source, logs, deviceInfo, version）",
         "持久化到 SharedPreferences",
@@ -250,7 +250,11 @@
         "单元测试通过"
       ],
       "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/services/crash_reporter_service.dart",
-      "workaroundStrategy": "如果 SharedPreferences 测试困难，注入 abstract 接口"
+      "workaroundStrategy": "如果 SharedPreferences 测试困难，注入 abstract 接口",
+      "result": {
+        "completedAt": "2026-04-17T02:45:00+08:00",
+        "evidence": "7 tests passed, dart analyze clean, README present. Removed go_router dependency; used callback-based route provider."
+      }
     },
     {
       "id": "3.5",
