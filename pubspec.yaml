@@ -1,0 +1,33 @@
+name: joya_flutter_kits_workspace
+description: Joya Flutter public capabilities monorepo
+publish_to: none
+
+workspace:
+  - packages/joya_result
+  - packages/joya_auth
+  - packages/joya_http
+  - packages/joya_version_kit
+  - packages/joya_logger
+  - packages/joya_device
+  - packages/joya_feedback_kit
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dev_dependencies:
+  melos: ^7.5.1
+
+melos:
+  scripts:
+    analyze:
+      exec: flutter analyze
+      description: Run `flutter analyze` for all packages.
+
+    test:
+      exec: flutter test
+      description: Run `flutter test` for all packages.
+
+    format:
+      exec: dart format .
+      description: Run `dart format` for all packages.

@@ -1,0 +1,27 @@
+name: joya_feedback_kit
+description: Crash reporting, error reporting and feedback kit for Joya Flutter.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.7.0
+  shared_preferences: ^2.3.0
+  joya_result:
+    path: ../joya_result
+  joya_http:
+    path: ../joya_http
+  joya_logger:
+    path: ../joya_logger
+  joya_device:
+    path: ../joya_device
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

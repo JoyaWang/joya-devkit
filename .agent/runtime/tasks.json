@@ -256,5 +256,6 @@
       "analyze": "cd /Users/joya/JoyaProjects/joya-flutter-kits && melos analyze",
       "test": "cd /Users/joya/JoyaProjects/joya-flutter-kits && melos test"
     }
-  }
+  },
+  "currentIteration": 1
 }

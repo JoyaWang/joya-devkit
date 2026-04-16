@@ -1,0 +1,3 @@
+class DeviceInfoCollector {
+  const DeviceInfoCollector();
+}

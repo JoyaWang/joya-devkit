@@ -1,0 +1,3 @@
+class VersionCheckService {
+  const VersionCheckService();
+}

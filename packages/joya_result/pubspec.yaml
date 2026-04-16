@@ -1,0 +1,11 @@
+name: joya_result
+description: Functional error handling with Result<T> for Joya Flutter kits.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+
+dev_dependencies:
+  test: ^1.24.0
