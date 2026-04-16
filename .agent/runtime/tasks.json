@@ -23,20 +23,24 @@
       "id": "1.1",
       "title": "项目骨架搭建（melos workspace + 7包目录 + .gitignore）",
       "phase": "P0",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "melos bootstrap 成功",
         "melos analyze 零错误",
         "7 个包的 pubspec.yaml 和 lib/ 目录存在",
         ".gitignore 包含 Flutter/Dart/melos 规则"
       ],
-      "workaroundStrategy": "如果 melos 版本兼容问题，降级到手动 pub get"
+      "workaroundStrategy": "如果 melos 版本兼容问题，降级到手动 pub get",
+      "result": {
+        "completedAt": "2026-04-17T00:30:00+08:00",
+        "evidence": "melos bootstrap 成功 (7 packages), melos analyze 零错误"
+      }
     },
     {
       "id": "1.2",
       "title": "joya_result：Result<T> 函数式错误处理",
       "phase": "P0",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "Result.success / Result.failure 构造正确",
         "fold() 分支正确",
@@ -46,13 +50,17 @@
         "README.md 存在"
       ],
       "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/domain/result.dart",
-      "workaroundStrategy": "直接从 Laicai 提取，几乎不需要改动"
+      "workaroundStrategy": "直接从 Laicai 提取，几乎不需要改动",
+      "result": {
+        "completedAt": "2026-04-17T00:35:00+08:00",
+        "evidence": "10 tests passed, melos analyze clean, README present"
+      }
     },
     {
       "id": "1.3",
       "title": "joya_auth：Token 安全存储 + 内存缓存",
       "phase": "P0",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "Token 安全存储 set/get/clear",
         "内存缓存同步访问器（cachedAccessToken 等）",
@@ -65,13 +73,17 @@
         "README.md 存在"
       ],
       "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/services/auth/token_service.dart",
-      "workaroundStrategy": "如果 FlutterSecureStorage 测试困难，提供 InMemorySecureStorage mock"
+      "workaroundStrategy": "如果 FlutterSecureStorage 测试困难，提供 InMemorySecureStorage mock",
+      "result": {
+        "completedAt": "2026-04-17T00:50:00+08:00",
+        "evidence": "14 tests passed, flutter analyze clean, README present"
+      }
     },
     {
       "id": "1.4",
       "title": "joya_http：Dio 工厂 + Auth 拦截器 + ApiResponse",
       "phase": "P0",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "JoyHttp.dio() 工厂创建配置好的 Dio 实例",
         "Auth 拦截器注入 Bearer token",
@@ -89,13 +101,17 @@
         "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/network/auth_interceptor.dart",
         "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/network/api_endpoints.dart"
       ],
-      "workaroundStrategy": "如果 token 刷新逻辑测试困难，先测核心拦截和注入，刷新用集成测试"
+      "workaroundStrategy": "如果 token 刷新逻辑测试困难，先测核心拦截和注入，刷新用集成测试",
+      "result": {
+        "completedAt": "2026-04-17T01:00:00+08:00",
+        "evidence": "13 tests passed, melos analyze clean, README present"
+      }
     },
     {
       "id": "2.1",
       "title": "joya_version_kit：数据模型 + API 客户端",
       "phase": "P1",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "AppVersionInfo 模型字段完整",
         "AppVersionResponse JSON 序列化/反序列化",
@@ -110,7 +126,11 @@
         "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/models/app_version_response.dart",
         "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/repositories/version_repository_impl.dart"
       ],
-      "workaroundStrategy": "JSON 序列化如果 build_runner 有问题，手写 fromJson/toJson"
+      "workaroundStrategy": "JSON 序列化如果 build_runner 有问题，手写 fromJson/toJson",
+      "result": {
+        "completedAt": "2026-04-17T01:10:00+08:00",
+        "evidence": "19 tests passed, flutter analyze clean, README present"
+      }
     },
     {
       "id": "2.2",

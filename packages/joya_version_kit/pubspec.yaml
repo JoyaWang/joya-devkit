@@ -12,6 +12,8 @@ dependencies:
   flutter:
     sdk: flutter
   dio: ^5.7.0
+  shared_preferences: ^2.3.0
+  uuid: ^4.0.0
   joya_result:
     path: ../joya_result
   joya_http:
