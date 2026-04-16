@@ -260,7 +260,7 @@
       "id": "3.5",
       "title": "joya_feedback_kit：错误上报",
       "phase": "P2",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "ErrorReportingOutput 只拦截 Level.error 日志",
         "5 分钟去重窗口",
@@ -275,7 +275,11 @@
         "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/utils/logger/error_reporting_output.dart",
         "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/services/error_reporter_service.dart"
       ],
-      "workaroundStrategy": "如果 Timer 测试困难，注入 Timer 工厂"
+      "workaroundStrategy": "如果 Timer 测试困难，注入 Timer 工厂",
+      "result": {
+        "completedAt": "2026-04-17T03:00:00+08:00",
+        "evidence": "12 tests passed (5 ErrorReporterService + 7 ErrorReportingOutput), dart analyze clean. Fixed Dio header access and batch timer delays in tests."
+      }
     },
     {
       "id": "3.6",
