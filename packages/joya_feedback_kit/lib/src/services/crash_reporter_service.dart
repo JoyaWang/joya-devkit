@@ -314,6 +314,7 @@ class CrashReporterService {
         '$_baseUrl/feedback/submit-crash',
         data: gzipCompressed,
         options: Options(
+          extra: {'skipAuth': true},
           headers: {
             'Content-Encoding': 'gzip',
             'Content-Type': 'application/octet-stream',

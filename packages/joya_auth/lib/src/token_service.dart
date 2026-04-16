@@ -51,28 +51,44 @@ class TokenService {
 
   /// Restore cache from secure storage on app startup.
   Future<void> restoreCache() async {
-    final results = await Future.wait([
-      _storage.read(key: _accessTokenKey),
-      _storage.read(key: _refreshTokenKey),
-      _storage.read(key: _userIdKey),
-      _storage.read(key: _nicknameKey),
-      _storage.read(key: _avatarKey),
-      _storage.read(key: _realNameVerifiedKey),
-    ]);
-    _cachedAccessToken = results[0];
-    _cachedRefreshToken = results[1];
-    _cachedUserId = results[2];
-    _cachedNickname = _normalizeOptionalString(results[3]);
-    _cachedAvatar = _normalizeOptionalString(results[4]);
-    final verifiedRaw = results[5];
-    _cachedIsRealNameVerified =
-        verifiedRaw == null ? null : verifiedRaw.toLowerCase() == 'true';
-    _cacheRestored = true;
+    try {
+      final results = await Future.wait([
+        _storage.read(key: _accessTokenKey),
+        _storage.read(key: _refreshTokenKey),
+        _storage.read(key: _userIdKey),
+        _storage.read(key: _nicknameKey),
+        _storage.read(key: _avatarKey),
+        _storage.read(key: _realNameVerifiedKey),
+      ]);
+      _cachedAccessToken = results[0];
+      _cachedRefreshToken = results[1];
+      _cachedUserId = results[2];
+      _cachedNickname = _normalizeOptionalString(results[3]);
+      _cachedAvatar = _normalizeOptionalString(results[4]);
+      final verifiedRaw = results[5];
+      _cachedIsRealNameVerified =
+          verifiedRaw == null ? null : verifiedRaw.toLowerCase() == 'true';
+      _cacheRestored = true;
+    } catch (_) {
+      // Storage read failure; cache stays empty.
+      _cacheRestored = false;
+    }
   }
 
   Future<void> saveAccessToken(String token) async {
     await _storage.write(key: _accessTokenKey, value: token);
     _cachedAccessToken = token;
+  }
+
+  /// Internal save that silently catches storage errors.
+  Future<void> _safeWrite(String key, String? value) async {
+    try {
+      if (value == null) {
+        await _storage.delete(key: key);
+      } else {
+        await _storage.write(key: key, value: value);
+      }
+    } catch (_) {}
   }
 
   Future<String?> getAccessToken() async {
@@ -85,6 +101,13 @@ class TokenService {
   Future<void> saveRefreshToken(String token) async {
     await _storage.write(key: _refreshTokenKey, value: token);
     _cachedRefreshToken = token;
+  }
+
+  /// Internal delete that silently catches storage errors.
+  Future<void> _safeDelete(String key) async {
+    try {
+      await _storage.delete(key: key);
+    } catch (_) {}
   }
 
   Future<String?> getRefreshToken() async {
@@ -115,18 +138,12 @@ class TokenService {
     final normalizedAvatar = _normalizeOptionalString(avatar);
 
     await Future.wait([
-      normalizedNickname == null
-          ? _storage.delete(key: _nicknameKey)
-          : _storage.write(key: _nicknameKey, value: normalizedNickname),
-      normalizedAvatar == null
-          ? _storage.delete(key: _avatarKey)
-          : _storage.write(key: _avatarKey, value: normalizedAvatar),
-      isRealNameVerified == null
-          ? _storage.delete(key: _realNameVerifiedKey)
-          : _storage.write(
-              key: _realNameVerifiedKey,
-              value: isRealNameVerified.toString(),
-            ),
+      _safeWrite(
+          _nicknameKey, normalizedNickname == null ? null : normalizedNickname),
+      _safeWrite(
+          _avatarKey, normalizedAvatar == null ? null : normalizedAvatar),
+      _safeWrite(_realNameVerifiedKey,
+          isRealNameVerified == null ? null : isRealNameVerified.toString()),
     ]);
 
     _cachedNickname = normalizedNickname;
@@ -169,12 +186,12 @@ class TokenService {
 
   Future<void> clearAll() async {
     await Future.wait([
-      _storage.delete(key: _accessTokenKey),
-      _storage.delete(key: _refreshTokenKey),
-      _storage.delete(key: _userIdKey),
-      _storage.delete(key: _nicknameKey),
-      _storage.delete(key: _avatarKey),
-      _storage.delete(key: _realNameVerifiedKey),
+      _safeDelete(_accessTokenKey),
+      _safeDelete(_refreshTokenKey),
+      _safeDelete(_userIdKey),
+      _safeDelete(_nicknameKey),
+      _safeDelete(_avatarKey),
+      _safeDelete(_realNameVerifiedKey),
     ]);
     _cachedAccessToken = null;
     _cachedRefreshToken = null;
@@ -192,12 +209,27 @@ class TokenService {
 
   /// Force logout: clear all tokens and notify listeners.
   Future<void> forceLogout() async {
-    await clearAll();
-    _authErrorController.add(null);
+    try {
+      await clearAll();
+    } catch (_) {
+      // Ensure notification fires even if storage clear fails.
+      _cachedAccessToken = null;
+      _cachedRefreshToken = null;
+      _cachedUserId = null;
+      _cachedNickname = null;
+      _cachedAvatar = null;
+      _cachedIsRealNameVerified = null;
+      _cacheRestored = false;
+    }
+    if (!_authErrorController.isClosed) {
+      _authErrorController.add(null);
+    }
   }
 
   void dispose() {
-    _authErrorController.close();
+    if (!_authErrorController.isClosed) {
+      _authErrorController.close();
+    }
   }
 
   String? _normalizeOptionalString(String? value) {

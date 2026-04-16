@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show FlutterError;
+import 'package:flutter/foundation.dart' show FlutterError, debugPrint;
 import 'package:logger/logger.dart' hide MemoryOutput;
 import 'package:joya_logger/joya_logger.dart';
 import 'outputs/error_reporting_output.dart';
@@ -131,11 +131,15 @@ class JoyaFeedbackKit {
       runZonedGuarded(
         appRunner,
         (error, stack) {
-          _crashReporterService?.reportCrash(
-            error: error,
-            stackTrace: stack,
-            source: 'ZonedError',
-          );
+          try {
+            _crashReporterService?.reportCrash(
+              error: error,
+              stackTrace: stack,
+              source: 'ZonedError',
+            );
+          } catch (_) {
+            debugPrint('[JoyaFeedbackKit] Failed to report zone error: $error');
+          }
         },
       );
 

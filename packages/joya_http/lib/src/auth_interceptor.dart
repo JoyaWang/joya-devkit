@@ -8,6 +8,9 @@ class AuthInterceptor extends QueuedInterceptor {
   final Dio _refreshDio;
   final Dio? _retryDio;
 
+  bool _isRefreshing = false;
+  final List<_PendingRequest> _pendingRequests = [];
+
   AuthInterceptor({
     required TokenService tokenService,
     required String refreshBaseUrl,
@@ -173,33 +176,82 @@ class AuthInterceptor extends QueuedInterceptor {
       throw err;
     }
 
-    Response<dynamic>? response;
+    // If already refreshing, queue this request and wait.
+    if (_isRefreshing) {
+      final completer = Completer<Response<dynamic>?>();
+      _pendingRequests.add(_PendingRequest(err, completer));
+      return completer.future;
+    }
+
+    _isRefreshing = true;
     try {
-      response = await _refreshDio.post(
+      final response = await _refreshDio.post(
         '/auth/refresh-token',
         data: {'refresh_token': refreshToken},
       );
-    } on DioException catch (_) {
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final respData = response.data;
+        final payload = respData is Map<String, dynamic>
+            ? respData['data'] as Map<String, dynamic>?
+            : null;
+        final newAccessToken = payload?['access_token'] ?? payload?['token'];
+        final newRefreshToken = payload?['refresh_token'];
+
+        if (respData['success'] == true && newAccessToken != null) {
+          final accessTokenStr = newAccessToken.toString();
+          await _tokenService.saveAccessToken(accessTokenStr);
+          if (newRefreshToken != null) {
+            await _tokenService.saveRefreshToken(newRefreshToken.toString());
+          }
+
+          // Retry pending requests with new token.
+          final tokenStr = newAccessToken.toString();
+          await _flushPendingRequests(tokenStr);
+
+          final opts = err.requestOptions;
+          opts.headers['Authorization'] = 'Bearer $tokenStr';
+
+          final retryDio = _retryDio ?? Dio(BaseOptions(
+            baseUrl: opts.baseUrl,
+            connectTimeout: opts.connectTimeout,
+            receiveTimeout: opts.receiveTimeout,
+            sendTimeout: opts.sendTimeout,
+          ));
+
+          return retryDio.request(
+            opts.path,
+            data: opts.data,
+            queryParameters: opts.queryParameters,
+            options: Options(
+              method: opts.method,
+              headers: opts.headers,
+            ),
+          );
+        }
+      }
+
+      // Refresh failed — reject all pending.
+      _rejectPendingRequests(err);
       await _tokenService.forceLogout();
       throw err;
+    } on DioException {
+      _rejectPendingRequests(err);
+      await _tokenService.forceLogout();
+      rethrow;
+    } finally {
+      _isRefreshing = false;
     }
+  }
 
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final respData = response.data;
-      final payload = respData is Map<String, dynamic>
-          ? respData['data'] as Map<String, dynamic>?
-          : null;
-      final newAccessToken = payload?['access_token'] ?? payload?['token'];
-      final newRefreshToken = payload?['refresh_token'];
+  Future<void> _flushPendingRequests(String newToken) async {
+    final pending = List<_PendingRequest>.from(_pendingRequests);
+    _pendingRequests.clear();
 
-      if (respData['success'] == true && newAccessToken != null) {
-        await _tokenService.saveAccessToken(newAccessToken as String);
-        if (newRefreshToken != null) {
-          await _tokenService.saveRefreshToken(newRefreshToken as String);
-        }
-
-        final opts = err.requestOptions;
-        opts.headers['Authorization'] = 'Bearer $newAccessToken';
+    for (final req in pending) {
+      try {
+        final opts = req.originalError.requestOptions;
+        opts.headers['Authorization'] = 'Bearer $newToken';
 
         final retryDio = _retryDio ?? Dio(BaseOptions(
           baseUrl: opts.baseUrl,
@@ -217,12 +269,24 @@ class AuthInterceptor extends QueuedInterceptor {
             headers: opts.headers,
           ),
         );
-
-        return retryResponse;
+        req.completer.complete(retryResponse);
+      } catch (e) {
+        req.completer.completeError(e);
       }
     }
-
-    await _tokenService.forceLogout();
-    throw err;
   }
+
+  void _rejectPendingRequests(DioException err) {
+    for (final req in _pendingRequests) {
+      req.completer.completeError(err);
+    }
+    _pendingRequests.clear();
+  }
+}
+
+class _PendingRequest {
+  final DioException originalError;
+  final Completer<Response<dynamic>?> completer;
+
+  _PendingRequest(this.originalError, this.completer);
 }

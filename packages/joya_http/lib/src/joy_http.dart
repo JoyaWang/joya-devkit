@@ -31,6 +31,7 @@ class JoyHttp {
         AuthInterceptor(
           tokenService: tokenService,
           refreshBaseUrl: refreshBaseUrl,
+          retryDio: dio,
         ),
       );
     }

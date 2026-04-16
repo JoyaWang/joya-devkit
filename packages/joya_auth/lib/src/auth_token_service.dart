@@ -1,3 +1,0 @@
-class AuthTokenService {
-  const AuthTokenService();
-}

@@ -61,6 +61,7 @@ class ErrorReporterService {
       final response = await _dio.get(
         '$_baseUrl/feedback/client-settings',
         options: Options(
+          extra: {'skipAuth': true},
           sendTimeout: const Duration(seconds: 5),
           receiveTimeout: const Duration(seconds: 5),
         ),
@@ -126,6 +127,7 @@ class ErrorReporterService {
         '$_baseUrl/feedback/submit-errors',
         data: gzipCompressed,
         options: Options(
+          extra: {'skipAuth': true},
           headers: {
             'Content-Encoding': 'gzip',
             'Content-Type': 'application/octet-stream',

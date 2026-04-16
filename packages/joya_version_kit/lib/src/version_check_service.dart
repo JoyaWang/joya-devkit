@@ -99,9 +99,9 @@ class VersionCheckService {
   static int hashToBucket(String seed) {
     var hash = 0;
     for (var i = 0; i < seed.length; i++) {
-      hash = ((hash * 31 + seed.codeUnitAt(i)) & 0xFFFFFFFF) % 100;
+      hash = ((hash * 31 + seed.codeUnitAt(i)) & 0xFFFFFFFF);
     }
-    return hash;
+    return hash % 100;
   }
 
   /// Checks whether the device falls into the rollout range.
