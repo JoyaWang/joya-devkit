@@ -42,4 +42,32 @@ class AppVersionInfo {
         buildNumber: response.buildNumber,
         forceUpdateReason: response.forceUpdateReason,
       );
+
+  AppVersionInfo copyWith({
+    String? platform,
+    String? channel,
+    String? latestVersion,
+    String? minSupportedVersion,
+    String? downloadUrl,
+    String? releaseNotes,
+    bool? forceUpdate,
+    bool? shouldPrompt,
+    int? rolloutPercent,
+    String? buildNumber,
+    String? forceUpdateReason,
+  }) {
+    return AppVersionInfo(
+      platform: platform ?? this.platform,
+      channel: channel ?? this.channel,
+      latestVersion: latestVersion ?? this.latestVersion,
+      minSupportedVersion: minSupportedVersion ?? this.minSupportedVersion,
+      downloadUrl: downloadUrl ?? this.downloadUrl,
+      releaseNotes: releaseNotes ?? this.releaseNotes,
+      forceUpdate: forceUpdate ?? this.forceUpdate,
+      shouldPrompt: shouldPrompt ?? this.shouldPrompt,
+      rolloutPercent: rolloutPercent ?? this.rolloutPercent,
+      buildNumber: buildNumber ?? this.buildNumber,
+      forceUpdateReason: forceUpdateReason ?? this.forceUpdateReason,
+    );
+  }
 }

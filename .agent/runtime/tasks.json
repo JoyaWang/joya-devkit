@@ -136,7 +136,7 @@
       "id": "2.2",
       "title": "joya_version_kit：灰度判断 + 版本检查服务",
       "phase": "P1",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "hashToBucket 灰度算法正确（设备 ID hash 到 0-99 桶）",
         "设备 ID 生成与持久化",
@@ -145,7 +145,11 @@
         "单元测试通过"
       ],
       "sourceRef": "/Users/joya/JoyaProjects/Laicai/backend/cloudbase/functions/app-version/index.js",
-      "workaroundStrategy": "JS → Dart 翻译，保持 hash 算法一致"
+      "workaroundStrategy": "JS → Dart 翻译，保持 hash 算法一致",
+      "result": {
+        "completedAt": "2026-04-17T01:25:00+08:00",
+        "evidence": "47 tests passed, flutter analyze clean, README updated"
+      }
     },
     {
       "id": "2.3",
