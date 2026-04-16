@@ -28,7 +28,7 @@ interface UploadRequestBody {
 }
 
 const REQUIRED_FIELDS: (keyof UploadRequestBody)[] = [
-  "project", "env", "domain", "scope", "entityId",
+  "project", "domain", "scope", "entityId",
   "fileKind", "fileName", "contentType", "size",
 ];
 
@@ -74,7 +74,9 @@ export async function registerUploadRequestsRoute(
         });
       }
 
-      if (body.env! !== runtimeEnv) {
+      // Env consistency check: if body.env is provided, it must match token's runtimeEnv.
+      // If omitted, the token's runtimeEnv is used as the source of truth.
+      if (body.env && body.env !== runtimeEnv) {
         return reply.status(403).send({
           error: "env_mismatch",
           message: `body.env "${body.env}" does not match authenticated runtimeEnv "${runtimeEnv}"`,
