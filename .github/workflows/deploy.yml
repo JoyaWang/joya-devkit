@@ -11,6 +11,18 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      - name: Record runner info
+        run: |
+          echo "=== Runner Info ==="
+          echo "Runner IP: $(curl -s https://api.ipify.org)"
+          echo "Runner name: $RUNNER_NAME"
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner arch: $RUNNER_ARCH"
+          echo "GitHub SHA: $GITHUB_SHA"
+          echo "GitHub ref: $GITHUB_REF"
+          echo "Workflow run ID: $GITHUB_RUN_ID"
+          echo "==================="
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
