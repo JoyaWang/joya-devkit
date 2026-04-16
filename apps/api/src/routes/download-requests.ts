@@ -109,21 +109,32 @@ export async function registerDownloadRequestsRoute(
       let expiresAt: string | undefined;
 
       if (accessClass === "public-stable") {
-        // public-stable objects: return stable public URL via DeliveryPolicyResolver
-        const result = deps.deliveryResolver.resolve({
-          env: runtimeEnv as "dev" | "staging" | "prod",
-          accessClass,
-          objectKey: body.objectKey,
-          objectProfile: objectRecord.objectProfile || undefined,
-        });
+        // public-stable objects: return stable public URL.
+        // Prefer binding's downloadDomain (CDN per env/project) over hardcoded resolver domains.
+        const primaryBinding = candidateBindings[0];
+        const bindingConfig = JSON.parse(primaryBinding.config || "{}");
+        const bindingDomain = bindingConfig.downloadDomain as string | undefined;
 
-        if (result.type === "public_url" && result.url) {
-          downloadUrl = result.url;
-          // Public URLs don't expire (or have long TTL)
-          expiresAt = undefined;
+        if (bindingDomain) {
+          const domain = bindingDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+          downloadUrl = `https://${domain}/${body.objectKey}`;
         } else {
-          return reply.status(500).send({ error: "public_delivery_policy_invalid" });
+          // Fallback to DeliveryPolicyResolver for bindings without downloadDomain
+          const result = deps.deliveryResolver.resolve({
+            env: runtimeEnv as "dev" | "staging" | "prod",
+            accessClass,
+            objectKey: body.objectKey,
+            objectProfile: objectRecord.objectProfile || undefined,
+          });
+
+          if (result.type === "public_url" && result.url) {
+            downloadUrl = result.url;
+          } else {
+            return reply.status(500).send({ error: "public_delivery_policy_invalid" });
+          }
         }
+        // Public URLs don't expire (or have long TTL)
+        expiresAt = undefined;
       } else {
         // private-signed / internal-signed: continue using adapter.createDownloadRequest()
         const signedResult = await resolveReadableDownloadFromBindings({
