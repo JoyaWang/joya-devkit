@@ -72,6 +72,36 @@ final b = VersionCheckService.normalizeVersion('1.2.3+10');
 final cmp = VersionCheckService.compareVersions(a, b); // < 0
 ```
 
+### 更新弹窗
+
+```dart
+final result = await service.check(
+  platform: 'android',
+  currentVersion: '1.0.0',
+  channel: 'stable',
+);
+
+result.fold(
+  (error) => print('检查失败: $error'),
+  (checkResult) {
+    if (checkResult.shouldShow && context.mounted) {
+      final progress = ValueNotifier<DownloadProgress?>(null);
+      AppUpdateDialog.show(
+        context: context,
+        versionInfo: checkResult.info,
+        forceUpdate: checkResult.info.forceUpdate,
+        currentVersion: '1.0.0',
+        progressNotifier: progress,
+        onUpdate: () {
+          // Android: 启动下载并更新 progress
+          // iOS: 调用 AppUpdateDialog.launchUpdateUrl(url)
+        },
+      );
+    }
+  },
+);
+```
+
 ## 模型
 
 - `AppVersionResponse` — 服务端原始响应（支持 snake_case / camelCase）

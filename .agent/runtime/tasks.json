@@ -10,7 +10,7 @@
     {
       "id": "P1",
       "name": "版本更新",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "P2",
@@ -155,7 +155,7 @@
       "id": "2.3",
       "title": "joya_version_kit：更新弹窗 UI + 下载安装",
       "phase": "P1",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "AppUpdateDialog 展示版本信息和更新日志",
         "强制更新不可关闭",
@@ -165,7 +165,11 @@
         "README.md 含集成示例"
       ],
       "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/ui/version/widgets/app_update_dialog.dart",
-      "workaroundStrategy": "UI 组件测试困难，重点测逻辑层；UI 用 example app 手动验证"
+      "workaroundStrategy": "UI 组件测试困难，重点测逻辑层；UI 用 example app 手动验证",
+      "result": {
+        "completedAt": "2026-04-17T01:40:00+08:00",
+        "evidence": "AppUpdateDialog implemented with url_launcher, 47 tests passed, flutter analyze clean, README updated"
+      }
     },
     {
       "id": "3.1",

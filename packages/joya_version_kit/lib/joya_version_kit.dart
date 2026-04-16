@@ -6,3 +6,4 @@ export 'src/models/update_strategy.dart';
 export 'src/version_api_client.dart';
 export 'src/version_check_service.dart';
 export 'src/version_repository.dart';
+export 'src/widgets/app_update_dialog.dart';
