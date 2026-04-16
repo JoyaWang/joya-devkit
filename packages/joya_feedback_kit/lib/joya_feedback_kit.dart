@@ -1,5 +1,6 @@
 library joya_feedback_kit;
 
+export 'src/joya_feedback_kit.dart';
 export 'src/models/crash_info.dart';
 export 'src/models/error_info.dart';
 export 'src/outputs/error_reporting_output.dart';

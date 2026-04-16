@@ -15,7 +15,7 @@
     {
       "id": "P2",
       "name": "反馈上报",
-      "status": "pending"
+      "status": "completed"
     }
   ],
   "tasks": [
@@ -285,7 +285,7 @@
       "id": "3.6",
       "title": "joya_feedback_kit：统一集成入口",
       "phase": "P2",
-      "status": "pending",
+      "status": "completed",
       "acceptanceCriteria": [
         "JoyaFeedbackKit.init() 一行启用所有反馈能力",
         "runZonedGuarded 捕获 Dart 异常 → CrashReporterService",
@@ -294,7 +294,11 @@
         "配置类包含：projectKey, apiBaseUrl, keyPrefix, 功能开关",
         "README.md 含 main.dart 集成示例"
       ],
-      "workaroundStrategy": "提供两个集成层级：全自动（JoyaFeedbackKit.init）和手动（按需创建各 Service）"
+      "workaroundStrategy": "提供两个集成层级：全自动（JoyaFeedbackKit.init）和手动（按需创建各 Service）",
+      "result": {
+        "completedAt": "2026-04-17T03:15:00+08:00",
+        "evidence": "26 tests passed (7 crash + 12 error + 7 kit), flutter analyze clean. README updated with main.dart integration example."
+      }
     }
   ],
   "config": {
