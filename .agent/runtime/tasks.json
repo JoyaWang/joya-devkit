@@ -1,0 +1,260 @@
+{
+  "projectKey": "joya-flutter-kits",
+  "createdAt": "2026-04-17T00:15:00+08:00",
+  "phases": [
+    {
+      "id": "P0",
+      "name": "基础设施层",
+      "status": "in_progress"
+    },
+    {
+      "id": "P1",
+      "name": "版本更新",
+      "status": "pending"
+    },
+    {
+      "id": "P2",
+      "name": "反馈上报",
+      "status": "pending"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "1.1",
+      "title": "项目骨架搭建（melos workspace + 7包目录 + .gitignore）",
+      "phase": "P0",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "melos bootstrap 成功",
+        "melos analyze 零错误",
+        "7 个包的 pubspec.yaml 和 lib/ 目录存在",
+        ".gitignore 包含 Flutter/Dart/melos 规则"
+      ],
+      "workaroundStrategy": "如果 melos 版本兼容问题，降级到手动 pub get"
+    },
+    {
+      "id": "1.2",
+      "title": "joya_result：Result<T> 函数式错误处理",
+      "phase": "P0",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "Result.success / Result.failure 构造正确",
+        "fold() 分支正确",
+        "getOrThrow() 成功返回值、失败抛异常",
+        "isSuccess / isFailure 属性正确",
+        "单元测试通过",
+        "README.md 存在"
+      ],
+      "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/domain/result.dart",
+      "workaroundStrategy": "直接从 Laicai 提取，几乎不需要改动"
+    },
+    {
+      "id": "1.3",
+      "title": "joya_auth：Token 安全存储 + 内存缓存",
+      "phase": "P0",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "Token 安全存储 set/get/clear",
+        "内存缓存同步访问器（cachedAccessToken 等）",
+        "restoreCache() 启动恢复",
+        "forceLogout() 清除 + onAuthError 流通知",
+        "saveAuthTokens() 批量保存",
+        "saveUserProfileSnapshot / getUserProfileSnapshot",
+        "可配置 key prefix（默认 joya_）",
+        "单元测试通过（Mock FlutterSecureStorage）",
+        "README.md 存在"
+      ],
+      "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/services/auth/token_service.dart",
+      "workaroundStrategy": "如果 FlutterSecureStorage 测试困难，提供 InMemorySecureStorage mock"
+    },
+    {
+      "id": "1.4",
+      "title": "joya_http：Dio 工厂 + Auth 拦截器 + ApiResponse",
+      "phase": "P0",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "JoyHttp.dio() 工厂创建配置好的 Dio 实例",
+        "Auth 拦截器注入 Bearer token",
+        "soft401 检测（HTTP 200 body 含 token 错误码）",
+        "Token 自动刷新（refreshDio 避免循环）",
+        "刷新成功后重试原请求",
+        "刷新失败触发 forceLogout",
+        "skipAuth 标记跳过认证",
+        "ApiResponse<T> 包装类（success, data, message, code）",
+        "错误码和错误消息常量",
+        "单元测试通过",
+        "README.md 存在"
+      ],
+      "sourceRef": [
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/network/auth_interceptor.dart",
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/network/api_endpoints.dart"
+      ],
+      "workaroundStrategy": "如果 token 刷新逻辑测试困难，先测核心拦截和注入，刷新用集成测试"
+    },
+    {
+      "id": "2.1",
+      "title": "joya_version_kit：数据模型 + API 客户端",
+      "phase": "P1",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "AppVersionInfo 模型字段完整",
+        "AppVersionResponse JSON 序列化/反序列化",
+        "UpdateStrategy 枚举 + UpdateConfig",
+        "DownloadProgress 模型",
+        "版本检查 API 客户端（checkAppVersion）",
+        "README.md 存在"
+      ],
+      "sourceRef": [
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/domain/models/app_version_info.dart",
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/domain/models/update_strategy.dart",
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/models/app_version_response.dart",
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/repositories/version_repository_impl.dart"
+      ],
+      "workaroundStrategy": "JSON 序列化如果 build_runner 有问题，手写 fromJson/toJson"
+    },
+    {
+      "id": "2.2",
+      "title": "joya_version_kit：灰度判断 + 版本检查服务",
+      "phase": "P1",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "hashToBucket 灰度算法正确（设备 ID hash 到 0-99 桶）",
+        "设备 ID 生成与持久化",
+        "忽略版本记录",
+        "VersionCheckService 完整流程",
+        "单元测试通过"
+      ],
+      "sourceRef": "/Users/joya/JoyaProjects/Laicai/backend/cloudbase/functions/app-version/index.js",
+      "workaroundStrategy": "JS → Dart 翻译，保持 hash 算法一致"
+    },
+    {
+      "id": "2.3",
+      "title": "joya_version_kit：更新弹窗 UI + 下载安装",
+      "phase": "P1",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "AppUpdateDialog 展示版本信息和更新日志",
+        "强制更新不可关闭",
+        "Android APK 下载进度展示（进度条+速度+ETA）",
+        "iOS 跳转 App Store（URL 校验）",
+        "UI 主题可 override（ThemeData 注入）",
+        "README.md 含集成示例"
+      ],
+      "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/ui/version/widgets/app_update_dialog.dart",
+      "workaroundStrategy": "UI 组件测试困难，重点测逻辑层；UI 用 example app 手动验证"
+    },
+    {
+      "id": "3.1",
+      "title": "joya_logger：FileRotationOutput",
+      "phase": "P2",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "日志按小时写入文件（log_yyyyMMdd_HH.txt）",
+        "超过保留期文件自动删除",
+        "getLogsForRange() 返回正确时间范围日志",
+        "可配置保留天数（默认 3 天）",
+        "可配置日志目录名（默认 logs）",
+        "单元测试通过"
+      ],
+      "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/utils/logger/file_rotation_output.dart",
+      "workaroundStrategy": "path_provider 测试用内存文件系统 mock"
+    },
+    {
+      "id": "3.2",
+      "title": "joya_logger：MemoryOutput + LogLineSanitizer + LogCleanupService",
+      "phase": "P2",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "环形缓冲 FIFO，容量限制正确",
+        "logsText 返回格式化日志文本",
+        "LogLineSanitizer 去除 ANSI 码和 PrettyPrinter 框线",
+        "LogCleanupService 去重、分隔线过滤、大小限制",
+        "单元测试通过"
+      ],
+      "sourceRef": [
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/utils/logger/memory_output.dart",
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/utils/logger/log_line_sanitizer.dart",
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/services/log_cleanup_service.dart"
+      ],
+      "workaroundStrategy": "直接从 Laicai 提取，几乎不需要改动"
+    },
+    {
+      "id": "3.3",
+      "title": "joya_device：设备信息采集",
+      "phase": "P2",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "Android 设备信息完整（platform, model, os, osVersion, sdkInt, manufacturer, brand, device, product, isPhysicalDevice）",
+        "iOS 设备信息完整（platform, model, os, osVersion, name, localizedModel, isPhysicalDevice）",
+        "PackageInfo 缓存（getPackageInfo 只调一次）",
+        "getAppVersion / getBuildNumber / getFullVersion",
+        "单元测试通过",
+        "README.md 存在"
+      ],
+      "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/utils/device_info_collector.dart",
+      "workaroundStrategy": "直接从 Laicai 提取，几乎不需要改动"
+    },
+    {
+      "id": "3.4",
+      "title": "joya_feedback_kit：崩溃上报",
+      "phase": "P2",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "reportCrash() 收集完整崩溃信息（error, stackTrace, source, logs, deviceInfo, version）",
+        "持久化到 SharedPreferences",
+        "即时上报 + 启动补报（checkAndReportPendingCrash）",
+        "8 秒去重窗口",
+        "gzip 压缩上报",
+        "上报 endpoint 可配置",
+        "存储 key prefix 可配置",
+        "单元测试通过"
+      ],
+      "sourceRef": "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/services/crash_reporter_service.dart",
+      "workaroundStrategy": "如果 SharedPreferences 测试困难，注入 abstract 接口"
+    },
+    {
+      "id": "3.5",
+      "title": "joya_feedback_kit：错误上报",
+      "phase": "P2",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "ErrorReportingOutput 只拦截 Level.error 日志",
+        "5 分钟去重窗口",
+        "10/min 限流",
+        "5 秒批量窗口",
+        "远程开关检查（GET /client-settings）",
+        "过滤规则可配置（默认忽略网络错误、认证错误）",
+        "gzip 批量压缩上报",
+        "单元测试通过"
+      ],
+      "sourceRef": [
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/core/utils/logger/error_reporting_output.dart",
+        "/Users/joya/JoyaProjects/Laicai/flutter/lib/data/services/error_reporter_service.dart"
+      ],
+      "workaroundStrategy": "如果 Timer 测试困难，注入 Timer 工厂"
+    },
+    {
+      "id": "3.6",
+      "title": "joya_feedback_kit：统一集成入口",
+      "phase": "P2",
+      "status": "pending",
+      "acceptanceCriteria": [
+        "JoyaFeedbackKit.init() 一行启用所有反馈能力",
+        "runZonedGuarded 捕获 Dart 异常 → CrashReporterService",
+        "FlutterError.onError 捕获框架错误 → CrashReporterService",
+        "Logger 自动接入 ErrorReportingOutput",
+        "配置类包含：projectKey, apiBaseUrl, keyPrefix, 功能开关",
+        "README.md 含 main.dart 集成示例"
+      ],
+      "workaroundStrategy": "提供两个集成层级：全自动（JoyaFeedbackKit.init）和手动（按需创建各 Service）"
+    }
+  ],
+  "config": {
+    "maxIterations": 30,
+    "maxQaRetries": 3,
+    "qualityCommands": {
+      "analyze": "cd /Users/joya/JoyaProjects/joya-flutter-kits && melos analyze",
+      "test": "cd /Users/joya/JoyaProjects/joya-flutter-kits && melos test"
+    }
+  }
+}
