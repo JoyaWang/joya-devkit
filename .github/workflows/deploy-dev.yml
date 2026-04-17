@@ -57,9 +57,9 @@ jobs:
             docker compose -f infra/docker-compose.yml exec -T api npx prisma migrate deploy --schema ./prisma/schema.prisma 2>&1 | tee -a $LOG_FILE || echo "[WARN] Migration skipped or already applied" | tee -a $LOG_FILE
             echo "[OK] Migrations applied" | tee -a $LOG_FILE
 
-            # 4b. Seed project bindings (idempotent upsert, inline resolver)
+            # 4b. Seed project bindings (idempotent upsert via raw SQL)
             docker compose -f infra/docker-compose.yml exec -T api node -e "
-            const { PrismaClient } = require('./node_modules/@prisma/client');
+            const pg = require('pg');
             function upper(v) { return v.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase(); }
             function requireEnv(env, keys) {
               for (const k of keys) { const v = env[k]; if (v && v.trim()) return v; }
@@ -76,7 +76,8 @@ jobs:
               };
             }
             async function run() {
-              const prisma = new PrismaClient();
+              const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+              await client.connect();
               for (const t of [
                 { projectKey: 'laicai', runtimeEnv: 'dev' },
                 { projectKey: 'laicai', runtimeEnv: 'prd' },
@@ -84,13 +85,15 @@ jobs:
                 { projectKey: 'infov', runtimeEnv: 'prd' },
               ]) {
                 const config = resolveConfig(t.projectKey, t.runtimeEnv, process.env);
-                await prisma.projectServiceBinding.upsert({
-                  where: { projectKey_runtimeEnv_serviceType: { projectKey: t.projectKey, runtimeEnv: t.runtimeEnv, serviceType: 'object_storage' } },
-                  update: { config: JSON.stringify(config) },
-                  create: { projectKey: t.projectKey, runtimeEnv: t.runtimeEnv, serviceType: 'object_storage', provider: 'cos', config: JSON.stringify(config) },
-                });
+                const configJson = JSON.stringify(config);
+                await client.query(\`
+                  INSERT INTO project_service_bindings (project_key, runtime_env, service_type, provider, config, updated_at)
+                  VALUES ($1, $2, 'object_storage', 'cos', $3, NOW())
+                  ON CONFLICT (project_key, runtime_env, service_type)
+                  DO UPDATE SET config = EXCLUDED.config, provider = EXCLUDED.provider, updated_at = NOW()
+                \`, [t.projectKey, t.runtimeEnv, configJson]);
               }
-              await prisma.\$disconnect();
+              await client.end();
               console.log('[OK] Seed complete');
             }
             run().catch(e => { console.error('[WARN] Seed failed:', e.message); process.exit(0); });
