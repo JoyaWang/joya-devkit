@@ -53,9 +53,9 @@ COPY --from=builder /app/api-prod/node_modules ./node_modules
 # as a flat package under node_modules/prisma.
 COPY --from=builder /app/prisma ./prisma
 
-# Prisma generates its engine under node_modules/.prisma/client during build.
+# Prisma generates its engine under apps/api/node_modules/.prisma/client during build.
 # pnpm deploy may not carry this hidden directory, so copy it explicitly.
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
 
 # Copy seed scripts for binding initialization
 COPY --from=builder /app/scripts ./scripts
