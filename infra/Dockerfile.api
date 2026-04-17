@@ -53,10 +53,11 @@ COPY --from=builder /app/apps/api/src/generated ./dist/generated
 # .prisma/client is also present because we re-ran prisma generate after deploy.
 COPY --from=builder /app/api-prod/node_modules ./node_modules
 
-# Copy prisma schema, migrations, and CLI for prisma migrate deploy.
+# Copy prisma schema/config/migrations and CLI for prisma migrate deploy.
 # prisma is a prod dep (in root package.json) so pnpm deploy includes it
 # as a flat package under node_modules/prisma.
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 # Copy seed scripts for binding initialization
 COPY --from=builder /app/scripts ./scripts
