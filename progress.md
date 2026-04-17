@@ -432,3 +432,85 @@
 - 修复 API 运行时根 `.env` 装载问题，确保从 `apps/api` 启动时也能读取项目根配置。
 - 修复 EnvTokenValidator 过早缓存环境变量的问题，避免 service token 在 env 后加载场景下失效。
 - 以 `BASE_URL=http://localhost:3010 ./scripts/e2e-verify.sh` 完成全链路验证：44 passed, 0 failed。
+
+## 2026-04-17 Laicai 全量接入验证
+
+### 完成项
+- [x] 补齐 `project_manifests` 表（dev/prd）— 数据库重置后未重新 seed manifests，导致 `ProjectContextResolver` 抛 `project_not_registered`
+- [x] 验证 Laicai dev 上传请求：avatar、post attachment 均返回有效 uploadUrl
+- [x] 验证 Laicai prd 上传请求：avatar、KYC identity 均返回有效 uploadUrl
+- [x] 确认 Laicai release workflow 已完整接入 SRS（Android APK + iOS IPA）
+- [x] 确认 Laicai backend CloudBase storage function 已配置 SRS 环境变量
+
+### 发现与修复
+- **根因**：数据库重置后只 seed 了 `project_service_bindings`，未 seed `project_manifests`
+- **修复**：通过 psql 直接插入 3 条 manifest 记录（infov、laicai、unbound）
+
+### 验证证据
+```bash
+# Laicai dev avatar 上传请求
+curl -s -X POST https://srs-dev.infinex.cn/v1/objects/upload-requests \
+  -H "Authorization: Bearer dev-token-laicai" \
+  -H "Content-Type: application/json" \
+  -d '{"project":"laicai","domain":"member","scope":"avatar","entityId":"test-user-123","fileKind":"avatar","fileName":"avatar.jpg","contentType":"image/jpeg","size":102400}'
+# 返回：objectKey=laicai/dev/member/avatar/...，uploadUrl 指向 shared-storage-dev bucket
+
+# Laicai prd KYC identity 上传请求
+curl -s -X POST https://srs.infinex.cn/v1/objects/upload-requests \
+  -H "Authorization: Bearer prd-token-laicai" \
+  -H "Content-Type: application/json" \
+  -d '{"project":"laicai","domain":"member","scope":"identity","entityId":"user-kyc-001","fileKind":"idcard","fileName":"idcard_front.jpg","contentType":"image/jpeg","size":512000}'
+# 返回：objectKey=laicai/prd/member/identity/...，uploadUrl 指向 shared-storage bucket
+```
+
+### 后续建议
+- 考虑在 `seed-projects.ts` 执行时验证 manifests 是否存在
+- 或在 API 启动时做自检，确保 manifests 和 bindings 一致
+
+## 2026-04-17 启动自检与 Seed 增强
+
+### 完成项
+- [x] seed-projects.ts 增强：执行时先检查 manifests 是否存在，不存在则创建
+- [x] API 启动自检：验证所有 bindings 都有对应 active manifests
+- [x] 不一致时报警但不阻塞启动，提供修复提示
+
+### 实现细节
+
+**seed-projects.ts 改造**：
+```typescript
+async function ensureManifests(): Promise<string[]> {
+  const requiredManifests = [
+    { projectKey: "infov", displayName: "InfoV" },
+    { projectKey: "laicai", displayName: "Laicai" },
+    { projectKey: "unbound", displayName: "Unbound Test Project" },
+  ];
+  // 检查每个 manifest 是否存在，不存在则创建
+  // 返回创建的 manifest 列表
+}
+```
+
+**API 启动自检**：
+```typescript
+// apps/api/src/startup-check.ts
+export async function checkProjectConsistency(prisma: PrismaClient): Promise<ConsistencyCheckResult> {
+  // 查询所有 bindings 和 manifests
+  // 检查每个 binding 是否有对应的 active manifest
+  // 返回缺失列表和状态
+}
+
+// apps/api/src/index.ts
+const start = async () => {
+  console.log("🔍 Running project consistency check...");
+  const consistencyResult = await checkProjectConsistency(prisma);
+  logConsistencyResult(consistencyResult);
+  // 继续启动...
+};
+```
+
+### 设计决策
+- **非阻塞**：启动自检只报警不阻塞，保证系统仍能为正常项目服务
+- **幂等性**：seed-projects.ts 可重复执行，不会重复创建
+- **可观测性**：启动时打印一致性状态，便于运维排查
+
+### 提交
+- commit: `feat: add startup consistency check and improve seed script`

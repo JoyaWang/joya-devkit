@@ -20,13 +20,17 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Current Slice
 - Phase: `runtime-stability-and-ops-hardening`
-- Status: `completed` — dev/prd 数据库已重置重建，migration 和 seed 均成功，health 200 正常，所有任务已完成
+- Status: `completed` — dev/prd 数据库已重置重建，migration 和 seed 均成功，health 200 正常，Laicai 全量接入验证通过
 - Active slice: `dev-disk-hygiene-and-deploy-guardrails-and-db-reset`
-- Latest checkpoint: 所有任务完成（2026-04-17），dev/prd 服务运行正常，4 个 bindings 已写入，磁盘使用 71%
+- Latest checkpoint: 所有任务完成（2026-04-17），dev/prd 服务运行正常，project_manifests 已补齐，Laicai dev/prd 链路验证通过
 - 已通过的验证：
-  - SRS dev: health 200 ✅，11 张表已创建，4 个 bindings 已写入
-  - SRS prd: health 200 ✅，11 张表已创建，4 个 bindings 已写入
+  - SRS dev: health 200 ✅，11 张表已创建，4 个 bindings 已写入，project_manifests 已补齐
+  - SRS prd: health 200 ✅，11 张表已创建，4 个 bindings 已写入，project_manifests 已补齐
   - 磁盘卫生机制: dev 磁盘 71%，guardrails 正常 ✅
+  - Laicai dev 上传请求: avatar ✅、post attachment ✅
+  - Laicai prd 上传请求: avatar ✅、KYC identity ✅
+  - Laicai release workflow: Android APK 上传 + iOS IPA 上传已接入 SRS ✅
+  - Laicai backend CloudBase: storage function 已配置 SRS 环境变量 ✅
 
 ## Locked Decisions
 - shared-runtime-services 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
@@ -37,6 +41,9 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - 测试框架：Vitest；命令：pnpm test / pnpm test:watch；类型检查：pnpm typecheck。
 - 当前 `.agent/runtime/` 状态层已初始化，项目具备 long-running / autonomous mode 的最小恢复能力。
 - `dl-dev.infinex.cn` / `dl.infinex.cn` 的长期角色是环境级共享公共分发入口，不应继续作为单一项目 bucket 的长期别名。
+- **存储架构**：所有项目共享 2 个物理桶（dev / prd），按 objectKey 前缀逻辑隔离（`{projectKey}/{env}/...`）。
+- **启动自检**：API 启动时验证所有 bindings 都有对应 active manifests，不一致则报警但不阻塞启动。
+- **Seed 安全**：seed-projects.ts 执行时先检查 manifests 是否存在，不存在则创建，保证幂等性。
 
 ## Next Default Action
 当前阶段已完成。后续方向：
