@@ -20,13 +20,13 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Current Slice
 - Phase: `runtime-stability-and-ops-hardening`
-- Status: `in_progress` — dev/prd 数据库已重置重建，migration 和 seed 均成功，health 200 正常
+- Status: `completed` — dev/prd 数据库已重置重建，migration 和 seed 均成功，health 200 正常，所有任务已完成
 - Active slice: `dev-disk-hygiene-and-deploy-guardrails-and-db-reset`
-- Latest checkpoint: dev/prd 删库重建完成（2026-04-17），`prisma db push` + seed 成功，4 个 project_service_bindings 已写入，health 200 ✅
+- Latest checkpoint: 所有任务完成（2026-04-17），dev/prd 服务运行正常，4 个 bindings 已写入，磁盘使用 71%
 - 已通过的验证：
   - SRS dev: health 200 ✅，11 张表已创建，4 个 bindings 已写入
   - SRS prd: health 200 ✅，11 张表已创建，4 个 bindings 已写入
-  - Laicai backend storage 全链路 E2E: upload-request → COS PUT → complete → download-request → delete ✅
+  - 磁盘卫生机制: dev 磁盘 71%，guardrails 正常 ✅
 
 ## Locked Decisions
 - shared-runtime-services 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
@@ -39,10 +39,10 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - `dl-dev.infinex.cn` / `dl.infinex.cn` 的长期角色是环境级共享公共分发入口，不应继续作为单一项目 bucket 的长期别名。
 
 ## Next Default Action
-当前优先级已切到运行稳定性收口。下一步方向：
-1. **验证长期磁盘卫生机制**：确认 dev deploy guardrails 与 maintenance workflow 在删库重跑后仍保持正常。
-2. **验证 deploy workflow**：推送新 commit 触发 GitHub Actions，确认 dev/prd deploy 都能成功（不再报 `P3005`）。
-3. **Laicai/InfoV 后续接入**：在部署、migration 与运维 guardrails 都稳定后，再继续真实 APK 发布验证与 InfoV 接入。
+当前阶段已完成。后续方向：
+1. **Laicai/InfoV 接入验证**：在真实项目中验证 SRS 对象上传下载链路
+2. **监控与告警**：考虑添加服务监控和告警机制
+3. **文档完善**：补充 API 文档和运维手册
 
 ## Blockers / Watchouts
 - 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；guardrails 已回绿，但删库重跑后仍需复验长期机制。
