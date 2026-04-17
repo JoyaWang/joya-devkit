@@ -83,6 +83,24 @@
 - **解法**：最终使用不带尾斜杠的目录规则：`["/infov", "/laicai"]`
 - **规则**：以后腾讯 CDN 的 directory 级高级回源规则默认使用不带尾斜杠的目录前缀；命中异常时优先先检查 `RulePaths` 格式，而不是先怀疑后端服务
 
+### 2026-04-16: admin-platform 是唯一环境配置真相源，禁止在下游写死 fallback
+- **问题**：`cloudbaserc.json` 中被直接写入了 `PROJECT_KEY: "laicai"` 和 `SRS_API_URL`/`SRS_PUBLIC_DOMAIN`/`SRS_SERVICE_TOKEN` 的静态值，绕过了 `pull-infra-env.js` 的统一拉取机制
+- **根因**：admin-platform 的 `infra_env_bundle` Edge Function 默认返回里缺少 `PROJECT_KEY` 和 SRS 占位字段，导致为了快速修复直接在 Laicai backend 写死配置
+- **解法**：在 admin-platform `DEFAULT_RUNTIME_CONFIG_BY_ENV` 的 dev/stg/prd 中加入 `PROJECT_KEY`、`SRS_API_URL`、`SRS_PUBLIC_DOMAIN`、`SRS_SERVICE_TOKEN` 默认值占位；重新部署 `infra_env_bundle` Edge Function；将 `cloudbaserc.json` 改回 `{{env.XXX}}` 占位符；移除 `pull-infra-env.js` 中特殊注入 `PROJECT_KEY` 的 workaround
+- **规则**：任何共享运行时/业务项目的 env 配置必须通过 admin-platform Infra bundle 注入，禁止在 `cloudbaserc.json`、workflow 或脚本中写死环境相关常量 → 已写入 `progress.md`
+
+### 2026-04-16: SRS Object Service 协议层新增必填字段时，必须同步检查所有转发层和 E2E 调用方
+- **问题**：SRS `upload-requests` 校验新增 `fileKind` 必填后，Laicai 的 Flutter E2E 测试通过 CloudBase `storage` 函数转发时返回 500，但直接 curl SRS 是通的
+- **根因**：`storage` 函数的 `srs-client.js` 直接透传 `fileKind`（值为 `undefined`），导致 SRS 返回 400；而 CloudBase 函数把所有 axios 异常统一 catch 成 500，掩盖了真实错误语义。Flutter 侧旧调用点也没有传 `fileKind`
+- **解法**：在 `srs-client.js` 增加 `inferFileKind` 兜底推断（`image`/`video`/`audio`/`document`/`file`），让转发层对缺失字段做安全兼容；同时修复 Flutter `UploadService` 显式传入 `fileKind`
+- **规则**：以后 SRS 协议层引入新的必填字段时，必须同时更新：1) 服务端 schema；2) 所有业务后端转发层（srs-client）；3) 所有前端/SDK 调用点；4) E2E 测试数据。不能只改 SRS 服务端就认为升级完成
+
+### 2026-04-16: Flutter UploadService 参数必须与后端 storage contract 严格对齐
+- **问题**：手动 curl 验证了 SRS storage API 链路，但 Flutter app 真实上传头像/帖子图片时仍失败
+- **根因**：`UploadService.getUploadInfo()` 只传了 `fileName` + `contentType`，但后端 `storage` 函数强制要求 `domain`、`scope`、`size`；缺少任一字段即返回 400 `MISSING_FIELDS`
+- **解法**：修改 Flutter `UploadService` 在上传请求中显式传入 `domain`、`scope`、`size`；`ProfileService.uploadAvatar` 传 `domain='member'`, `scope='avatar'`；`ImageUploadWidget` 传 `domain='post'`, `scope='attachment'`；KYC 实名认证传 `domain='member'`, `scope='identity'`
+- **规则**：后端 API 契约变更后，必须同步检查所有前端调用点，不能只测 API 层就认为 E2E 通过 → 已写入 `progress.md`
+
 ### 2026-04-10: 腾讯 CDN 的域名 origin 方案未收口前，不要替代当前稳定 IP origin
 - **问题**：虽然腾讯 CDN 配置中可以把 shared prefix 的 `Origin` 写成 `srs.infinex.cn`，但公网实际访问 shared objectKey 时仍可能回落到旧 COS 默认源站，表现为 `Server: tencent-cos` 的 404
 - **根因**：当前“域名 origin -> Nginx bridge -> SRS”的公网行为并不稳定，说明 CDN 对该配置的真实回源行为还有未收口因素；问题不在 SRS route 或宿主机 Nginx 本身

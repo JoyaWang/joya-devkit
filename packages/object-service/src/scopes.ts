@@ -11,6 +11,7 @@ const ALLOWED_SCOPES: Record<string, string[]> = {
   backup: ["device"],
   release: ["android", "ios", "desktop"],
   attachment: ["message", "post"],
+  identity: ["member"],
   log: ["system", "audit"],
 };
 

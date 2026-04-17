@@ -6,6 +6,29 @@
 - 不要在这里重复维护"当前切片 / 下一步 / 恢复清单 / 会话书签"。
 
 ## 已完成
+
+### 2026-04-17 dev/prd 数据库重置与重建
+
+- [x] 通过 vault skill 连接 dev/prd 服务器
+- [x] 停止 api/worker 服务
+- [x] 执行 `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`
+- [x] 使用 `prisma db push --accept-data-loss` 从 schema.prisma 重建表结构
+- [x] 运行 seed 脚本写入 4 个 project_service_bindings（laicai/infov × dev/prd）
+- [x] 验证 health 200 ✅
+- [x] 验证 11 张表已创建 ✅
+- [x] 验证 4 个 bindings 已写入 ✅
+- [x] P3005 历史债务已彻底清除
+
+### 2026-04-17 服务器登录安全升级
+
+- [x] 清理 InfoV/progress.md 中的明文密码
+- [x] 清理 InfoV/steering/BACKEND_STRUCTURE.md 中的 IP 与认证方式
+- [x] 重写 InfoV/scripts/deploy-infov-server.sh 使用 vault 环境变量
+- [x] 重写 infinex-site/deploy.sh 使用 vault 环境变量
+- [x] 重写 task-orch/deploy.sh 使用 vault 环境变量
+- [x] 升级 AI_RULES_BASE.md 工程红线：禁止从文档读取服务器密码，统一走 vault skill
+
+### 2026-04-16 dev 磁盘卫生与 deploy guardrails
 - **共享桶 + 共享 CDN origin 双环境全链路 E2E 验证通过**（2026-04-15）：
   - dev 共享桶 `shared-storage-dev-1321178972` + CDN `origin-dev.infinex.cn`
   - prd 共享桶 `shared-storage-1321178972` + CDN `origin.infinex.cn`

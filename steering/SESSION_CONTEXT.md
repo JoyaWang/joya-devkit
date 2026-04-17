@@ -20,12 +20,12 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Current Slice
 - Phase: `runtime-stability-and-ops-hardening`
-- Status: `in_progress` — SRS prd/dev deploy 已修复到 health 200 + seed complete，但 dev 暴露出 Docker build cache 导致的磁盘打满问题，当前正在收口长期磁盘卫生机制
-- Active slice: `dev-disk-hygiene-and-deploy-guardrails`
-- Latest checkpoint: `Deploy to Production` 与 `Deploy to Dev` 最新 workflow 均成功（run `24543976024` / `24543976020`），两边都已 `Seed complete` + `/health` 200（2026-04-17）
+- Status: `in_progress` — dev/prd 数据库已重置重建，migration 和 seed 均成功，health 200 正常
+- Active slice: `dev-disk-hygiene-and-deploy-guardrails-and-db-reset`
+- Latest checkpoint: dev/prd 删库重建完成（2026-04-17），`prisma db push` + seed 成功，4 个 project_service_bindings 已写入，health 200 ✅
 - 已通过的验证：
-  - SRS prd deploy：seed complete → health 200 ✅
-  - SRS dev deploy：seed complete → health 200 ✅
+  - SRS dev: health 200 ✅，11 张表已创建，4 个 bindings 已写入
+  - SRS prd: health 200 ✅，11 张表已创建，4 个 bindings 已写入
   - Laicai backend storage 全链路 E2E: upload-request → COS PUT → complete → download-request → delete ✅
 
 ## Locked Decisions
@@ -40,14 +40,13 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Next Default Action
 当前优先级已切到运行稳定性收口。下一步方向：
-1. **长期磁盘卫生机制**：为 dev deploy 加入磁盘阈值检查、自动清理、去掉默认 `--no-cache`，并新增定时 maintenance workflow。
-2. **migration warning 收口**：把 `Migration skipped or already applied` 的灰区改成明确成功/明确失败，避免假绿。
-3. **Laicai/InfoV 后续接入**：在部署与运维 guardrails 稳定后，再继续真实 APK 发布验证与 InfoV 接入。
-4. 如需恢复上下文，先读本文件，再按需读 `progress.md`。
+1. **验证长期磁盘卫生机制**：确认 dev deploy guardrails 与 maintenance workflow 在删库重跑后仍保持正常。
+2. **验证 deploy workflow**：推送新 commit 触发 GitHub Actions，确认 dev/prd deploy 都能成功（不再报 `P3005`）。
+3. **Laicai/InfoV 后续接入**：在部署、migration 与运维 guardrails 都稳定后，再继续真实 APK 发布验证与 InfoV 接入。
 
 ## Blockers / Watchouts
-- 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；虽已通过前置清理恢复，但长期机制仍在补齐。
-- 最新 prd/dev deploy 已成功，但 migration 步仍使用 `warn-or-skip` 兜底语义，需要收口成明确成功/失败。
+- 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；guardrails 已回绿，但删库重跑后仍需复验长期机制。
+- prd 当前 blocker 已明确为 Prisma `P3005`：旧库非空且 migration 历史未 baseline；本轮不走 baseline，按用户授权直接重置 dev + prd 数据库。
 - Laicai binding 已切换到共享桶（dev: `shared-storage-dev-1321178972`，prd: `shared-storage-1321178972`），downloadDomain 已配（dev: `origin-dev.infinex.cn`，prd: `origin.infinex.cn`）。
 - CDN `origin.infinex.cn` 和 `origin-dev.infinex.cn` 已确认关闭「私有存储桶访问」，回源协议 HTTPS。
 - ObjectStorageAdapterFactory 按进程内 cache 复用 adapter；binding 变更后需重启 API。

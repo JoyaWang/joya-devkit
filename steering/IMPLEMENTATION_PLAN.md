@@ -438,12 +438,14 @@
 3. [ ] 去掉 dev 常态化 `--no-cache`；仅在显式强制 rebuild 时才走无缓存构建，避免每次部署都堆新 layer。
 4. [ ] 新增 maintenance workflow（定时任务），周期性清理 Docker image / builder cache，并留下清理前后空间证据。
 5. [ ] 收口 migration 语义：将当前 `warn-or-skip` 模糊输出改为明确成功/失败，避免 deploy 假绿。
+6. [ ] 对已确认“无保留数据”的 dev / prd 环境执行数据库重置，清空旧 schema 后按当前 Prisma migration 从零重建，正式消除 `P3005` 历史债务。
 
 验收标准：
 - [ ] dev deploy 前会打印磁盘与 Docker 占用，并执行前置清理
 - [ ] 清理后空间不足时，workflow 会在构建前明确失败，而不是等写日志或构建中途炸掉
 - [ ] dev 默认部署不再强制 `--no-cache`
 - [ ] maintenance workflow 已建立并可独立执行
+- [ ] dev / prd 删库重建后，`prisma migrate deploy` 不再报 `P3005`
 - [ ] 文档中已明确此机制的触发条件、阈值与证据输出
 
 ## Phase 5: 首批项目接入

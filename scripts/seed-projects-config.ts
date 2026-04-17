@@ -18,14 +18,14 @@ function upper(value: string): string {
   return value.replace(/[^a-zA-Z0-9]+/g, "_").toUpperCase();
 }
 
-function readFirst(env: EnvMap, keys: string[], fallback: string): string {
+function requireEnv(env: EnvMap, keys: string[]): string {
   for (const key of keys) {
     const value = env[key];
     if (value && value.trim()) {
       return value;
     }
   }
-  return fallback;
+  throw new Error(`Missing required env var: one of ${keys.join(", ")}`);
 }
 
 export function resolveObjectStorageSeedConfig(
@@ -35,34 +35,29 @@ export function resolveObjectStorageSeedConfig(
   const projectKey = upper(input.projectKey);
 
   return {
-    bucket: readFirst(
+    bucket: requireEnv(
       input.env,
       [`SHARED_${envKey}_COS_BUCKET`, `${projectKey}_${envKey}_COS_BUCKET`, `${projectKey}_COS_BUCKET`],
-      `${input.projectKey}-${input.runtimeEnv}-bucket-1250000000`,
     ),
-    region: readFirst(
+    region: requireEnv(
       input.env,
       [`SHARED_${envKey}_COS_REGION`, `${projectKey}_${envKey}_COS_REGION`, `${projectKey}_COS_REGION`],
-      input.projectKey === "laicai" ? "ap-shanghai" : "ap-guangzhou",
     ),
-    secretId: readFirst(
+    secretId: requireEnv(
       input.env,
       [`SHARED_${envKey}_COS_SECRET_ID`, `${projectKey}_${envKey}_COS_SECRET_ID`, `${projectKey}_COS_SECRET_ID`],
-      "placeholder-secret-id",
     ),
-    secretKey: readFirst(
+    secretKey: requireEnv(
       input.env,
       [`SHARED_${envKey}_COS_SECRET_KEY`, `${projectKey}_${envKey}_COS_SECRET_KEY`, `${projectKey}_COS_SECRET_KEY`],
-      "placeholder-secret-key",
     ),
-    downloadDomain: readFirst(
+    downloadDomain: requireEnv(
       input.env,
       [
         `SHARED_${envKey}_COS_DOWNLOAD_DOMAIN`,
         `${projectKey}_${envKey}_COS_DOWNLOAD_DOMAIN`,
         `${projectKey}_COS_DOWNLOAD_DOMAIN`,
       ],
-      "",
-    ) || (input.runtimeEnv === "prd" ? undefined : "https://origin-dev.infinex.cn"),
+    ),
   };
 }
