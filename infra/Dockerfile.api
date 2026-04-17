@@ -48,10 +48,14 @@ COPY --from=builder /app/apps/api/src/generated ./dist/generated
 # (@srs/auth, @srs/object-service, etc.) with their dist/ outputs.
 COPY --from=builder /app/api-prod/node_modules ./node_modules
 
-# Copy prisma schema and migrations for prisma migrate deploy
+# Copy prisma schema, migrations, and CLI for prisma migrate deploy.
+# prisma is a prod dep (in root package.json) so pnpm deploy includes it
+# as a flat package under node_modules/prisma.
 COPY --from=builder /app/prisma ./prisma
-# Copy prisma CLI binary for migration support
-COPY --from=builder /app/node_modules/.pnpm/prisma@*/node_modules/prisma ./node_modules/prisma-cli
+
+# Prisma generates its engine under node_modules/.prisma/client during build.
+# pnpm deploy may not carry this hidden directory, so copy it explicitly.
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Copy seed scripts for binding initialization
 COPY --from=builder /app/scripts ./scripts
