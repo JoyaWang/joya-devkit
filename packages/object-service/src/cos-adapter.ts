@@ -141,6 +141,19 @@ export class CosObjectStorageAdapter implements ObjectStorageAdapter {
       };
     }
 
+    // When downloadDomain is set, the binding uses a CDN/proxy layer with its
+    // own auth (e.g. Tencent Cloud CDN private-bucket access).  Return a clean
+    // CDN URL without COS signing params — the CDN handles origin auth itself.
+    if (this.downloadDomain) {
+      const domain = this.downloadDomain.replace(/^https?:\/\//, "");
+      const downloadUrl = `https://${domain}/${input.objectKey}`;
+      return {
+        downloadUrl,
+        expiresAt,
+      };
+    }
+
+    // No CDN layer — generate a COS signed URL for direct bucket access.
     const client = this.getClient();
     const downloadUrl = client.getObjectUrl({
       Bucket: this.bucket,
@@ -149,8 +162,6 @@ export class CosObjectStorageAdapter implements ObjectStorageAdapter {
       Sign: true,
       Expires: this.signExpiresSeconds,
       Method: "GET",
-      Domain: this.downloadDomain,
-      ForceSignHost: this.downloadDomain ? false : undefined,
     });
 
     return {

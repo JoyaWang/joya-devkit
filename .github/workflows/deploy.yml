@@ -57,6 +57,32 @@ jobs:
             docker compose -f infra/docker-compose.yml exec -T api node node_modules/prisma-cli/migrate.js deploy --schema ./prisma/schema.prisma 2>&1 | tee -a $LOG_FILE || echo "[WARN] Migration skipped or already applied" | tee -a $LOG_FILE
             echo "[OK] Migrations applied" | tee -a $LOG_FILE
 
+            # 4b. Seed project bindings (idempotent upsert)
+            docker compose -f infra/docker-compose.yml exec -T api node -e "
+            const pkg = require('./scripts/seed-projects-config.js');
+            const { PrismaClient } = require('./node_modules/@prisma/client');
+            async function run() {
+              const prisma = new PrismaClient();
+              for (const t of [
+                { projectKey: 'laicai', runtimeEnv: 'dev' },
+                { projectKey: 'laicai', runtimeEnv: 'prd' },
+                { projectKey: 'infov', runtimeEnv: 'dev' },
+                { projectKey: 'infov', runtimeEnv: 'prd' },
+              ]) {
+                const config = pkg.resolveObjectStorageSeedConfig({ ...t, env: process.env });
+                await prisma.projectServiceBinding.upsert({
+                  where: { projectKey_runtimeEnv_serviceType: { projectKey: t.projectKey, runtimeEnv: t.runtimeEnv, serviceType: 'object_storage' } },
+                  update: { config: JSON.stringify(config) },
+                  create: { projectKey: t.projectKey, runtimeEnv: t.runtimeEnv, serviceType: 'object_storage', provider: 'cos', config: JSON.stringify(config) },
+                });
+              }
+              await prisma.\$disconnect();
+              console.log('[OK] Seed complete');
+            }
+            run().catch(e => { console.error('[WARN] Seed failed:', e.message); process.exit(0); });
+            " 2>&1 | tee -a $LOG_FILE
+            echo "[OK] Seed done" | tee -a $LOG_FILE
+
             # 5. Health check
             sleep 5
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3010/health || echo "000")

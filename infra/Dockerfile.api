@@ -41,7 +41,7 @@ WORKDIR /app
 
 # Copy api build output
 COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/src/generated ./src/generated
+COPY --from=builder /app/apps/api/src/generated ./dist/generated
 
 # Copy the flat production node_modules (no symlinks, no .pnpm store).
 # This includes third-party deps (fastify, pg, etc.) AND workspace packages
@@ -52,6 +52,9 @@ COPY --from=builder /app/api-prod/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 # Copy prisma CLI binary for migration support
 COPY --from=builder /app/node_modules/.pnpm/prisma@*/node_modules/prisma ./node_modules/prisma-cli
+
+# Copy seed scripts for binding initialization
+COPY --from=builder /app/scripts ./scripts
 
 EXPOSE 3010
 CMD ["node", "dist/index.js"]
