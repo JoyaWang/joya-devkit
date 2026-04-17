@@ -13,6 +13,7 @@ const ALLOWED_SCOPES: Record<string, string[]> = {
   attachment: ["message", "post"],
   identity: ["member"],
   log: ["system", "audit"],
+  feedback: ["public", "system"],
 };
 
 export interface ScopeValidationResult {

@@ -58,6 +58,14 @@ export function deriveDefaultPolicy(input: DerivePolicyInput): ObjectPolicy {
     };
   }
 
+  // Feedback content (screenshots and logs) -> public-stable for issue integration
+  if (scope === "feedback") {
+    return {
+      objectProfile: contentType.startsWith("image/") ? "public_media" : "public_asset",
+      accessClass: "public-stable",
+    };
+  }
+
   // Public media (images, videos) -> public-stable
   if (
     domain === "public" ||
