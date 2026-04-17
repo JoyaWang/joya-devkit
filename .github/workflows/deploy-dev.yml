@@ -36,7 +36,10 @@ jobs:
             PROJECT_DIR="/home/ubuntu/apps/shared-runtime-services"
             BRANCH="main"
             LOG_FILE="$PROJECT_DIR/deploy.log"
-            touch "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/shared-runtime-services-deploy.log"
+            docker image prune -af >/dev/null 2>&1 || true
+            docker builder prune -af >/dev/null 2>&1 || true
+            mkdir -p /tmp >/dev/null 2>&1 || true
+            : >> "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/shared-runtime-services-deploy.log"
 
             echo "=== Dev deploy started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
 
@@ -88,17 +91,17 @@ jobs:
                 const config = resolveConfig(t.projectKey, t.runtimeEnv, process.env);
                 const configJson = JSON.stringify(config);
                 await client.query(
-                  `INSERT INTO project_service_bindings (project_key, runtime_env, service_type, provider, config, updated_at)
-                   VALUES ($1, $2, 'object_storage', 'cos', $3, NOW())
+                  `INSERT INTO project_service_bindings (id, project_key, runtime_env, service_type, provider, config, created_at, updated_at)
+                   VALUES ($1, $2, $3, 'object_storage', 'cos', $4, NOW(), NOW())
                    ON CONFLICT (project_key, runtime_env, service_type)
                    DO UPDATE SET config = EXCLUDED.config, provider = EXCLUDED.provider, updated_at = NOW()`,
-                  [t.projectKey, t.runtimeEnv, configJson],
+                  [crypto.randomUUID(), t.projectKey, t.runtimeEnv, configJson],
                 );
               }
               await client.end();
               console.log('[OK] Seed complete');
             }
-            run().catch(e => { console.error('[WARN] Seed failed:', e.message); process.exit(0); });
+            run().catch(e => { console.error('[FAIL] Seed failed:', e.message); process.exit(1); });
             NODE
             echo "[OK] Seed done" | tee -a $LOG_FILE
 
