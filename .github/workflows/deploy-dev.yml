@@ -57,10 +57,24 @@ jobs:
             docker compose -f infra/docker-compose.yml exec -T api node node_modules/prisma-cli/migrate.js deploy --schema ./prisma/schema.prisma 2>&1 | tee -a $LOG_FILE || echo "[WARN] Migration skipped or already applied" | tee -a $LOG_FILE
             echo "[OK] Migrations applied" | tee -a $LOG_FILE
 
-            # 4b. Seed project bindings (idempotent upsert)
+            # 4b. Seed project bindings (idempotent upsert, inline resolver)
             docker compose -f infra/docker-compose.yml exec -T api node -e "
-            const pkg = require('./scripts/seed-projects-config.js');
             const { PrismaClient } = require('./node_modules/@prisma/client');
+            function upper(v) { return v.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase(); }
+            function requireEnv(env, keys) {
+              for (const k of keys) { const v = env[k]; if (v && v.trim()) return v; }
+              throw new Error('Missing env: one of ' + keys.join(', '));
+            }
+            function resolveConfig(projectKey, runtimeEnv, env) {
+              const ek = upper(runtimeEnv), pk = upper(projectKey);
+              return {
+                bucket: requireEnv(env, ['SHARED_'+ek+'_COS_BUCKET', pk+'_'+ek+'_COS_BUCKET', pk+'_COS_BUCKET']),
+                region: requireEnv(env, ['SHARED_'+ek+'_COS_REGION', pk+'_'+ek+'_COS_REGION', pk+'_COS_REGION']),
+                secretId: requireEnv(env, ['SHARED_'+ek+'_COS_SECRET_ID', pk+'_'+ek+'_COS_SECRET_ID', pk+'_COS_SECRET_ID']),
+                secretKey: requireEnv(env, ['SHARED_'+ek+'_COS_SECRET_KEY', pk+'_'+ek+'_COS_SECRET_KEY', pk+'_COS_SECRET_KEY']),
+                downloadDomain: requireEnv(env, ['SHARED_'+ek+'_COS_DOWNLOAD_DOMAIN', pk+'_'+ek+'_COS_DOWNLOAD_DOMAIN', pk+'_COS_DOWNLOAD_DOMAIN']),
+              };
+            }
             async function run() {
               const prisma = new PrismaClient();
               for (const t of [
@@ -69,7 +83,7 @@ jobs:
                 { projectKey: 'infov', runtimeEnv: 'dev' },
                 { projectKey: 'infov', runtimeEnv: 'prd' },
               ]) {
-                const config = pkg.resolveObjectStorageSeedConfig({ ...t, env: process.env });
+                const config = resolveConfig(t.projectKey, t.runtimeEnv, process.env);
                 await prisma.projectServiceBinding.upsert({
                   where: { projectKey_runtimeEnv_serviceType: { projectKey: t.projectKey, runtimeEnv: t.runtimeEnv, serviceType: 'object_storage' } },
                   update: { config: JSON.stringify(config) },
