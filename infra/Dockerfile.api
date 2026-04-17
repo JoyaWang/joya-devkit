@@ -36,6 +36,10 @@ RUN pnpm --filter @srs/api run build
 # (including dist/ outputs), so the runner never needs pnpm or symlinks.
 RUN pnpm deploy --prod --legacy --filter @srs/api /app/api-prod
 
+# Re-run prisma generate inside the deploy directory so .prisma/client
+# is created with the correct engine for the deployment environment.
+RUN cd /app/api-prod && DATABASE_URL=postgres://placeholder:placeholder@localhost:5432/placeholder npx prisma generate --schema=/app/prisma/schema.prisma
+
 FROM node:20-alpine AS runner
 WORKDIR /app
 
@@ -46,16 +50,13 @@ COPY --from=builder /app/apps/api/src/generated ./dist/generated
 # Copy the flat production node_modules (no symlinks, no .pnpm store).
 # This includes third-party deps (fastify, pg, etc.) AND workspace packages
 # (@srs/auth, @srs/object-service, etc.) with their dist/ outputs.
+# .prisma/client is also present because we re-ran prisma generate after deploy.
 COPY --from=builder /app/api-prod/node_modules ./node_modules
 
 # Copy prisma schema, migrations, and CLI for prisma migrate deploy.
 # prisma is a prod dep (in root package.json) so pnpm deploy includes it
 # as a flat package under node_modules/prisma.
 COPY --from=builder /app/prisma ./prisma
-
-# Prisma generates its engine under apps/api/node_modules/.prisma/client during build.
-# pnpm deploy may not carry this hidden directory, so copy it explicitly.
-COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
 
 # Copy seed scripts for binding initialization
 COPY --from=builder /app/scripts ./scripts
