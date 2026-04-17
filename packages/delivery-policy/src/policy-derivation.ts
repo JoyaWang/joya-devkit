@@ -50,8 +50,8 @@ export function deriveDefaultPolicy(input: DerivePolicyInput): ObjectPolicy {
     };
   }
 
-  // Member content (avatar, profile) -> private
-  if (domain === "member" || scope === "avatar" || scope === "profile") {
+  // Profile-only private content (avatar is public by design)
+  if (scope === "profile") {
     return {
       objectProfile: "private_media",
       accessClass: "private-signed",
