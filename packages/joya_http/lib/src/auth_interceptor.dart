@@ -2,11 +2,46 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:joya_auth/joya_auth.dart';
 
+/// Configurable token refresh strategy.
+///
+/// Allows each project to define its own refresh endpoint, request body
+/// field names, and response token paths — no hardcoded assumptions.
+class RefreshConfig {
+  /// The POST endpoint for refreshing tokens (e.g. `/auth/refresh-token`).
+  final String refreshPath;
+
+  /// JSON key for the refresh token in the request body.
+  final String refreshTokenBodyKey;
+
+  /// Dot-separated path to extract the access token from the response.
+  /// E.g. `data.access_token` or `data.tokens.accessToken`.
+  final String responseAccessTokenPath;
+
+  /// Dot-separated path to extract the refresh token from the response.
+  /// E.g. `data.refresh_token` or `data.tokens.refreshToken`.
+  /// Set to empty string to skip persisting a new refresh token.
+  final String responseRefreshTokenPath;
+
+  /// JSON key in the top-level response indicating success.
+  /// E.g. `success`, `ok`, `code` (checked for == 0 or == 200).
+  /// If null, a 200/201 HTTP status is treated as success.
+  final String? successField;
+
+  const RefreshConfig({
+    this.refreshPath = '/auth/refresh-token',
+    this.refreshTokenBodyKey = 'refresh_token',
+    this.responseAccessTokenPath = 'data.access_token',
+    this.responseRefreshTokenPath = 'data.refresh_token',
+    this.successField = 'success',
+  });
+}
+
 /// Authentication interceptor that injects Bearer tokens and handles token refresh.
 class AuthInterceptor extends QueuedInterceptor {
   final TokenService _tokenService;
   final Dio _refreshDio;
   final Dio? _retryDio;
+  final RefreshConfig _refreshConfig;
 
   bool _isRefreshing = false;
   final List<_PendingRequest> _pendingRequests = [];
@@ -16,7 +51,9 @@ class AuthInterceptor extends QueuedInterceptor {
     required String refreshBaseUrl,
     Dio? refreshDio,
     Dio? retryDio,
+    RefreshConfig refreshConfig = const RefreshConfig(),
   })  : _tokenService = tokenService,
+        _refreshConfig = refreshConfig,
         _refreshDio = refreshDio ??
             Dio(BaseOptions(
               baseUrl: refreshBaseUrl,
@@ -45,8 +82,8 @@ class AuthInterceptor extends QueuedInterceptor {
         return;
       }
 
-      // Skip refresh-token endpoint to avoid loops.
-      if (options.path.contains('/auth/refresh-token')) {
+      // Skip refresh endpoint to avoid loops.
+      if (options.path.contains(_refreshConfig.refreshPath)) {
         handler.next(options);
         return;
       }
@@ -122,7 +159,7 @@ class AuthInterceptor extends QueuedInterceptor {
       return;
     }
 
-    if (err.requestOptions.path.contains('/auth/refresh-token')) {
+    if (err.requestOptions.path.contains(_refreshConfig.refreshPath)) {
       handler.next(err);
       return;
     }
@@ -186,19 +223,19 @@ class AuthInterceptor extends QueuedInterceptor {
     _isRefreshing = true;
     try {
       final response = await _refreshDio.post(
-        '/auth/refresh-token',
-        data: {'refresh_token': refreshToken},
+        _refreshConfig.refreshPath,
+        data: {_refreshConfig.refreshTokenBodyKey: refreshToken},
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final respData = response.data;
-        final payload = respData is Map<String, dynamic>
-            ? respData['data'] as Map<String, dynamic>?
+        final newAccessToken = _extractToken(respData, _refreshConfig.responseAccessTokenPath);
+        final newRefreshToken = _refreshConfig.responseRefreshTokenPath.isNotEmpty
+            ? _extractToken(respData, _refreshConfig.responseRefreshTokenPath)
             : null;
-        final newAccessToken = payload?['access_token'] ?? payload?['token'];
-        final newRefreshToken = payload?['refresh_token'];
 
-        if (respData['success'] == true && newAccessToken != null) {
+        final success = _isSuccess(respData);
+        if (success && newAccessToken != null) {
           final accessTokenStr = newAccessToken.toString();
           await _tokenService.saveAccessToken(accessTokenStr);
           if (newRefreshToken != null) {
@@ -281,6 +318,37 @@ class AuthInterceptor extends QueuedInterceptor {
       req.completer.completeError(err);
     }
     _pendingRequests.clear();
+  }
+
+  /// Extract a value from a nested map using a dot-separated path.
+  /// E.g. `_extractToken(data, 'data.tokens.accessToken')`
+  /// traverses `data['data']['tokens']['accessToken']`.
+  static String? _extractToken(dynamic data, String path) {
+    if (data is! Map<String, dynamic> || path.isEmpty) return null;
+    final segments = path.split('.');
+    dynamic current = data;
+    for (final segment in segments) {
+      if (current is Map<String, dynamic>) {
+        current = current[segment];
+      } else {
+        return null;
+      }
+    }
+    return current?.toString();
+  }
+
+  /// Check if the response indicates success.
+  bool _isSuccess(dynamic respData) {
+    if (_refreshConfig.successField == null) {
+      // No success field configured — rely on HTTP status (already checked).
+      return true;
+    }
+    if (respData is! Map) return false;
+    final value = respData[_refreshConfig.successField];
+    if (value is bool) return value;
+    if (value is num) return value == 0 || value == 200;
+    if (value is String) return value.toLowerCase() == 'true' || value == 'ok';
+    return false;
   }
 }
 

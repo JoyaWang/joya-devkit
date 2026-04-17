@@ -7,13 +7,34 @@ abstract class SecureStorage {
   Future<void> deleteAll();
 }
 
+/// Default [SecureStorage] adapter using FlutterSecureStorage.
+///
+/// Platform options can be overridden via constructor parameters.
+/// If no options are provided, sensible defaults are used:
+/// - Android: encryptedSharedPreferences = true
+/// - iOS: accessibility = first_unlock
+/// - macOS: useDataProtectionKeyChain = false
 class FlutterSecureStorageAdapter implements SecureStorage {
-  final _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
-  );
+  final FlutterSecureStorage _storage;
 
-  const FlutterSecureStorageAdapter();
+  FlutterSecureStorageAdapter({
+    AndroidOptions? aOptions,
+    IOSOptions? iOptions,
+    MacOsOptions? mOptions,
+    LinuxOptions? lOptions,
+    WindowsOptions? wOptions,
+    WebOptions? webOptions,
+  }) : _storage = FlutterSecureStorage(
+          aOptions: aOptions ?? const AndroidOptions(encryptedSharedPreferences: true),
+          iOptions: iOptions ?? const IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+          mOptions: mOptions ?? const MacOsOptions(useDataProtectionKeyChain: false),
+          lOptions: lOptions ?? const LinuxOptions(),
+          wOptions: wOptions ?? const WindowsOptions(),
+          webOptions: webOptions ?? const WebOptions(),
+        );
+
+  /// Create from an existing [FlutterSecureStorage] instance.
+  FlutterSecureStorageAdapter.fromInstance(this._storage);
 
   @override
   Future<String?> read({required String key}) => _storage.read(key: key);

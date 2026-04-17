@@ -13,6 +13,7 @@ class JoyHttp {
     String? refreshBaseUrl,
     Duration? timeout,
     Map<String, dynamic>? defaultHeaders,
+    RefreshConfig refreshConfig = const RefreshConfig(),
   }) {
     final dio = Dio(BaseOptions(
       baseUrl: baseUrl ?? '',
@@ -32,6 +33,7 @@ class JoyHttp {
           tokenService: tokenService,
           refreshBaseUrl: refreshBaseUrl,
           retryDio: dio,
+          refreshConfig: refreshConfig,
         ),
       );
     }

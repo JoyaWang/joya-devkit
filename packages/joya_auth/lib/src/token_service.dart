@@ -30,7 +30,7 @@ class TokenService {
   TokenService({
     SecureStorage? storage,
     this.keyPrefix = 'joya_',
-  }) : _storage = storage ?? const FlutterSecureStorageAdapter();
+  }) : _storage = storage ?? FlutterSecureStorageAdapter();
 
   String get _accessTokenKey => '${keyPrefix}$_keyAccessToken';
   String get _refreshTokenKey => '${keyPrefix}$_keyRefreshToken';
