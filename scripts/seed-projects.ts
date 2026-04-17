@@ -3,6 +3,9 @@
  * for infov and laicai projects.
  *
  * Usage: npx tsx scripts/seed-projects.ts
+ *
+ * Safety: This script is idempotent — it will upsert manifests and bindings,
+ * and will NOT delete any existing records.
  */
 
 import "dotenv/config";
@@ -14,6 +17,42 @@ const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
 });
 const prisma = new PrismaClient({ adapter });
+
+/**
+ * Verify that all required manifests exist before seeding bindings.
+ * Returns the list of manifests that were created (if any).
+ */
+async function ensureManifests(): Promise<string[]> {
+  const requiredManifests = [
+    { projectKey: "infov", displayName: "InfoV" },
+    { projectKey: "laicai", displayName: "Laicai" },
+    { projectKey: "unbound", displayName: "Unbound Test Project" },
+  ];
+
+  const created: string[] = [];
+
+  for (const manifest of requiredManifests) {
+    const existing = await prisma.projectManifest.findUnique({
+      where: { projectKey: manifest.projectKey },
+    });
+
+    if (!existing) {
+      await prisma.projectManifest.create({
+        data: {
+          projectKey: manifest.projectKey,
+          displayName: manifest.displayName,
+          status: "active",
+        },
+      });
+      created.push(manifest.projectKey);
+      console.log(`✅ Created manifest: ${manifest.projectKey}`);
+    } else {
+      console.log(`⏭️  Manifest already exists: ${manifest.projectKey} (status: ${existing.status})`);
+    }
+  }
+
+  return created;
+}
 
 async function upsertObjectStorageBinding(params: {
   projectKey: string;
@@ -60,28 +99,13 @@ async function upsertObjectStorageBinding(params: {
 }
 
 async function main() {
-  // Seed project manifests
-  const infov = await prisma.projectManifest.upsert({
-    where: { projectKey: "infov" },
-    update: { displayName: "InfoV", status: "active" },
-    create: { projectKey: "infov", displayName: "InfoV", status: "active" },
-  });
-  console.log("Upserted manifest:", infov.projectKey);
-
-  const laicai = await prisma.projectManifest.upsert({
-    where: { projectKey: "laicai" },
-    update: { displayName: "Laicai", status: "active" },
-    create: { projectKey: "laicai", displayName: "Laicai", status: "active" },
-  });
-  console.log("Upserted manifest:", laicai.projectKey);
-
-  // unbound project: registered but has no object_storage binding (for E2E error test)
-  const unbound = await prisma.projectManifest.upsert({
-    where: { projectKey: "unbound" },
-    update: { displayName: "Unbound Test Project", status: "active" },
-    create: { projectKey: "unbound", displayName: "Unbound Test Project", status: "active" },
-  });
-  console.log("Upserted manifest:", unbound.projectKey);
+  console.log("🔍 Checking project manifests...");
+  const createdManifests = await ensureManifests();
+  if (createdManifests.length > 0) {
+    console.log(`\n📋 Created ${createdManifests.length} new manifest(s): ${createdManifests.join(", ")}`);
+  } else {
+    console.log("\n✅ All required manifests already exist");
+  }
 
   // Seed object_storage bindings by project + runtimeEnv
   for (const target of [

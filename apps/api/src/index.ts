@@ -17,6 +17,7 @@ import { registerFeedbackRoutes } from "./routes/feedback.js";
 import { ProjectContextResolver } from "@srs/project-context";
 import { ObjectStorageAdapterFactory } from "@srs/object-service";
 import { DeliveryPolicyResolver } from "@srs/delivery-policy";
+import { checkProjectConsistency, logConsistencyResult } from "./startup-check.js";
 
 loadProjectEnv({ moduleUrl: import.meta.url });
 
@@ -74,6 +75,11 @@ await registerFeedbackRoutes(app);
 
 // Start
 const start = async () => {
+  // Run startup consistency check (non-blocking)
+  console.log("🔍 Running project consistency check...");
+  const consistencyResult = await checkProjectConsistency(prisma);
+  logConsistencyResult(consistencyResult);
+
   const port = Number(process.env.PORT) || 3000;
   const host = process.env.HOST || "0.0.0.0";
 
