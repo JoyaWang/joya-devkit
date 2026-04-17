@@ -45,8 +45,8 @@ jobs:
             git reset --hard origin/$BRANCH
             echo "[OK] Code pulled" | tee -a $LOG_FILE
 
-            # 2. Build images
-            docker compose -f infra/docker-compose.yml build api worker 2>&1 | tee -a $LOG_FILE
+            # 2. Build images (no-cache to ensure Dockerfile changes are picked up)
+            docker compose -f infra/docker-compose.yml build --no-cache api worker 2>&1 | tee -a $LOG_FILE
             echo "[OK] Build complete" | tee -a $LOG_FILE
 
             # 3. Restart api and worker (postgres/redis stay running)
