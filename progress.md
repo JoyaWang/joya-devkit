@@ -13,6 +13,18 @@
   - SHA256 完整性验证通过（上传 = 下载）
   - 根因修复：CDN「私有存储桶访问」关闭后，presigned URL 签名参数不再被 CDN 自身凭据覆盖
   - prd binding 已恢复 `downloadDomain: https://origin.infinex.cn`
+- **Laicai 统一 APP Release workflow 接入 SRS 并 E2E 全分支验证通过**（2026-04-15）：
+  - 还原 `app-release.yml`（4-job: prepare → build-android / build-ios → release），接入 SRS 全链路
+  - 删除旧 workflow：`production-android.yml`、`production-ios.yml`、`auto-release-after-fix.yml`、`preview.yml`
+  - E2E 全 4 分支通过：Android dev/prd、iOS dev/prd（upload-request → COS → complete → release register → download verify）
+  - 修复 SRS `prd` env 兼容：release route VALID_ENVS 加 `prd`、delivery resolver 自动映射 `prd → prod` 域名
+  - Laicai 分支 `feat/srs-release-integration` 已合并 main 并删除
+  - dev 共享桶 `shared-storage-dev-1321178972` + CDN `origin-dev.infinex.cn`
+  - prd 共享桶 `shared-storage-1321178972` + CDN `origin.infinex.cn`
+  - 双环境链路：upload → COS → complete → release → `dl-dev/dl.infinex.cn` → SRS 302 → `origin-dev/origin.infinex.cn` → COS
+  - SHA256 完整性验证通过（上传 = 下载）
+  - 根因修复：CDN「私有存储桶访问」关闭后，presigned URL 签名参数不再被 CDN 自身凭据覆盖
+  - prd binding 已恢复 `downloadDomain: https://origin.infinex.cn`
 - 新建项目目录：`/Users/joya/JoyaProjects/shared-runtime-services`
 - 建立标准根目录入口：`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`README.md`、`.gitignore`、`progress.md`
 - 建立标准 `steering/` 文档合同
@@ -78,18 +90,17 @@
   - `https://srs.infinex.cn/health` 已验证返回 `{"status":"ok"}`
 
 ## 进行中
-- Laicai 真实接入准备：CI workflow 改造、seed 脚本共享桶同步
+- dev 部署 guardrails 与长期磁盘卫生机制（磁盘阈值检查、前置清理、maintenance workflow、migration fail-fast）
 - provider 迁移机制实现（真相源骨架 + multi-candidate read fallback + dual-write 元数据落点已完成；下一步进入 backfill 执行层）
-- Phase 5 首批项目接入收口（优先 Laicai 发布链路）
+- Phase 5 首批项目接入收口（Laicai 已完成，下一步 InfoV）
 - Docker Compose 环境完善（含 Redis）
 - admin-platform 的 project manifest / per-env binding 控制面规划
 
 ## 接下来
-- **Laicai 真实接入**（最高优先级）：
-  1. 修改 Laicai CI workflow（`production-android.yml`）指向 SRS API
-  2. 更新 seed 脚本 bucket 配置为共享桶
-  3. 在 Laicai 独立分支完成 dev release 主链路全量切换
-  4. 真实 APK 端到端验证
+- **长期磁盘卫生机制收口**：验证 dev deploy preflight guard + maintenance workflow，并根据结果微调阈值/清理范围
+- **migration 结果收口**：确认 prd/dev migration 输出已经是明确成功/失败，不再出现假绿 warn
+- **Laicai 真实 APK 发布验证**：手动触发 `APP Release` workflow，用真实 Flutter 构建 + SRS 全链路发布一次
+- **seed 脚本共享桶同步**：把 `scripts/seed-projects-config.ts` bucket 配置从项目桶更新为共享桶
 - 将 provider 迁移 playbook 继续落为实现层机制（下一步重点是 backfill 执行层与验收脚本）
 - 推进 InfoV 接入共享 Release Service / Delivery Plane
 - 在未明确批准前，继续保持 legacy `/releases/android/...` 不迁移、不破坏
@@ -106,6 +117,25 @@
 - Release Service 仅部分协议化；当前建议延后到真正引入外部分发资源配置时再接入项目协议层
 
 ## 日期日志
+
+### 2026-04-16（SRS dev API 修复 + Laicai backend storage E2E 验证通过 + Flutter 前端契约对齐）
+- **SRS dev API 500 修复**：根因是 `Dockerfile.api` 将 Prisma generated client 复制到 runner 的 `./src/generated`，但编译后的代码在 `dist/` 目录下执行，解析 imports 时寻找的是 `./dist/generated`。修复方式：增加 `COPY --from=builder /app/apps/api/src/generated ./dist/generated`。
+- **SRS dev 容器重启验证**：在 `119.29.221.161` 重新构建并重启 `infra-api-1` 容器，`/health` 返回正常，`upload-requests` 返回真实 COS signed URL。
+- **Laicai backend 配置补全**：在 `cloudbaserc.json` 的 `functionDefaultConfig.envVariables` 中补入 `SRS_API_URL`、`SRS_PUBLIC_DOMAIN`、`SRS_SERVICE_TOKEN` 与 `PROJECT_KEY: laicai`；同时更新 `cloudbase/functions/common/srs-client.js`，在 `createUploadRequest` 中显式传入 `project` 和 `env` 字段。
+- **Laicai backend storage 全链路 E2E 验证**：通过 CloudBase 函数 `storage` 完成完整闭环测试：
+  - `POST /storage/upload-request` → 返回 objectKey + uploadUrl + publicUrl ✅
+  - 真实 PUT 文件到 COS signed URL → HTTP 200 ✅
+  - `POST /storage/complete` → 返回完成确认 ✅
+  - `POST /storage/download-request` → 返回 signed downloadUrl ✅
+  - `DELETE /storage/object` → 返回 deleted=true ✅
+- **Flutter 前端 storage contract 对齐修复**：
+  - `UploadService.getUploadInfo()` 签名已要求 `domain`、`scope`、`size`。
+  - `ProfileService.uploadAvatar` 已传入 `domain='member'`, `scope='avatar'`。
+  - `ImageUploadWidget` 已传入 `domain='post'`, `scope='attachment'` 并在 `getUploadInfo` 前计算 `size`。
+  - `RealNameVerificationScreen`（KYC 身份证上传）已传入 `domain='member'`, `scope='identity'` 并提前计算 `size`。
+- **SRS scope 扩展**：为支持 KYC 证件照，在 `packages/object-service/src/scopes.ts` 新增 `identity: ["member"]`，SRS dev 容器已重建重启。
+- **运行时产物落点确认**：通过直接 curl SRS dev `upload-requests` 验证，当前 Laicai dev 的 object 写入落点为 `laicai-storage-dev-1321178972`，prd 落点为 `laicai-storage-1321178972`。根因是 `shared-runtime-services/.env` 未配置 `SHARED_DEV_COS_BUCKET` / `SHARED_PRD_COS_BUCKET`，seed 逻辑 fallback 到 `LAICAI_DEV_COS_BUCKET` / `LAICAI_PRD_COS_BUCKET`。若需切到共享桶，需补全 `SHARED_*` 环境变量并重新执行 `seed-projects.ts`。
+- **未触碰 production 环境**：全部验证与修复仅针对 dev 环境。
 
 ### 2026-04-15（双环境全链路 E2E 验证通过）
 - **共享桶切换**：Laicai binding 从项目桶（`laicai-storage-*`）切换到共享桶（`shared-storage-1321178972` / `shared-storage-dev-1321178972`）。

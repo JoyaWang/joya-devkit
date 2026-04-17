@@ -429,6 +429,23 @@
 - [ ] `dl-dev` / `dl` 与 provider 下载出口保持分层，不出现 redirect loop
 - [ ] 若 binding 配置了 `downloadDomain`，其 host 只承担 provider plane 真实下载出口角色，不复用共享稳定入口
 
+### Phase 4 第九切片（进行中：deploy guardrails 与长期磁盘卫生机制）
+目标：把本轮 dev 服务器因 Docker image / build cache 堆积导致磁盘写满的问题，从一次性救火升级为长期机制，确保后续 deploy 不会再因为磁盘被构建垃圾打满而在开头秒死。
+
+微步骤：
+1. [ ] 为 dev deploy 增加 preflight guard：输出 `df -h`、`docker system df`、执行可控清理，再次输出剩余空间。
+2. [ ] 增加磁盘阈值判断；如果清理后可用空间仍低于阈值，则直接 fail，阻止半程部署。
+3. [ ] 去掉 dev 常态化 `--no-cache`；仅在显式强制 rebuild 时才走无缓存构建，避免每次部署都堆新 layer。
+4. [ ] 新增 maintenance workflow（定时任务），周期性清理 Docker image / builder cache，并留下清理前后空间证据。
+5. [ ] 收口 migration 语义：将当前 `warn-or-skip` 模糊输出改为明确成功/失败，避免 deploy 假绿。
+
+验收标准：
+- [ ] dev deploy 前会打印磁盘与 Docker 占用，并执行前置清理
+- [ ] 清理后空间不足时，workflow 会在构建前明确失败，而不是等写日志或构建中途炸掉
+- [ ] dev 默认部署不再强制 `--no-cache`
+- [ ] maintenance workflow 已建立并可独立执行
+- [ ] 文档中已明确此机制的触发条件、阈值与证据输出
+
 ## Phase 5: 首批项目接入
 ### 目标
 让共享服务真正跑在现有项目上，而不只是文档和空 API。

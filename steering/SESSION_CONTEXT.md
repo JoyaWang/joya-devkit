@@ -19,13 +19,14 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - Runtime companion: `.agent/runtime/execution-state.json`
 
 ## Current Slice
-- Phase: `shared-delivery-e2e-verification`
-- Status: `completed` — 双环境全链路 E2E 验证通过
-- Active slice: `shared-delivery-e2e-verification`（已收尾）
-- Latest checkpoint: 双环境全链路 E2E 通过（2026-04-15）
+- Phase: `runtime-stability-and-ops-hardening`
+- Status: `in_progress` — SRS prd/dev deploy 已修复到 health 200 + seed complete，但 dev 暴露出 Docker build cache 导致的磁盘打满问题，当前正在收口长期磁盘卫生机制
+- Active slice: `dev-disk-hygiene-and-deploy-guardrails`
+- Latest checkpoint: `Deploy to Production` 与 `Deploy to Dev` 最新 workflow 均成功（run `24543976024` / `24543976020`），两边都已 `Seed complete` + `/health` 200（2026-04-17）
 - 已通过的验证：
-  - prd: `dl.infinex.cn` → SRS 302 → `origin.infinex.cn` CDN → COS shared bucket，SHA256 完整性通过
-  - dev: `dl-dev.infinex.cn` → SRS 302 → `origin-dev.infinex.cn` CDN → COS shared-dev bucket，SHA256 完整性通过
+  - SRS prd deploy：seed complete → health 200 ✅
+  - SRS dev deploy：seed complete → health 200 ✅
+  - Laicai backend storage 全链路 E2E: upload-request → COS PUT → complete → download-request → delete ✅
 
 ## Locked Decisions
 - shared-runtime-services 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
@@ -38,19 +39,20 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - `dl-dev.infinex.cn` / `dl.infinex.cn` 的长期角色是环境级共享公共分发入口，不应继续作为单一项目 bucket 的长期别名。
 
 ## Next Default Action
-双环境全链路 E2E 已通过。下一步方向：
-1. **Laicai 真实接入**：修改 Laicai CI workflow（`production-android.yml`），将 upload/complete/release 调用指向 SRS，用真实 APK 跑一次完整发布链路。
-2. **seed 脚本同步**：把 `scripts/seed-projects-config.ts` 中的 bucket 配置从项目桶（`laicai-storage-*`）更新为共享桶（`shared-storage-*`）。
-3. **生产 binding 收敛**：确认 Laicai dev/prd binding 均指向共享桶 + 对应 downloadDomain。
-4. **Laicai dev 切片落地**：按 PRD 首条接入边界，在 Laicai 独立分支完成 dev release 主链路全量切换。
-5. 如需恢复上下文，先读本文件，再按需读 `progress.md`。
+当前优先级已切到运行稳定性收口。下一步方向：
+1. **长期磁盘卫生机制**：为 dev deploy 加入磁盘阈值检查、自动清理、去掉默认 `--no-cache`，并新增定时 maintenance workflow。
+2. **migration warning 收口**：把 `Migration skipped or already applied` 的灰区改成明确成功/明确失败，避免假绿。
+3. **Laicai/InfoV 后续接入**：在部署与运维 guardrails 稳定后，再继续真实 APK 发布验证与 InfoV 接入。
+4. 如需恢复上下文，先读本文件，再按需读 `progress.md`。
 
 ## Blockers / Watchouts
-- 当前无 active blocker。
+- 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；虽已通过前置清理恢复，但长期机制仍在补齐。
+- 最新 prd/dev deploy 已成功，但 migration 步仍使用 `warn-or-skip` 兜底语义，需要收口成明确成功/失败。
 - Laicai binding 已切换到共享桶（dev: `shared-storage-dev-1321178972`，prd: `shared-storage-1321178972`），downloadDomain 已配（dev: `origin-dev.infinex.cn`，prd: `origin.infinex.cn`）。
 - CDN `origin.infinex.cn` 和 `origin-dev.infinex.cn` 已确认关闭「私有存储桶访问」，回源协议 HTTPS。
 - ObjectStorageAdapterFactory 按进程内 cache 复用 adapter；binding 变更后需重启 API。
-- Laicai CI workflow 尚未指向 SRS，仍是旧 COS 直传模式。
+- Laicai CI workflow 已接入 SRS（`app-release.yml` 已合并 main，`feat/srs-release-integration` 已删除）。旧 workflow（`production-android`、`production-ios`、`auto-release-after-fix`、`preview`）已删除。
+- SRS release route 和 delivery resolver 已修复 `prd` env 别名：`VALID_ENVS` 加 `prd`，resolver 自动映射 `prd → prod` 域名。
 
 ## Key Files
 - `steering/PRD.md`

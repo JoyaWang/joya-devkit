@@ -1,0 +1,55 @@
+name: Dev Maintenance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+jobs:
+  cleanup-dev-disk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Record runner info
+        run: |
+          echo "=== Runner Info ==="
+          echo "Runner IP: $(curl -s https://api.ipify.org)"
+          echo "Runner name: $RUNNER_NAME"
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner arch: $RUNNER_ARCH"
+          echo "Workflow run ID: $GITHUB_RUN_ID"
+          echo "==================="
+
+      - name: Cleanup Docker cache on dev server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_SERVER_HOST }}
+          username: ${{ secrets.DEV_SERVER_USER }}
+          key: ${{ secrets.DEV_SERVER_SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+
+            PROJECT_DIR="/home/ubuntu/apps/shared-runtime-services"
+            LOG_FILE="$PROJECT_DIR/maintenance.log"
+            mkdir -p /tmp >/dev/null 2>&1 || true
+            : >> "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/shared-runtime-services-maintenance.log"
+
+            echo "=== Dev maintenance started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a "$LOG_FILE"
+            echo "[INFO] Disk usage before cleanup" | tee -a "$LOG_FILE"
+            df -h / | tee -a "$LOG_FILE"
+            echo "[INFO] Docker usage before cleanup" | tee -a "$LOG_FILE"
+            docker system df 2>&1 | tee -a "$LOG_FILE" || true
+
+            echo "[INFO] Running docker cleanup" | tee -a "$LOG_FILE"
+            docker image prune -af 2>&1 | tee -a "$LOG_FILE" || true
+            docker builder prune -af 2>&1 | tee -a "$LOG_FILE" || true
+            docker container prune -f 2>&1 | tee -a "$LOG_FILE" || true
+            docker network prune -f 2>&1 | tee -a "$LOG_FILE" || true
+
+            echo "[INFO] Disk usage after cleanup" | tee -a "$LOG_FILE"
+            df -h / | tee -a "$LOG_FILE"
+            echo "[INFO] Docker usage after cleanup" | tee -a "$LOG_FILE"
+            docker system df 2>&1 | tee -a "$LOG_FILE" || true
+            echo "=== Dev maintenance finished at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a "$LOG_FILE"

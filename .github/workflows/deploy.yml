@@ -47,8 +47,8 @@ jobs:
             git reset --hard origin/$BRANCH
             echo "[OK] Code pulled" | tee -a $LOG_FILE
 
-            # 2. Build images (no-cache to ensure Dockerfile changes are picked up)
-            docker compose -f infra/docker-compose.yml build --no-cache api worker 2>&1 | tee -a $LOG_FILE
+            # 2. Build images (default uses cache; force no-cache only when explicitly needed)
+            docker compose -f infra/docker-compose.yml build api worker 2>&1 | tee -a $LOG_FILE
             echo "[OK] Build complete" | tee -a $LOG_FILE
 
             # 3. Restart api and worker (postgres/redis stay running)
@@ -56,7 +56,7 @@ jobs:
             echo "[OK] Services restarted" | tee -a $LOG_FILE
 
             # 4. Run database migrations inside api container
-            docker compose -f infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma' 2>&1 | tee -a $LOG_FILE || echo "[WARN] Migration skipped or already applied" | tee -a $LOG_FILE
+            docker compose -f infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma' 2>&1 | tee -a $LOG_FILE
             echo "[OK] Migrations applied" | tee -a $LOG_FILE
 
             # 4b. Seed project bindings (idempotent upsert via raw SQL)

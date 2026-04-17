@@ -2,6 +2,12 @@ name: Deploy to Dev
 
 on:
   workflow_dispatch:
+    inputs:
+      force_no_cache:
+        description: "Use --no-cache for docker build"
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
 
@@ -36,12 +42,33 @@ jobs:
             PROJECT_DIR="/home/ubuntu/apps/shared-runtime-services"
             BRANCH="main"
             LOG_FILE="$PROJECT_DIR/deploy.log"
-            docker image prune -af >/dev/null 2>&1 || true
-            docker builder prune -af >/dev/null 2>&1 || true
+            MIN_FREE_KB=$((5 * 1024 * 1024))
+            FORCE_NO_CACHE="${{ github.event.inputs.force_no_cache || 'false' }}"
+            BUILD_FLAGS=""
+            if [ "$FORCE_NO_CACHE" = "true" ]; then
+              BUILD_FLAGS="--no-cache"
+            fi
             mkdir -p /tmp >/dev/null 2>&1 || true
             : >> "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/shared-runtime-services-deploy.log"
 
             echo "=== Dev deploy started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
+            echo "[INFO] Disk usage before cleanup" | tee -a $LOG_FILE
+            df -h / | tee -a $LOG_FILE
+            echo "[INFO] Docker usage before cleanup" | tee -a $LOG_FILE
+            docker system df 2>&1 | tee -a $LOG_FILE || true
+            echo "[INFO] Running docker cleanup" | tee -a $LOG_FILE
+            docker image prune -af 2>&1 | tee -a $LOG_FILE || true
+            docker builder prune -af 2>&1 | tee -a $LOG_FILE || true
+            echo "[INFO] Disk usage after cleanup" | tee -a $LOG_FILE
+            df -h / | tee -a $LOG_FILE
+            echo "[INFO] Docker usage after cleanup" | tee -a $LOG_FILE
+            docker system df 2>&1 | tee -a $LOG_FILE || true
+            FREE_KB=$(df -Pk / | awk 'NR==2 {print $4}')
+            if [ -z "$FREE_KB" ] || [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
+              echo "[FAIL] Free disk below threshold after cleanup: ${FREE_KB:-unknown} KB (< $MIN_FREE_KB KB)" | tee -a $LOG_FILE
+              exit 1
+            fi
+            echo "[OK] Free disk after cleanup: $FREE_KB KB" | tee -a $LOG_FILE
 
             # 1. Pull latest code
             cd $PROJECT_DIR
@@ -49,16 +76,16 @@ jobs:
             git reset --hard origin/$BRANCH
             echo "[OK] Code pulled" | tee -a $LOG_FILE
 
-            # 2. Build images (no-cache to ensure Dockerfile changes are picked up)
-            docker compose -f infra/docker-compose.yml build --no-cache api worker 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Build complete" | tee -a $LOG_FILE
+            # 2. Build images (default uses cache; set workflow input force_no_cache=true when needed)
+            docker compose -f infra/docker-compose.yml build $BUILD_FLAGS api worker 2>&1 | tee -a $LOG_FILE
+            echo "[OK] Build complete (flags: ${BUILD_FLAGS:-none})" | tee -a $LOG_FILE
 
             # 3. Restart api and worker (postgres/redis stay running)
             docker compose -f infra/docker-compose.yml up -d --no-deps --build api worker 2>&1 | tee -a $LOG_FILE
             echo "[OK] Services restarted" | tee -a $LOG_FILE
 
             # 4. Run database migrations inside api container
-            docker compose -f infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma' 2>&1 | tee -a $LOG_FILE || echo "[WARN] Migration skipped or already applied" | tee -a $LOG_FILE
+            docker compose -f infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma' 2>&1 | tee -a $LOG_FILE
             echo "[OK] Migrations applied" | tee -a $LOG_FILE
 
             # 4b. Seed project bindings (idempotent upsert via raw SQL)
