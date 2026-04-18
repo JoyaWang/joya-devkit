@@ -1,5 +1,0 @@
-fix(scopes): expand attachment scope domains for InfoV integration
-
-Add document, insurance, medical, custom, shared to attachment scope
-domain whitelist. InfoV client uses these domain values for its
-business entities.
