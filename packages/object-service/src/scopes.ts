@@ -10,7 +10,7 @@ const ALLOWED_SCOPES: Record<string, string[]> = {
   avatar: ["member"],
   backup: ["device"],
   release: ["android", "ios", "desktop"],
-  attachment: ["message", "post"],
+  attachment: ["message", "post", "document", "insurance", "medical", "custom", "shared"],
   identity: ["member"],
   log: ["system", "audit"],
   feedback: ["public", "system"],
