@@ -33,7 +33,7 @@ jobs:
           script: |
             set -euo pipefail
 
-            PROJECT_DIR="/home/ubuntu/apps/shared-runtime-services"
+            PROJECT_DIR="/home/ubuntu/apps/joya-devkit/srs"
             BRANCH="main"
             LOG_FILE="$PROJECT_DIR/deploy.log"
             mkdir -p /tmp >/dev/null 2>&1 || true

@@ -39,7 +39,7 @@ jobs:
           script: |
             set -euo pipefail
 
-            PROJECT_DIR="/home/ubuntu/apps/shared-runtime-services"
+            PROJECT_DIR="/home/ubuntu/apps/joya-devkit/srs"
             BRANCH="main"
             LOG_FILE="$PROJECT_DIR/deploy.log"
             MIN_FREE_KB=$((5 * 1024 * 1024))
