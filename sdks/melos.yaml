@@ -1,0 +1,20 @@
+name: joya_flutter_kits
+
+packages:
+  - packages/*
+
+scripts:
+  analyze:
+    exec: flutter analyze
+    description: Run `flutter analyze` for all packages.
+
+  test:
+    exec: flutter test
+    description: Run `flutter test` for all packages.
+
+  format:
+    exec: dart format .
+    description: Run `dart format` for all packages.
+
+dev_dependencies:
+  melos: ^7.5.1

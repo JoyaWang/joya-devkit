@@ -1,0 +1,39 @@
+# Files and directories created by pub.dart
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Files created by melos
+**/pubspec_overrides.yaml
+
+# Flutter
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+
+# Coverage
+coverage/
+*.lcov
+
+# melos
+.analysis_options_user.yaml
+
+# Session logs (local only)
+.agent/runtime/session-logs/

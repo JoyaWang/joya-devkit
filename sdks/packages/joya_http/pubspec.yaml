@@ -1,0 +1,22 @@
+name: joya_http
+description: Dio factory, auth interceptor and ApiResponse for Joya Flutter kits.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.7.0
+  joya_result:
+    path: ../joya_result
+  joya_auth:
+    path: ../joya_auth
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
