@@ -56,8 +56,11 @@ function normalizeEnv(raw: unknown): string {
   return normalized;
 }
 
-function normalizeResolverEnv(env: string): string {
-  return env === "prd" ? "prod" : env;
+function normalizeResolverEnv(env: string): "dev" | "staging" | "prod" | "prd" {
+  if (env === "prd") return "prod";
+  if (env === "staging") return "staging";
+  if (env === "dev") return "dev";
+  return "prod";
 }
 
 function normalizeChannel(raw: unknown): string {
