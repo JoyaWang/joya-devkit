@@ -39,6 +39,7 @@ model AppRelease {
   projectKey         String   @map("project_key")
   platform           String
   env                String
+  channel            String   @default("official")
   appVersion         String   @map("app_version")
   buildNumber        Int      @map("build_number")
   semanticVersion    String   @map("semantic_version")

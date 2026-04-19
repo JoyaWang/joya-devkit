@@ -49,11 +49,14 @@ async function captureRoute(
 ): Promise<(req: any, reply: any) => any> {
   let handler: any;
   const app = {
-    post: vi.fn((_: string, fn: any) => {
-      handler = fn;
+    post: vi.fn((path: string, fn: any) => {
+      if (path === "/v1/releases") {
+        handler = fn;
+      }
     }),
     get: vi.fn(),
     patch: vi.fn(),
+    delete: vi.fn(),
   };
 
   await register(app);
@@ -74,6 +77,7 @@ function mockCreateReturn(data: any) {
     projectKey: data.projectKey,
     platform: data.platform,
     env: data.env,
+    channel: data.channel,
     appVersion: data.appVersion,
     buildNumber: data.buildNumber,
     semanticVersion: data.semanticVersion,
@@ -85,6 +89,7 @@ function mockCreateReturn(data: any) {
     forceUpdate: false,
     minSupportedVersion: null,
     rolloutStatus: "draft",
+    rolloutPercent: data.rolloutPercent ?? 100,
     createdBy: data.createdBy,
     createdAt: new Date("2026-04-09T00:00:00Z"),
   };
@@ -140,6 +145,7 @@ describe("POST /v1/releases using object metadata as accessClass truth source", 
       await handler(
         {
           projectKey: "infov",
+          runtimeEnv: "dev",
           body: {
             ...baseReleaseBody,
             env: "dev",
@@ -169,6 +175,7 @@ describe("POST /v1/releases using object metadata as accessClass truth source", 
       await handler(
         {
           projectKey: "infov",
+          runtimeEnv: "prd",
           body: {
             ...baseReleaseBody,
             env: "prod",
@@ -200,6 +207,7 @@ describe("POST /v1/releases using object metadata as accessClass truth source", 
       await handler(
         {
           projectKey: "infov",
+          runtimeEnv: "dev",
           body: {
             ...baseReleaseBody,
             env: "dev",
@@ -229,6 +237,7 @@ describe("POST /v1/releases using object metadata as accessClass truth source", 
       await handler(
         {
           projectKey: "infov",
+          runtimeEnv: "dev",
           body: {
             ...baseReleaseBody,
             env: "dev",
@@ -252,6 +261,7 @@ describe("POST /v1/releases using object metadata as accessClass truth source", 
       await handler(
         {
           projectKey: "infov",
+          runtimeEnv: "dev",
           body: {
             ...baseReleaseBody,
             env: "dev",
@@ -275,6 +285,7 @@ describe("POST /v1/releases using object metadata as accessClass truth source", 
       await handler(
         {
           projectKey: "infov",
+          runtimeEnv: "dev",
           body: {
             ...baseReleaseBody,
             env: "dev",
@@ -301,6 +312,7 @@ describe("POST /v1/releases using object metadata as accessClass truth source", 
       await handler(
         {
           projectKey: "infov",
+          runtimeEnv: "dev",
           body: {
             ...baseReleaseBody,
             env: "dev",
