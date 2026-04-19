@@ -31,10 +31,10 @@ jobs:
           script: |
             set -euo pipefail
 
-            PROJECT_DIR="/home/ubuntu/apps/joya-devkit/srs"
+            PROJECT_DIR="/home/ubuntu/apps/joya-devkit"
             LOG_FILE="$PROJECT_DIR/maintenance.log"
             mkdir -p /tmp >/dev/null 2>&1 || true
-            : >> "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/joya-devkit-srs-maintenance.log"
+            : >> "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/joya-devkit-maintenance.log"
 
             echo "=== Dev maintenance started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a "$LOG_FILE"
             echo "[INFO] Disk usage before cleanup" | tee -a "$LOG_FILE"
