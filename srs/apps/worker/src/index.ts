@@ -12,6 +12,7 @@ let runtime: Awaited<ReturnType<typeof createWorkerRuntime>> | null = null;
 const shutdown = async (signal: string) => {
   console.log(`[worker] received ${signal}, shutting down`);
   runtime?.backfillLoop.stop();
+  runtime?.feedbackOutboxLoop.stop();
   await runtime?.prisma.$disconnect();
   process.exit(0);
 };
@@ -25,7 +26,7 @@ process.on("SIGINT", () => {
 
 const start = async () => {
   runtime = await createWorkerRuntime();
-  console.log("[worker] started, backfill verification loop running...");
+  console.log("[worker] started, backfill verification loop and feedback outbox loop running...");
 };
 
 void start();

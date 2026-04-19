@@ -16,6 +16,13 @@ import {
   type BackfillPrisma,
   type BackfillVerificationLoop,
 } from "./backfill-runner.js";
+import {
+  startFeedbackOutboxLoop,
+  type FeedbackOutboxLoop,
+  type FeedbackOutboxPrisma,
+} from "./feedback-outbox-runner.js";
+
+export { startFeedbackOutboxLoop, type FeedbackOutboxLoop } from "./feedback-outbox-runner.js";
 
 interface LoadProjectEnvOptions {
   cwd?: string;
@@ -23,7 +30,7 @@ interface LoadProjectEnvOptions {
   maxDepth?: number;
 }
 
-interface WorkerPrismaClient extends BackfillPrisma {
+interface WorkerPrismaClient extends BackfillPrisma, FeedbackOutboxPrisma {
   $disconnect(): Promise<void>;
 }
 
@@ -35,6 +42,7 @@ export interface WorkerRuntime {
   prisma: WorkerPrismaClient;
   factory: ObjectStorageAdapterFactory;
   backfillLoop: BackfillVerificationLoop;
+  feedbackOutboxLoop: FeedbackOutboxLoop;
 }
 
 function loadProjectEnv(options: LoadProjectEnvOptions = {}): string[] {
@@ -112,9 +120,22 @@ export async function createWorkerRuntime(): Promise<WorkerRuntime> {
     },
   });
 
+  const feedbackIntervalMs = Number(process.env.FEEDBACK_OUTBOX_INTERVAL_MS ?? 60_000);
+  const feedbackOutboxLoop = startFeedbackOutboxLoop({
+    intervalMs: feedbackIntervalMs,
+    runOutbox: async () => {
+      const { runFeedbackOutbox } = await import("./feedback-outbox-runner.js");
+      await runFeedbackOutbox({ prisma: prisma as FeedbackOutboxPrisma });
+    },
+    onError(error) {
+      console.error("[worker] feedback outbox failed", error);
+    },
+  });
+
   return {
     prisma,
     factory,
     backfillLoop,
+    feedbackOutboxLoop,
   };
 }

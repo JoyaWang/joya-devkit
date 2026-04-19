@@ -5,13 +5,14 @@
 > Do not repeat shared workflow rules, generic session rules, or generic doc-governance rules here.
 
 ## Project Summary
-`shared-runtime-services` - 面向多个业务项目的共享运行时服务底座。当前核心范围是统一 Object Service 与 Release Service，后续再扩展 Feedback / AI / Domain-Cert / Config 等共享能力。
+`shared-runtime-services` - 面向多个业务项目的共享运行时服务底座。当前核心范围是统一 Object Service、Release Service，并已进入 feedback 收口切片：由 SRS 承接 feedback submission 真相源、GitHub issue 同步执行与 admin control plane 对接后端。
 
 ## Scope And Boundaries
 - 本项目负责共享运行时 API、共享真相源、对象治理、版本登记与分发链接治理。
 - 本项目不负责业务项目自身的领域逻辑与用户状态。
 - 本项目不把 `admin-platform` 视作运行时真相源；`admin-platform` 只做控制面。
-- 本项目 Phase 1 不实现完整 AI / Feedback / Crash / Domain / Config 模块，只保留扩展边界。
+- Feedback 当前允许实现 **最小闭环**：`submission 真相源 + admin API + outbox/worker + GitHub issue sync`。
+- AI / Domain / Config 等其余扩展能力仍维持边界保留，不在本轮范围。
 
 ## File And Module Conventions
 - `apps/`：运行时入口（api / worker，后续可继续扩成 object-api / release-api / feedback-worker / ai-worker 等）
@@ -42,9 +43,9 @@
 - 如果后续保留 Supabase，也只能停留在控制面辅助层，不能进入运行时主内核。
 
 ## Project-Specific Prohibitions
-- 禁止在 Phase 1 范围内提前扩张到完整 AI / Feedback / Cert / Config 实现。
+- 禁止借本轮 feedback 收口之名，顺手扩张到 AI / Cert / Config 等无关模块。
 - 禁止把 `admin-platform` 临时逻辑继续膨胀成共享运行时真相源。
-- 禁止为省事而在业务项目内复制 COS 签名与 release 真相源逻辑。
+- 禁止为省事而在业务项目内复制 COS 签名、release 真相源或 feedback GitHub issue 执行逻辑。
 
 ## References
 - `steering/AI_RULES_BASE.md` - shared rules

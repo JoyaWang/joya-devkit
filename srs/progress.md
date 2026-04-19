@@ -7,6 +7,21 @@
 
 ## 已完成
 
+### 2026-04-19 统一 release 控制面收口
+- [x] `AppRelease` 新增 `channel` 字段，并补 Prisma migration `20260419_add_release_channel_to_app_releases`
+- [x] `apps/api/src/routes/releases.ts` 收口为完整 release 控制面：
+  - `GET /v1/releases/latest` 改为优先读取 `release_channels.activeReleaseId`
+  - 新增 `GET /v1/releases/check`，统一版本比较 / 灰度 / 强更判断
+  - 新增 `POST /v1/release-channels/activate`
+  - `PATCH /v1/releases/:id` 支持 `appVersion/buildNumber/semanticVersion` 更新，并在 `rolloutStatus=active` 时原子切换 channel
+  - `DELETE /v1/releases/:id` 会同步清理 active channel 指针
+- [x] release 路由开始强校验 `request.runtimeEnv` 与 `env` 一致，避免跨环境 token 混读混写
+- [x] release 相关回归测试已补齐并通过：
+  - `tests/releases-distribution-url.test.mts`
+  - `tests/releases-object-access-class.test.mts`
+  - `tests/releases-delivery-resolver.test.mts`
+  - `tests/releases-channel-control.test.mts`
+
 ### 2026-04-18 InfoV 全量接入 SRS 方案评审中
 - [x] Alice 完成 InfoV 项目存储架构深度调研
 - [x] 产出接入方案 `InfoV/ref-docs/infov-srs-integration-plan.md`

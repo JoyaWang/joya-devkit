@@ -14,10 +14,10 @@
 | Object Service | 上传签名、下载签名、完成登记、删除、scope 校验、provider adapter contract、多环境 binding 路由、物理落点真相源写入、候选读位置解析 |
 | Release Service | release 创建、最新版本查询、rollout / force update 更新、distributionUrl 策略化生成 |
 | 鉴权 | project service token 校验、`runtimeEnv` 解析与一致性约束 |
+| Feedback Service | client settings、manual submit、admin list/detail/retry/process-pending、GitHub issue outbox worker |
 | 基础设施 | api / worker / postgres / redis / docker-compose 基础可用性 |
 
 ### 不在范围内
-- Feedback / Crash Service（Phase 1 不实现）
 - AI Service Layer（Phase 1 不实现）
 - Domain / Certificate Service（Phase 1 不实现）
 - 独立控制台 UI（由 `admin-platform` 承担）

@@ -7,7 +7,14 @@
 - 项目协议层（`projectKey + runtimeEnv + serviceType`）
 - provider-neutral 的对象存储适配层
 - Object Service / Release Service 真相源
+- feedback crash/error intake 基础路由
 - 生产部署与基础健康检查
+
+当前新增锁定方向（2026-04）：
+- Feedback / Crash 能力不再长期停留在业务仓库 local-first；feedback submission 真相源与 GitHub issue 执行权收口到 SRS
+- admin-platform 只作为 feedback control plane / viewer，通过代理调用 SRS admin feedback API
+- Laicai 旧 CloudBase feedback 链路先做过渡兼容，再逐步把提交入口与存储权切到 SRS
+- 本轮最小闭环仅覆盖：manual feedback submission、project-level feedback config、GitHub issue outbox/worker、admin list/detail/retry/process-pending
 
 当前新锁定的方向是：
 - 把“底层对象存储 provider”与“稳定公共下载出口”明确分层
@@ -35,6 +42,7 @@
 - 版本管理界面
 - rollout / force update 控制入口
 - 对象与审计查询界面
+- feedback 管理视图与项目级 feedback 配置入口（经代理调用 SRS，不自持 feedback 真相源）
 
 > 原则：业务项目负责业务规则，共享服务负责可复用控制面和运行时能力；不要在业务仓库重复实现共享服务内部逻辑。
 >
@@ -69,6 +77,8 @@ shared-runtime-services/
 ### worker
 - 异步任务
 - 审计补偿
+- 当前已承接 object storage backfill verify loop
+- 本轮新增承接 feedback issue outbox loop（GitHub issue create / retry / backoff / process-pending）
 - 未来可承接证书续期、对象巡检、失效链接校验等任务
 - 后续随着共享能力增多，可继续拆分为 feedback worker、AI worker、config sync worker 等独立容器，但仍由同一 compose 编排统一管理
 
@@ -463,7 +473,7 @@ laicai/prod/release/android/1.0.1+12/apk/app-release.apk
 | 对象上传下载 | shared | 本项目 Object Service API | Object Service | Phase 1 MVP |
 | 版本与更新 | shared | 本项目 Release Service API | Release / Update Service | Phase 1 MVP |
 | 公共分发层 | planned | 当前为 env 直拼 URL | Delivery Plane / Gateway | 下一阶段优先实现 |
-| 崩溃与反馈 | local-first | 暂不实现 | Feedback / Crash Service | 后续阶段 |
+| 崩溃与反馈 | in-progress | SRS feedback routes + worker（进行中） | Feedback / Crash Service | 2026-04 起进入当前实施阶段 |
 | AI 能力 | local-first | 暂不实现 | AI Service Layer | 后续阶段 |
 | 域名证书 | local-first | 暂不实现 | Domain / Certificate Service | 后续阶段 |
 | 配置中心 | local-first | 暂不实现 | Config Center | 后续阶段 |

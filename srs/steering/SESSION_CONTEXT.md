@@ -15,25 +15,19 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 `shared-runtime-services` 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 及后续活跃项目，统一承载 Object Service、Release Service 与 Shared Delivery Plane。`admin-platform` 是控制面，不是 runtime 真相源。真相源围绕 `projectKey + runtimeEnv + serviceType`。
 
 ## Current Mode
-- Mode: `autonomous`
-- Runtime companion: `.agent/runtime/tasks.json` + `.agent/runtime/deferred-log.jsonl`
+- Mode: `standard`
+- Runtime companion: canonical repo 不依赖 `.agent/runtime/`；若当前机器已初始化本地 runtime companion，可把 `.agent/runtime/*` 当补充恢复线索，但 steering 文档仍是正式真相源
 
 ## Current Slice
-- Phase: `runtime-stability-and-ops-hardening`
-- Status: `in_progress` — 核心基础设施已落地，测试基线 139/142 通过，3 个失败待修
-- Active slice: `test-failures-and-runtime-verification`
-- Latest checkpoint: tasks.json / deferred-log.jsonl 已按代码实况初始化（2026-04-18）
+- Phase: `feedback-srs-unification`
+- Status: `implementation_complete_pending_live` — feedback schema / route / worker / focused tests 已完成，待送达 live 并联调 admin-platform / Laicai
+- Active slice: `srs-feedback-minimal-closure`
+- Latest checkpoint: 已补 `submit-manual`、admin feedback API、project-scoped guard、feedback outbox worker、Prisma migration、focused tests；线上 404 根因已锁定为反馈代码尚未进入当前部署源
 - 已通过的验证：
-  - SRS dev: health 200 ✅，11 张表已创建，4 个 bindings 已写入，project_manifests 已补齐
-  - SRS prd: health 200 ✅，11 张表已创建，4 个 bindings 已写入，project_manifests 已补齐
-  - 磁盘卫生机制: dev 磁盘 71%，guardrails 正常 ✅
-  - Laicai dev 上传请求: avatar ✅、post attachment ✅
-  - Laicai prd 上传请求: avatar ✅、KYC identity ✅
-  - Laicai release workflow: Android APK 上传 + iOS IPA 上传已接入 SRS ✅
-  - Laicai backend CloudBase: storage function 已配置 SRS 环境变量 ✅
-- 当前失败项：
-  - cos-adapter.test.mts: download URL 格式 + ForceSignHost 参数（2 失败）
-  - seed-projects-config.test.mts: 缺 SHARED_DEV_COS_DOWNLOAD_DOMAIN env（1 失败）
+  - `pnpm exec vitest run tests/feedback-minimal-closure.test.mts` → 18/18 ✅
+  - `pnpm exec tsc --noEmit --project tsconfig.json --pretty false` → 通过 ✅
+  - SRS dev / prd health 200，基础表与 bindings 已就位 ✅
+  - Laicai release workflow 与 backend SRS 环境变量已接入 ✅
 
 ## Locked Decisions
 - shared-runtime-services 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
@@ -49,9 +43,11 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - **Seed 安全**：seed-projects.ts 执行时先检查 manifests 是否存在，不存在则创建，保证幂等性。
 
 ## Next Default Action
-1. **修复测试失败**：T-001 cos-adapter URL 格式 / ForceSignHost；T-002 seed-config 环境变量
-2. **验证 worker backfill**：T-003 确认 worker 容器启动后 backfill loop 正常运行
-3. **文档完善**：T-004 补充 API 接入文档和运维手册
+1. 先更新 steering 中与 SRS feedback 最小闭环直接相关的文档合同，修正文档与现状漂移
+2. 扩 Feedback schema 与 migration：`FeedbackSubmission` / `FeedbackProjectConfig` / `FeedbackIssueOutbox`
+3. 新增 `submit-manual` 与 admin feedback API，并接入现有 authPreHandler
+4. 在 worker 中增加 feedback outbox loop，统一 GitHub issue 同步
+5. 补最小测试并执行 typecheck/test 验证
 
 ## Blockers / Watchouts
 - 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；guardrails 已回绿，但删库重跑后仍需复验长期机制。

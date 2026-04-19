@@ -148,36 +148,69 @@ model StorageMigrationJob {
 }
 
 model FeedbackSubmission {
-  id                String    @id @default(cuid())
-  projectKey        String    @map("project_key")
-  type              String
-  errorMessage      String?   @map("error_message")
-  errorType         String?   @map("error_type")
-  stackTrace        String?   @map("stack_trace")
-  source            String?
-  logs              String?
-  deviceInfo        String?   @map("device_info")
-  userId            String?   @map("user_id")
-  username          String?
-  currentRoute      String?   @map("current_route")
-  appVersion        String?   @map("app_version")
-  buildNumber       String?   @map("build_number")
-  githubIssueUrl    String?   @map("github_issue_url")
-  githubIssueNumber Int?      @map("github_issue_number")
-  status            String    @default("pending")
-  createdAt         DateTime  @default(now()) @map("created_at")
+  id                 String    @id @default(cuid())
+  projectKey         String    @map("project_key")
+  type               String
+  channel            String    @default("manual")
+  title              String?
+  description        String?
+  errorMessage       String?   @map("error_message")
+  errorType          String?   @map("error_type")
+  stackTrace         String?   @map("stack_trace")
+  source             String?
+  logs               String?
+  deviceInfo         String?   @map("device_info")
+  userId             String?   @map("user_id")
+  username           String?
+  currentRoute       String?   @map("current_route")
+  appVersion         String?   @map("app_version")
+  buildNumber        String?   @map("build_number")
+  attachmentsJson    String?   @map("attachments_json")
+  metadataJson       String?   @map("metadata_json")
+  githubIssueUrl     String?   @map("github_issue_url")
+  githubIssueNumber  Int?      @map("github_issue_number")
+  githubSyncStatus   String    @default("pending") @map("github_sync_status")
+  githubSyncAttempts Int       @default(0) @map("github_sync_attempts")
+  githubSyncError    String?   @map("github_sync_error")
+  githubSyncRequestedAt DateTime? @map("github_sync_requested_at")
+  githubSyncedAt     DateTime? @map("github_synced_at")
+  status             String    @default("pending")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([projectKey, type, createdAt])
   @@index([projectKey, status])
+  @@index([projectKey, githubSyncStatus, createdAt])
   @@map("feedback_submissions")
 }
 
-model FeedbackClientSettings {
-  id                    String   @id @default(cuid())
-  projectKey            String   @unique @map("project_key")
-  errorReportingEnabled Boolean  @default(true) @map("error_reporting_enabled")
-  crashReportingEnabled Boolean  @default(true) @map("crash_reporting_enabled")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+model FeedbackProjectConfig {
+  id                     String   @id @default(cuid())
+  projectKey             String   @unique @map("project_key")
+  githubRepoOwner        String?  @map("github_repo_owner")
+  githubRepoName         String?  @map("github_repo_name")
+  githubToken            String?  @map("github_token")
+  githubIssueSyncEnabled Boolean  @default(false) @map("github_issue_sync_enabled")
+  manualFeedbackEnabled  Boolean  @default(true) @map("manual_feedback_enabled")
+  errorReportingEnabled  Boolean  @default(true) @map("error_reporting_enabled")
+  crashReportingEnabled  Boolean  @default(true) @map("crash_reporting_enabled")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
-  @@map("feedback_client_settings")
+  @@map("feedback_project_configs")
+}
+
+model FeedbackIssueOutbox {
+  id           String    @id @default(cuid())
+  submissionId String    @map("submission_id")
+  projectKey   String    @map("project_key")
+  status       String    @default("pending")
+  attemptCount Int       @default(0) @map("attempt_count")
+  nextRetryAt  DateTime? @map("next_retry_at")
+  lastError    String?   @map("last_error")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([projectKey, status, nextRetryAt])
+  @@index([submissionId])
+  @@map("feedback_issue_outbox")
 }
