@@ -15,6 +15,7 @@
 - admin-platform 只作为 feedback control plane / viewer，通过代理调用 SRS admin feedback API
 - Laicai 旧 CloudBase feedback 链路先做过渡兼容，再逐步把提交入口与存储权切到 SRS
 - 本轮最小闭环仅覆盖：manual feedback submission、project-level feedback config、GitHub issue outbox/worker、admin list/detail/retry/process-pending
+- SRS feedback final-state contract 额外补齐 user-facing `GET /v1/feedback/submissions`、`POST /v1/feedback/verify-fix` 与 admin `POST /v1/admin/feedback/mark-fixed`，由 SRS 直接承接 fix/verification 生命周期真相源
 
 当前新锁定的方向是：
 - 把“底层对象存储 provider”与“稳定公共下载出口”明确分层
@@ -428,6 +429,17 @@ laicai/prod/release/android/1.0.1+12/apk/app-release.apk
 - config
 - created_at
 - updated_at
+
+#### `feedback_submissions`
+- 在既有 submission / GitHub sync 字段之外，final-state contract 追加：
+  - `fixed_in_version`：SRS / admin 标记该反馈在哪个版本已修复
+  - `fixed_at`：标记修复时间
+  - `fix_verified`：用户验证结果（true / false / null）
+  - `verification_feedback`：用户验证文字反馈
+  - `verified_at`：用户完成验证的时间
+  - `status_history_json`：状态历史数组真相源，记录 `reported -> fixed -> open/closed` 等生命周期事件
+- user-facing list contract 由 route 层返回 Flutter-friendly 字段：`status`、`fixVersion`、`fixedAt`、`fixVerified`、`verificationFeedback`、`verifiedAt`、`statusHistory`
+- 状态映射保持稳定口径：至少覆盖 `pending/reported/failed -> open`、`fixed -> fixed`、`skipped -> closed`，并保留验证结果驱动的 reopen/close 语义
 
 ### 下一阶段计划补强的元数据
 - `objects.object_profile`：对象场景语义

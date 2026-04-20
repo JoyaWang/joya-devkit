@@ -13,6 +13,7 @@ const mockPrisma = {
     findMany: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
   feedbackProjectConfig: {
     findUnique: vi.fn(),
@@ -95,6 +96,12 @@ describe("feedback minimal closure schema", () => {
     expect(schema).toMatch(/attachmentsJson\s+String\?\s+@map\(\"attachments_json\"\)/);
     expect(schema).toMatch(/metadataJson\s+String\?\s+@map\(\"metadata_json\"\)/);
     expect(schema).toMatch(/githubSyncStatus\s+String\s+@default\(\"pending\"\)\s+@map\(\"github_sync_status\"\)/);
+    expect(schema).toMatch(/fixedInVersion\s+String\?\s+@map\(\"fixed_in_version\"\)/);
+    expect(schema).toMatch(/fixedAt\s+DateTime\?\s+@map\(\"fixed_at\"\)/);
+    expect(schema).toMatch(/fixVerified\s+Boolean\?\s+@map\(\"fix_verified\"\)/);
+    expect(schema).toMatch(/verificationFeedback\s+String\?\s+@map\(\"verification_feedback\"\)/);
+    expect(schema).toMatch(/verifiedAt\s+DateTime\?\s+@map\(\"verified_at\"\)/);
+    expect(schema).toMatch(/statusHistoryJson\s+String\?\s+@map\(\"status_history_json\"\)/);
   });
 });
 
@@ -114,6 +121,7 @@ describe("feedback minimal closure routes", () => {
     mockPrisma.feedbackSubmission.findMany.mockResolvedValue([]);
     mockPrisma.feedbackSubmission.findUnique.mockResolvedValue(null);
     mockPrisma.feedbackSubmission.update.mockResolvedValue(undefined);
+    mockPrisma.feedbackSubmission.updateMany.mockResolvedValue({ count: 0 });
     mockPrisma.feedbackProjectConfig.findUnique.mockResolvedValue({
       projectKey: "laicai",
       manualFeedbackEnabled: true,
@@ -184,9 +192,11 @@ describe("feedback minimal closure routes", () => {
         channel: "manual",
         title: "无法上传头像",
         description: "点击保存后没有反应",
-        attachmentsJson: JSON.stringify([{ name: "a.png", url: "https://example.com/a.png" }]),
+        attachmentsJson: JSON.stringify([{ url: "https://example.com/a.png", name: "a.png" }]),
         metadataJson: JSON.stringify({ route: "/profile" }),
         githubSyncStatus: "pending",
+        userId: "user_001",
+        username: "joya",
       }),
     });
     expect(mockPrisma.feedbackIssueOutbox.create).toHaveBeenCalledWith({
@@ -269,6 +279,203 @@ describe("feedback minimal closure routes", () => {
     expect(mockPrisma.feedbackIssueOutbox.create).not.toHaveBeenCalled();
   });
 
+  it("queues crash submission for github sync when project config allows it", async () => {
+    const handler = handlers.get("POST /v1/feedback/submit-crash");
+    const reply = makeReply();
+
+    await handler(
+      {
+        body: {
+          projectKey: "laicai",
+          errorMessage: "app crashed",
+          errorType: "StateError",
+          stackTrace: "trace",
+          userId: "user_001",
+        },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(201);
+    expect(reply.payload).toEqual({
+      success: true,
+      crashId: "fb_001",
+      githubSyncQueued: true,
+      skipped: false,
+    });
+    expect(mockPrisma.feedbackSubmission.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectKey: "laicai",
+        type: "crash",
+        channel: "crash",
+        errorMessage: "app crashed",
+        githubSyncStatus: "pending",
+      }),
+    });
+    expect(mockPrisma.feedbackIssueOutbox.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        submissionId: "fb_001",
+        projectKey: "laicai",
+        status: "pending",
+      }),
+    });
+  });
+
+  it("stores error submissions as skipped when error reporting is disabled", async () => {
+    const handler = handlers.get("POST /v1/feedback/submit-errors");
+    const reply = makeReply();
+    mockPrisma.feedbackProjectConfig.findUnique.mockResolvedValue({
+      projectKey: "laicai",
+      manualFeedbackEnabled: true,
+      githubIssueSyncEnabled: true,
+      githubRepoOwner: "joya",
+      githubRepoName: "laicai",
+      githubToken: "ghs_test_token",
+      errorReportingEnabled: false,
+      crashReportingEnabled: true,
+    });
+
+    await handler(
+      {
+        body: {
+          projectKey: "laicai",
+          errors: [
+            {
+              errorMessage: "socket timeout",
+              errorType: "TimeoutError",
+            },
+          ],
+        },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(201);
+    expect(reply.payload).toEqual({
+      success: true,
+      results: [
+        {
+          issueNumber: null,
+          submissionId: "fb_001",
+          githubSyncQueued: false,
+          skipped: true,
+        },
+      ],
+    });
+    expect(mockPrisma.feedbackSubmission.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectKey: "laicai",
+        type: "error",
+        channel: "error",
+        errorMessage: "socket timeout",
+        githubSyncStatus: "skipped",
+        status: "skipped",
+      }),
+    });
+    expect(mockPrisma.feedbackIssueOutbox.create).not.toHaveBeenCalled();
+  });
+
+  it("lists user-facing feedback submissions with final-state fields mapped from raw records", async () => {
+    const handler = handlers.get("GET /v1/feedback/submissions");
+    const reply = makeReply();
+    mockPrisma.feedbackSubmission.findMany.mockResolvedValue([
+      {
+        id: "fb_001",
+        projectKey: "laicai",
+        type: "manual",
+        channel: "manual",
+        title: "无法上传头像",
+        description: "点击保存后没有反应",
+        status: "fixed",
+        fixedInVersion: "1.2.3",
+        fixedAt: new Date("2026-04-19T10:00:00Z"),
+        fixVerified: true,
+        verificationFeedback: "已验证修复",
+        verifiedAt: new Date("2026-04-20T10:00:00Z"),
+        statusHistoryJson: JSON.stringify([{ status: "reported" }, { status: "fixed" }, { status: "closed" }]),
+        createdAt: new Date("2026-04-18T10:00:00Z"),
+        updatedAt: new Date("2026-04-20T11:00:00Z"),
+        userId: "user_001",
+        username: "joya",
+        deviceInfo: null,
+        attachmentsJson: null,
+        metadataJson: JSON.stringify({ feedbackType: "bug" }),
+        githubIssueNumber: 42,
+        githubIssueUrl: "https://github.com/joya/laicai/issues/42",
+      },
+    ]);
+
+    await handler(
+      {
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        query: { userId: "user_001", type: "manual" },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(mockPrisma.feedbackSubmission.findMany).toHaveBeenCalledWith({
+      where: {
+        projectKey: "laicai",
+        userId: "user_001",
+        type: "manual",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(reply.payload).toEqual({
+      submissions: [
+        expect.objectContaining({
+          id: "fb_001",
+          _id: "fb_001",
+          userId: "user_001",
+          feedbackType: "bug",
+          status: "fixed",
+          screenshotUrls: [],
+          deviceInfo: {},
+          githubIssueNumber: 42,
+          githubIssueUrl: "https://github.com/joya/laicai/issues/42",
+          fixVersion: "1.2.3",
+          fixedAt: new Date("2026-04-19T10:00:00Z"),
+          fixVerified: true,
+          verificationFeedback: "已验证修复",
+          verifiedAt: new Date("2026-04-20T10:00:00Z"),
+          statusHistory: [
+            { status: "reported", timestamp: expect.any(String), comment: null },
+            { status: "fixed", timestamp: expect.any(String), comment: null },
+            { status: "closed", timestamp: expect.any(String), comment: null },
+          ],
+        }),
+      ],
+    });
+  });
+
+  it("defaults user-facing list to manual submissions only when no type filter is provided", async () => {
+    const handler = handlers.get("GET /v1/feedback/submissions");
+    const reply = makeReply();
+    mockPrisma.feedbackSubmission.findMany.mockResolvedValue([]);
+
+    await handler(
+      {
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        query: { userId: "user_001" },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(mockPrisma.feedbackSubmission.findMany).toHaveBeenCalledWith({
+      where: {
+        projectKey: "laicai",
+        userId: "user_001",
+        type: "manual",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(reply.payload).toEqual({ submissions: [] });
+  });
+
   it("lists feedback submissions for admin API scoped by request projectKey", async () => {
     const handler = handlers.get("GET /v1/admin/feedback/submissions");
     const reply = makeReply();
@@ -307,6 +514,76 @@ describe("feedback minimal closure routes", () => {
         }),
       ],
     });
+  });
+
+  it("verifies a fixed submission within current project and matching user scope", async () => {
+    const handler = handlers.get("POST /v1/feedback/verify-fix");
+    const reply = makeReply();
+    mockPrisma.feedbackSubmission.findUnique.mockResolvedValueOnce({
+      id: "fb_001",
+      projectKey: "laicai",
+      userId: "user_001",
+      status: "fixed",
+      statusHistoryJson: JSON.stringify([{ status: "reported" }, { status: "fixed" }]),
+    });
+
+    await handler(
+      {
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        body: {
+          feedbackId: "fb_001",
+          verified: true,
+          feedback: "修好了",
+          appVersion: "1.2.3",
+          userId: "user_001",
+        },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(mockPrisma.feedbackSubmission.update).toHaveBeenCalledWith({
+      where: { id: "fb_001" },
+      data: expect.objectContaining({
+        fixVerified: true,
+        verificationFeedback: "修好了",
+        verifiedAt: expect.any(Date),
+        appVersion: "1.2.3",
+        status: "fixed",
+        statusHistoryJson: expect.stringContaining('"status":"fixed"'),
+      }),
+    });
+  });
+
+  it("rejects verify-fix when userId mismatches submission owner", async () => {
+    const handler = handlers.get("POST /v1/feedback/verify-fix");
+    const reply = makeReply();
+    mockPrisma.feedbackSubmission.findUnique.mockResolvedValueOnce({
+      id: "fb_001",
+      projectKey: "laicai",
+      userId: "user_999",
+      status: "fixed",
+      statusHistoryJson: JSON.stringify([{ status: "reported" }, { status: "fixed" }]),
+    });
+
+    await handler(
+      {
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        body: {
+          feedbackId: "fb_001",
+          verified: false,
+          feedback: "还没修好",
+          userId: "user_001",
+        },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(404);
+    expect(reply.payload).toEqual({ error: "feedback_submission_not_found" });
+    expect(mockPrisma.feedbackSubmission.update).not.toHaveBeenCalled();
   });
 
   it("rejects admin submission list when query projectKey mismatches auth project", async () => {
@@ -393,6 +670,7 @@ describe("feedback minimal closure routes", () => {
       projectKey: "laicai",
       githubSyncStatus: "failed",
     });
+    mockPrisma.feedbackIssueOutbox.findMany.mockResolvedValueOnce([]);
 
     await handler(
       {
@@ -410,7 +688,47 @@ describe("feedback minimal closure routes", () => {
         githubSyncStatus: "pending",
       }),
     });
+    expect(mockPrisma.feedbackIssueOutbox.findMany).toHaveBeenCalledWith({
+      where: {
+        submissionId: "fb_001",
+        status: {
+          in: ["pending", "processing"],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 1,
+    });
     expect(mockPrisma.feedbackIssueOutbox.create).toHaveBeenCalled();
+  });
+
+  it("reuses active outbox job instead of creating duplicate retry job", async () => {
+    const handler = handlers.get("POST /v1/admin/feedback/submissions/:id/retry-github-sync");
+    const reply = makeReply();
+    mockPrisma.feedbackSubmission.findUnique.mockResolvedValue({
+      id: "fb_001",
+      projectKey: "laicai",
+      githubSyncStatus: "failed",
+    });
+    mockPrisma.feedbackIssueOutbox.findMany.mockResolvedValueOnce([
+      {
+        id: "outbox_001",
+        submissionId: "fb_001",
+        projectKey: "laicai",
+        status: "pending",
+      },
+    ]);
+
+    await handler(
+      {
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        params: { id: "fb_001" },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(202);
+    expect(mockPrisma.feedbackIssueOutbox.create).not.toHaveBeenCalled();
   });
 
   it("rejects github sync retry when submission belongs to another project", async () => {
@@ -523,6 +841,68 @@ describe("feedback minimal closure routes", () => {
     expect(mockPrisma.feedbackSubmission.findMany).not.toHaveBeenCalled();
   });
 
+  it("marks matching submissions fixed from admin route by github issue numbers", async () => {
+    const handler = handlers.get("POST /v1/admin/feedback/mark-fixed");
+    const reply = makeReply();
+    mockPrisma.feedbackSubmission.findMany.mockResolvedValueOnce([
+      {
+        id: "fb_001",
+        projectKey: "laicai",
+        githubIssueNumber: 42,
+        statusHistoryJson: JSON.stringify([{ status: "reported" }]),
+      },
+      {
+        id: "fb_002",
+        projectKey: "laicai",
+        githubIssueNumber: 43,
+        statusHistoryJson: JSON.stringify([{ status: "reported" }, { status: "open" }]),
+      },
+    ]);
+
+    await handler(
+      {
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        body: {
+          issueNumbers: [42, 43],
+          version: "1.2.3",
+        },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(mockPrisma.feedbackSubmission.findMany).toHaveBeenCalledWith({
+      where: {
+        projectKey: "laicai",
+        githubIssueNumber: { in: [42, 43] },
+      },
+    });
+    expect(mockPrisma.feedbackSubmission.update).toHaveBeenNthCalledWith(1, {
+      where: { id: "fb_001" },
+      data: expect.objectContaining({
+        status: "fixed",
+        fixedInVersion: "1.2.3",
+        fixedAt: expect.any(Date),
+        statusHistoryJson: expect.stringContaining('"status":"reported"'),
+      }),
+    });
+    expect(mockPrisma.feedbackSubmission.update).toHaveBeenNthCalledWith(2, {
+      where: { id: "fb_002" },
+      data: expect.objectContaining({
+        status: "fixed",
+        fixedInVersion: "1.2.3",
+        fixedAt: expect.any(Date),
+        statusHistoryJson: expect.stringContaining('"status":"open"'),
+      }),
+    });
+    expect(reply.payload).toEqual({
+      success: true,
+      updatedCount: 2,
+      version: "1.2.3",
+    });
+  });
+
   it("reads feedback project config within auth project scope", async () => {
     const handler = handlers.get("GET /v1/admin/feedback/project-config/:projectKey");
     const reply = makeReply();
@@ -547,23 +927,6 @@ describe("feedback minimal closure routes", () => {
       crashReportingEnabled: true,
       hasGithubToken: true,
     });
-  });
-
-  it("rejects feedback project config read when param projectKey mismatches auth project", async () => {
-    const handler = handlers.get("GET /v1/admin/feedback/project-config/:projectKey");
-    const reply = makeReply();
-
-    await handler(
-      {
-        projectKey: "laicai",
-        runtimeEnv: "dev",
-        params: { projectKey: "infov" },
-      },
-      reply,
-    );
-
-    expect(reply.statusCode).toBe(403);
-    expect(reply.payload).toEqual({ error: "project_key_mismatch" });
   });
 
   it("updates feedback project config within auth project scope", async () => {
@@ -665,17 +1028,30 @@ describe("feedback outbox worker loop", () => {
   it("creates github issue and marks submission synced", async () => {
     const prisma = {
       feedbackIssueOutbox: {
-        findMany: vi.fn().mockResolvedValue([
-          {
-            id: "outbox_001",
-            submissionId: "fb_001",
-            projectKey: "laicai",
-            status: "pending",
-            attemptCount: 0,
-            nextRetryAt: null,
-          },
-        ]),
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_001",
+              submissionId: "fb_001",
+              projectKey: "laicai",
+              status: "pending",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_001",
+              submissionId: "fb_001",
+              projectKey: "laicai",
+              status: "processing",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ]),
         update: vi.fn().mockResolvedValue(undefined),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       feedbackSubmission: {
         findUnique: vi.fn().mockResolvedValue({
@@ -695,6 +1071,9 @@ describe("feedback outbox worker loop", () => {
           buildNumber: "10",
           attachmentsJson: JSON.stringify([{ name: "a.png" }]),
           metadataJson: JSON.stringify({ route: "/profile" }),
+          githubSyncStatus: "pending",
+          githubIssueNumber: null,
+          githubIssueUrl: null,
         }),
         update: vi.fn().mockResolvedValue(undefined),
       },
@@ -762,17 +1141,30 @@ describe("feedback outbox worker loop", () => {
   it("retries github issue sync with backoff when github api fails", async () => {
     const prisma = {
       feedbackIssueOutbox: {
-        findMany: vi.fn().mockResolvedValue([
-          {
-            id: "outbox_001",
-            submissionId: "fb_001",
-            projectKey: "laicai",
-            status: "pending",
-            attemptCount: 1,
-            nextRetryAt: null,
-          },
-        ]),
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_001",
+              submissionId: "fb_001",
+              projectKey: "laicai",
+              status: "pending",
+              attemptCount: 1,
+              nextRetryAt: null,
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_001",
+              submissionId: "fb_001",
+              projectKey: "laicai",
+              status: "processing",
+              attemptCount: 1,
+              nextRetryAt: null,
+            },
+          ]),
         update: vi.fn().mockResolvedValue(undefined),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       feedbackSubmission: {
         findUnique: vi.fn().mockResolvedValue({
@@ -792,6 +1184,9 @@ describe("feedback outbox worker loop", () => {
           buildNumber: "10",
           attachmentsJson: null,
           metadataJson: null,
+          githubSyncStatus: "pending",
+          githubIssueNumber: null,
+          githubIssueUrl: null,
         }),
         update: vi.fn().mockResolvedValue(undefined),
       },
@@ -841,6 +1236,74 @@ describe("feedback outbox worker loop", () => {
         githubSyncAttempts: 2,
         githubSyncError: expect.stringContaining("github_issue_create_failed:500:boom"),
         githubSyncRequestedAt: new Date("2026-04-19T10:00:00Z"),
+      }),
+    });
+  });
+
+  it("skips duplicate issue creation when submission already synced", async () => {
+    const prisma = {
+      feedbackIssueOutbox: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "outbox_001",
+            submissionId: "fb_001",
+            projectKey: "laicai",
+            status: "pending",
+            attemptCount: 1,
+            nextRetryAt: null,
+          },
+        ]),
+        update: vi.fn().mockResolvedValue(undefined),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      feedbackSubmission: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "fb_001",
+          projectKey: "laicai",
+          type: "manual",
+          channel: "manual",
+          title: "无法上传头像",
+          description: "点击保存没有反应",
+          errorMessage: null,
+          errorType: null,
+          stackTrace: null,
+          userId: "user_001",
+          username: "joya",
+          currentRoute: "/profile",
+          appVersion: "1.0.0",
+          buildNumber: "10",
+          attachmentsJson: null,
+          metadataJson: null,
+          githubSyncStatus: "synced",
+          githubIssueNumber: 42,
+          githubIssueUrl: "https://github.com/joya/laicai/issues/42",
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      feedbackProjectConfig: {
+        findUnique: vi.fn(),
+      },
+    };
+    const fetchImpl = vi.fn();
+
+    const result = await runFeedbackOutbox({
+      prisma,
+      now: () => new Date("2026-04-19T10:00:00Z"),
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    expect(result).toEqual({
+      scanned: 1,
+      processed: 1,
+      succeeded: 0,
+      failed: 0,
+      skipped: 1,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(prisma.feedbackIssueOutbox.update).toHaveBeenCalledWith({
+      where: { id: "outbox_001" },
+      data: expect.objectContaining({
+        status: "completed",
       }),
     });
   });

@@ -24,6 +24,9 @@ interface FeedbackSubmissionRecord {
   buildNumber: string | null;
   attachmentsJson: string | null;
   metadataJson: string | null;
+  githubSyncStatus?: string | null;
+  githubIssueNumber?: number | null;
+  githubIssueUrl?: string | null;
 }
 
 interface FeedbackProjectConfigRecord {
@@ -37,17 +40,18 @@ interface FeedbackProjectConfigRecord {
 export interface FeedbackOutboxPrisma {
   feedbackIssueOutbox: {
     findMany(args: {
-      where: {
-        status: string;
-        OR: Array<{ nextRetryAt: null } | { nextRetryAt: { lte: Date } }>;
-      };
-      orderBy: { createdAt: "asc" };
+      where: Record<string, unknown>;
+      orderBy: { createdAt: "asc" | "desc" };
       take: number;
     }): Promise<FeedbackOutboxRecord[]>;
     update(args: {
       where: { id: string };
       data: Record<string, unknown>;
     }): Promise<unknown>;
+    updateMany?(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
   };
   feedbackSubmission: {
     findUnique(args: { where: { id: string } }): Promise<FeedbackSubmissionRecord | null>;
@@ -142,6 +146,35 @@ function computeNextRetryAt(attemptCount: number, now: Date): Date {
   return new Date(now.getTime() + delayMinutes * 60_000);
 }
 
+async function claimOutboxJob(prisma: FeedbackOutboxPrisma, job: FeedbackOutboxRecord, startedAt: Date) {
+  if (prisma.feedbackIssueOutbox.updateMany) {
+    const claimed = await prisma.feedbackIssueOutbox.updateMany({
+      where: {
+        id: job.id,
+        status: "pending",
+      },
+      data: {
+        status: "processing",
+        lastError: null,
+        nextRetryAt: null,
+        updatedAt: startedAt,
+      },
+    });
+    return claimed.count > 0;
+  }
+
+  await prisma.feedbackIssueOutbox.update({
+    where: { id: job.id },
+    data: {
+      status: "processing",
+      lastError: null,
+      nextRetryAt: null,
+      updatedAt: startedAt,
+    },
+  });
+  return true;
+}
+
 export async function runFeedbackOutbox(
   input: RunFeedbackOutboxInput,
 ): Promise<FeedbackOutboxRunResult> {
@@ -169,6 +202,12 @@ export async function runFeedbackOutbox(
   };
 
   for (const job of jobs) {
+    const claimed = await claimOutboxJob(input.prisma, job, startedAt);
+    if (!claimed) {
+      result.skipped += 1;
+      continue;
+    }
+
     result.processed += 1;
 
     const submission = await input.prisma.feedbackSubmission.findUnique({
@@ -182,6 +221,42 @@ export async function runFeedbackOutbox(
           status: "failed",
           lastError: "submission_not_found",
           attemptCount: job.attemptCount + 1,
+        },
+      });
+      continue;
+    }
+
+    if (submission.githubSyncStatus === "synced" || submission.githubIssueNumber || submission.githubIssueUrl) {
+      result.skipped += 1;
+      await input.prisma.feedbackIssueOutbox.update({
+        where: { id: job.id },
+        data: {
+          status: "completed",
+          attemptCount: job.attemptCount,
+          lastError: null,
+          nextRetryAt: null,
+        },
+      });
+      continue;
+    }
+
+    const activeSiblingJobs = await input.prisma.feedbackIssueOutbox.findMany({
+      where: {
+        submissionId: job.submissionId,
+        status: "processing",
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
+    const hasAnotherProcessingJob = activeSiblingJobs.some((activeJob) => activeJob.id !== job.id);
+    if (hasAnotherProcessingJob) {
+      result.skipped += 1;
+      await input.prisma.feedbackIssueOutbox.update({
+        where: { id: job.id },
+        data: {
+          status: "pending",
+          lastError: "duplicate_active_job",
+          nextRetryAt: computeNextRetryAt(job.attemptCount, startedAt),
         },
       });
       continue;

@@ -419,6 +419,7 @@
 - [ ] 新增 `FeedbackIssueOutbox`，承接 retry / backoff / process-pending
 - [ ] 新增公开接口：`POST /v1/feedback/submit-manual`
 - [ ] 新增 admin 接口：`GET /v1/admin/feedback/submissions`、`GET /v1/admin/feedback/submissions/:id`、`POST /v1/admin/feedback/submissions/:id/retry-github-sync`、`POST /v1/admin/feedback/process-pending`、`PUT /v1/admin/feedback/project-config/:projectKey`
+- [ ] 补齐 final-state contract：`GET /v1/feedback/submissions`、`POST /v1/feedback/verify-fix`、`POST /v1/admin/feedback/mark-fixed`，以及 `FeedbackSubmission.fixed*/verification/statusHistoryJson` 字段
 - [ ] 在 worker 中新增 feedback outbox loop，统一执行 GitHub issue create / retry / backoff
 - [ ] 补最小测试：schema/migration、manual submit、admin list/detail、retry/process-pending、worker success/failure
 
