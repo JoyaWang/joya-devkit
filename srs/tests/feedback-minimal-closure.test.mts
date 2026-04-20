@@ -523,6 +523,49 @@ describe("feedback minimal closure routes", () => {
     expect(mockPrisma.feedbackSubmission.findMany).not.toHaveBeenCalled();
   });
 
+  it("reads feedback project config within auth project scope", async () => {
+    const handler = handlers.get("GET /v1/admin/feedback/project-config/:projectKey");
+    const reply = makeReply();
+
+    await handler(
+      {
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        params: { projectKey: "laicai" },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(reply.payload).toEqual({
+      projectKey: "laicai",
+      githubRepoOwner: "joya",
+      githubRepoName: "laicai",
+      githubIssueSyncEnabled: true,
+      manualFeedbackEnabled: true,
+      errorReportingEnabled: true,
+      crashReportingEnabled: true,
+      hasGithubToken: true,
+    });
+  });
+
+  it("rejects feedback project config read when param projectKey mismatches auth project", async () => {
+    const handler = handlers.get("GET /v1/admin/feedback/project-config/:projectKey");
+    const reply = makeReply();
+
+    await handler(
+      {
+        projectKey: "laicai",
+        runtimeEnv: "dev",
+        params: { projectKey: "infov" },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(403);
+    expect(reply.payload).toEqual({ error: "project_key_mismatch" });
+  });
+
   it("updates feedback project config within auth project scope", async () => {
     const handler = handlers.get("PUT /v1/admin/feedback/project-config/:projectKey");
     const reply = makeReply();

@@ -42,6 +42,40 @@ function ensureScopedProjectKeyMatch(
   return null;
 }
 
+function canQueueGitHubSync(config: {
+  githubIssueSyncEnabled?: boolean;
+  githubRepoOwner?: string | null;
+  githubRepoName?: string | null;
+  githubToken?: string | null;
+} | null | undefined) {
+  return Boolean(config?.githubIssueSyncEnabled && config?.githubRepoOwner && config?.githubRepoName && config?.githubToken);
+}
+
+async function ensureActiveOutboxJob(prisma: any, submissionId: string, projectKey: string) {
+  const activeJobs = await prisma.feedbackIssueOutbox.findMany({
+    where: {
+      submissionId,
+      status: {
+        in: ["pending", "processing"],
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 1,
+  });
+
+  if (Array.isArray(activeJobs) && activeJobs.length > 0) {
+    return activeJobs[0];
+  }
+
+  return prisma.feedbackIssueOutbox.create({
+    data: {
+      submissionId,
+      projectKey,
+      status: "pending",
+    },
+  });
+}
+
 export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void> {
   app.get(
     "/v1/feedback/client-settings",
@@ -289,10 +323,7 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
       const config = await prisma.feedbackProjectConfig.findUnique({
         where: { projectKey: authProjectKey },
       });
-      const canQueue = Boolean(
-        config?.githubIssueSyncEnabled && config?.githubRepoOwner && config?.githubRepoName && config?.githubToken,
-      );
-      if (!canQueue) {
+      if (!canQueueGitHubSync(config)) {
         return reply.status(409).send({ error: "github_sync_not_configured" });
       }
 
@@ -305,13 +336,7 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
         },
       });
 
-      await prisma.feedbackIssueOutbox.create({
-        data: {
-          submissionId: submission.id,
-          projectKey: submission.projectKey,
-          status: "pending",
-        },
-      });
+      await ensureActiveOutboxJob(prisma, submission.id, submission.projectKey);
 
       return reply.status(202).send({ accepted: true, submissionId: submission.id });
     },
@@ -332,10 +357,7 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
       const config = await prisma.feedbackProjectConfig.findUnique({
         where: { projectKey: targetProjectKey },
       });
-      const canQueue = Boolean(
-        config?.githubIssueSyncEnabled && config?.githubRepoOwner && config?.githubRepoName && config?.githubToken,
-      );
-      if (!canQueue) {
+      if (!canQueueGitHubSync(config)) {
         return reply.status(409).send({ error: "github_sync_not_configured" });
       }
 
@@ -349,16 +371,11 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
 
       const requestedAt = new Date();
       for (const submission of submissions) {
-        await prisma.feedbackIssueOutbox.create({
-          data: {
-            submissionId: submission.id,
-            projectKey: submission.projectKey,
-            status: "pending",
-          },
-        });
+        await ensureActiveOutboxJob(prisma, submission.id, submission.projectKey);
         await prisma.feedbackSubmission.update({
           where: { id: submission.id },
           data: {
+            githubSyncStatus: "pending",
             githubSyncError: null,
             githubSyncRequestedAt: requestedAt,
           },
@@ -366,6 +383,35 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
       }
 
       return reply.status(202).send({ accepted: true, queuedCount: submissions.length });
+    },
+  );
+
+  app.get(
+    "/v1/admin/feedback/project-config/:projectKey",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = request.params as Record<string, string>;
+      const authProjectKey = resolveScopedProjectKey(request);
+      const scopeError = ensureScopedProjectKeyMatch(reply, authProjectKey, params.projectKey);
+      if (scopeError) {
+        return scopeError;
+      }
+
+      const scopedProjectKey = authProjectKey;
+      const prisma = getPrisma() as any;
+      const config = await prisma.feedbackProjectConfig.findUnique({
+        where: { projectKey: scopedProjectKey },
+      });
+
+      return reply.status(200).send({
+        projectKey: scopedProjectKey,
+        githubRepoOwner: config?.githubRepoOwner ?? null,
+        githubRepoName: config?.githubRepoName ?? null,
+        githubIssueSyncEnabled: config?.githubIssueSyncEnabled ?? false,
+        manualFeedbackEnabled: config?.manualFeedbackEnabled ?? true,
+        errorReportingEnabled: config?.errorReportingEnabled ?? true,
+        crashReportingEnabled: config?.crashReportingEnabled ?? true,
+        hasGithubToken: Boolean(config?.githubToken),
+      });
     },
   );
 
