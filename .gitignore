@@ -25,6 +25,8 @@ tmp/
 temp/
 .cache/
 .agent/
+.worktrees/
+memory/
 __pycache__/
 *.py[cod]
 
