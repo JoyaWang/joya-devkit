@@ -35,6 +35,7 @@ class ErrorReporterService {
   final Dio _dio;
   final Logger? _logger;
   final String _baseUrl;
+  final String _projectKey;
 
   bool? _enabled;
   DateTime? _lastConfigCheck;
@@ -43,10 +44,12 @@ class ErrorReporterService {
   ErrorReporterService({
     required Dio dio,
     required String baseUrl,
+    required String projectKey,
     Logger? logger,
   })  : _dio = dio,
         _logger = logger,
-        _baseUrl = baseUrl;
+        _baseUrl = baseUrl,
+        _projectKey = projectKey;
 
   /// Checks whether remote reporting is enabled (cached for 5 minutes).
   Future<bool> isEnabled() async {
@@ -62,6 +65,7 @@ class ErrorReporterService {
         '$_baseUrl/feedback/client-settings',
         options: Options(
           extra: {'skipAuth': true},
+          headers: {'X-Project-Key': _projectKey},
           sendTimeout: const Duration(seconds: 5),
           receiveTimeout: const Duration(seconds: 5),
         ),
@@ -131,6 +135,7 @@ class ErrorReporterService {
           headers: {
             'Content-Encoding': 'gzip',
             'Content-Type': 'application/octet-stream',
+            'X-Project-Key': _projectKey,
           },
           sendTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),

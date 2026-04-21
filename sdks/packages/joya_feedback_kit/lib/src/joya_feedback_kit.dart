@@ -84,6 +84,7 @@ class JoyaFeedbackKit {
       _crashReporterService = CrashReporterService(
         dio: baseDio,
         baseUrl: config.apiBaseUrl,
+        projectKey: config.projectKey,
         keyPrefix: config.keyPrefix,
         memoryLogOutput: memoryLogOutput,
         fileLogOutput: fileLogOutput,
@@ -94,6 +95,7 @@ class JoyaFeedbackKit {
       _errorReporterService = ErrorReporterService(
         dio: baseDio,
         baseUrl: config.apiBaseUrl,
+        projectKey: config.projectKey,
       );
       _errorReportingOutput = ErrorReportingOutput(
         ignorePatterns: config.errorIgnorePatterns,

@@ -44,6 +44,7 @@ class CrashReporterService {
   final Logger? _logger;
   final String _baseUrl;
   final String _keyPrefix;
+  final String _projectKey;
   final MemoryOutput? _memoryLogOutput;
   final FileRotationOutput? _fileLogOutput;
 
@@ -57,6 +58,7 @@ class CrashReporterService {
   CrashReporterService({
     required Dio dio,
     required String baseUrl,
+    required String projectKey,
     Logger? logger,
     String keyPrefix = '',
     MemoryOutput? memoryLogOutput,
@@ -64,6 +66,7 @@ class CrashReporterService {
   })  : _dio = dio,
         _logger = logger,
         _baseUrl = baseUrl,
+        _projectKey = projectKey,
         _keyPrefix = keyPrefix,
         _memoryLogOutput = memoryLogOutput,
         _fileLogOutput = fileLogOutput;
@@ -318,6 +321,7 @@ class CrashReporterService {
           headers: {
             'Content-Encoding': 'gzip',
             'Content-Type': 'application/octet-stream',
+            'X-Project-Key': _projectKey,
           },
           sendTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),

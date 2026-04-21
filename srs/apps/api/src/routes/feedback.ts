@@ -151,6 +151,14 @@ function resolveSubmittedUserName(body: Record<string, unknown>) {
   return normalizeString(body.username) ?? normalizeString(body.userName);
 }
 
+function resolveProjectKey(request: FastifyRequest): string | undefined {
+  const headerKey = request.headers["x-project-key"];
+  if (typeof headerKey === "string" && headerKey.trim().length > 0) {
+    return headerKey.trim();
+  }
+  return undefined;
+}
+
 function resolveScopedProjectKey(request: FastifyRequest) {
   return request.projectKey;
 }
@@ -339,10 +347,9 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
     "/v1/feedback/client-settings",
     { config: { skipAuth: true } } as any,
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const query = request.query as Record<string, string | undefined>;
-      const projectKey = query.projectKey;
+      const projectKey = resolveProjectKey(request);
       if (!projectKey) {
-        return reply.status(400).send({ error: 'query param "projectKey" is required' });
+        return reply.status(400).send({ error: 'X-Project-Key header is required' });
       }
 
       const prisma = getPrisma() as any;
@@ -365,14 +372,14 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
     "/v1/feedback/submit-crash",
     { config: { skipAuth: true } } as any,
     async (request: FastifyRequest, reply: FastifyReply) => {
+      const projectKey = resolveProjectKey(request);
+      if (!projectKey) {
+        return reply.status(400).send({ error: 'X-Project-Key header is required' });
+      }
+
       const body = request.body as Record<string, unknown> | undefined;
       if (!body) {
         return reply.status(400).send({ error: "request body is required" });
-      }
-
-      const projectKey = body.projectKey as string | undefined;
-      if (!projectKey) {
-        return reply.status(400).send({ error: 'field "projectKey" is required' });
       }
 
       const prisma = getPrisma() as any;
@@ -419,14 +426,14 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
     "/v1/feedback/submit-errors",
     { config: { skipAuth: true } } as any,
     async (request: FastifyRequest, reply: FastifyReply) => {
+      const projectKey = resolveProjectKey(request);
+      if (!projectKey) {
+        return reply.status(400).send({ error: 'X-Project-Key header is required' });
+      }
+
       const body = request.body as Record<string, unknown> | undefined;
       if (!body) {
         return reply.status(400).send({ error: "request body is required" });
-      }
-
-      const projectKey = body.projectKey as string | undefined;
-      if (!projectKey) {
-        return reply.status(400).send({ error: 'field "projectKey" is required' });
       }
 
       const errors = body.errors as Array<Record<string, unknown>> | undefined;
@@ -478,15 +485,19 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
     "/v1/feedback/submit-manual",
     { config: { skipAuth: true } } as any,
     async (request: FastifyRequest, reply: FastifyReply) => {
+      const projectKey = resolveProjectKey(request);
+      if (!projectKey) {
+        return reply.status(400).send({ error: 'X-Project-Key header is required' });
+      }
+
       const body = request.body as Record<string, unknown> | undefined;
       if (!body) {
         return reply.status(400).send({ error: "request body is required" });
       }
 
-      const projectKey = body.projectKey as string | undefined;
       const title = body.title as string | undefined;
-      if (!projectKey || !title) {
-        return reply.status(400).send({ error: 'fields "projectKey" and "title" are required' });
+      if (!title) {
+        return reply.status(400).send({ error: 'field "title" is required' });
       }
 
       const prisma = getPrisma() as any;

@@ -137,6 +137,8 @@
   - `https://srs.infinex.cn/health` 已验证返回 `{"status":"ok"}`
 
 ## 进行中
+- feedback/version runtime 真相源已完成第一阶段收口：`ops_release_register -> SRS POST /v1/releases` 已落地并通过 focused verification + request-level 验证；下一步继续 feedback live 联调与 legacy bridge 收尾
+- admin-platform 退回 control plane / proxy，逐步去 Supabase 化（保留 Supabase 仅作控制面辅助层）
 - dev 部署 guardrails 与长期磁盘卫生机制（磁盘阈值检查、前置清理、maintenance workflow、migration fail-fast）
 - provider 迁移机制实现（真相源骨架 + multi-candidate read fallback + dual-write 元数据落点已完成；下一步进入 backfill 执行层）
 - Phase 5 首批项目接入收口（Laicai 已完成，下一步 InfoV）
@@ -144,6 +146,10 @@
 - admin-platform 的 project manifest / per-env binding 控制面规划
 
 ## 接下来
+- **补回 release register 证据锚点**：把 `ops_release_register -> SRS` focused tests、request-level 验证与 commit 锚点写回文档合同
+- **继续 feedback live 联调**：补 `/ops/feedback -> ops_feedback_center -> SRS admin feedback API` 的真实环境证据
+- **补 release / feedback 测试合同**：锁定 admin-platform 只做代理，SRS 才是 runtime 真相源
+- **如需继续自治执行再重启 joya-loop**：按下一批 task packet 进入自治实现
 - **长期磁盘卫生机制收口**：验证 dev deploy preflight guard + maintenance workflow，并根据结果微调阈值/清理范围
 - **migration 结果收口**：确认 prd/dev migration 输出已经是明确成功/失败，不再出现假绿 warn
 - **Laicai 真实 APK 发布验证**：手动触发 `APP Release` workflow，用真实 Flutter 构建 + SRS 全链路发布一次

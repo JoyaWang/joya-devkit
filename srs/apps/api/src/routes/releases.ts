@@ -14,6 +14,14 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { DeliveryPolicyResolver } from "@srs/delivery-policy";
 import { getPrisma } from "../db.js";
 
+function resolveProjectKey(request: FastifyRequest): string | undefined {
+  const headerKey = request.headers["x-project-key"];
+  if (typeof headerKey === "string" && headerKey.trim().length > 0) {
+    return headerKey.trim();
+  }
+  return undefined;
+}
+
 interface CreateReleaseBody {
   project: string;
   platform: "ios" | "android" | "desktop";
@@ -548,15 +556,16 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
 
   app.get(
     "/v1/releases/latest",
+    { config: { skipAuth: true } } as any,
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const projectKey = request.projectKey;
+      const projectKey = resolveProjectKey(request);
       if (!projectKey) {
-        return reply.status(401).send({ error: "unauthorized" });
+        return reply.status(400).send({ error: "X-Project-Key header is required" });
       }
 
       const query = request.query as Record<string, string | undefined>;
       const platform = String(query.platform || "").trim().toLowerCase();
-      const env = normalizeEnv(query.env || request.runtimeEnv);
+      const env = normalizeEnv(query.env || "");
       const channel = normalizeChannel(query.channel);
       const deviceId = query.deviceId;
 
@@ -565,9 +574,6 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
       }
       if (!VALID_ENVS.includes(env)) {
         return reply.status(400).send({ error: "query param \"env\" is required (dev|staging|prd)" });
-      }
-      if (!assertAuthorizedEnv(request, reply, env)) {
-        return;
       }
 
       const release = await getActiveReleaseForChannel({
@@ -600,15 +606,16 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
 
   app.get(
     "/v1/releases/check",
+    { config: { skipAuth: true } } as any,
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const projectKey = request.projectKey;
+      const projectKey = resolveProjectKey(request);
       if (!projectKey) {
-        return reply.status(401).send({ error: "unauthorized" });
+        return reply.status(400).send({ error: "X-Project-Key header is required" });
       }
 
       const query = request.query as Record<string, string | undefined>;
       const platform = String(query.platform || "").trim().toLowerCase();
-      const env = normalizeEnv(query.env || request.runtimeEnv);
+      const env = normalizeEnv(query.env || "");
       const channel = normalizeChannel(query.channel);
       const currentVersion = String(query.currentVersion || "").trim();
       const deviceId = String(query.deviceId || "").trim();
@@ -621,9 +628,6 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
       }
       if (!currentVersion) {
         return reply.status(400).send({ error: "query param \"currentVersion\" is required" });
-      }
-      if (!assertAuthorizedEnv(request, reply, env)) {
-        return;
       }
 
       const release = await getActiveReleaseForChannel({
