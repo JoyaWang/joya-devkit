@@ -3,10 +3,11 @@
 ## 用户旅程概述
 `shared-runtime-services` 不是终端用户直接操作的产品，而是一个被业务项目、CI/CD 工作流和 admin-platform 调用的共享运行时服务层。
 
-其主要流程围绕三类调用方展开：
+其主要流程围绕四类调用方展开：
 1. **业务项目服务端**：申请对象上传/下载签名、查询稳定公共分发地址、删除对象、读取版本信息
 2. **CI/CD 工作流**：上传安装包到正式对象存储、登记 release 元数据、回填 GitHub Release 文案与外链
 3. **admin-platform**：查询版本、管理 rollout 状态、维护分发信息、审计对象记录
+4. **反馈提交方 / 反馈控制面**：提交 feedback、查看 submission、重试 GitHub 同步、同步项目级 feedback 配置
 
 ## 核心流程
 
@@ -37,9 +38,9 @@
 2. 迁移前先冻结对象键合同：`objectKey`、`public-stable` 稳定 URL、签名下载接口 contract 保持不变；迁移范围只落在 provider plane 与 delivery plane 内部。
 3. 先进入双写阶段：新对象同时写旧 provider 与新 provider，数据库或治理表记录主副位置与迁移状态；若当前实现尚未支持自动双写，则至少先支持“写新 provider + 读旧 fallback”或批次迁移标记，不允许直接切断旧读路径。
 4. 对存量对象执行回填：按项目 / 环境 / object profile 分批复制对象到新 provider，并对比 size、checksum、headObject 结果，确认迁移完整性。
-5. 读路径切换采用灰度：公共稳定 URL 仍保持 `dl-dev` / `dl` 不变，SRS 在内部优先读新 provider；若新 provider 缺对象或校验失败，则按策略 fallback 到旧 provider。
-6. 灰度期间持续观察：302 命中率、fallback 触发率、对象缺失率、错误率、回源耗时；未达标前不得宣称迁移完成。
-7. 当新 provider 在目标项目 / 环境下连续稳定通过验收后，再停止双写并下线旧 provider 的读 fallback；旧对象最终清理必须单独审批，不与读流量切换同一时刻完成。
+5. 读路径切换采用灰度：公共稳定 URL 仍保持 `dl-dev` / `dl` 不变，SRS 在内部按已记录的物理落点顺序命中新 provider 或旧 provider；只有当前一候选被明确定义为不可用时，才继续尝试下一已登记候选位置。
+6. 灰度期间持续观察：302 命中率、候选切换率、对象缺失率、错误率、回源耗时；未达标前不得宣称迁移完成。
+7. 当新 provider 在目标项目 / 环境下连续稳定通过验收后，再停止双写并下线旧 provider 的候选读路径；旧对象最终清理必须单独审批，不与读流量切换同一时刻完成。
 8. 若迁移中出现错误率上升、对象缺失或稳定 URL 异常，立即回滚到“旧 provider 主读 + 新 provider 停灰度”状态；由于用户侧稳定 URL 不变，回滚不应要求业务项目或终端用户改链接。
 
 ### 流程 4: Android / 桌面 Release 发布
@@ -47,7 +48,7 @@
 2. CI 调用 Object Service 获取 release 上传签名。
 3. CI 将正式安装包上传到对象存储。
 4. CI 调用 `complete` 登记对象元数据。
-5. CI 调用 Release Service 创建 release，传入版本号、build 号、artifactObjectKey、release notes 等。
+5. CI 调用 Release Service 创建 release，传入版本号、build 号、artifactObjectKey、release notes 等；CI register 的正式写入口必须是 SRS，而不是控制面本地表。
 6. shared-runtime-services 根据 release 记录和共享分发策略生成稳定公共 `distributionUrl`。
 7. GitHub Actions 创建 GitHub Release，但只写 release notes 与外部分发链接，不上传正式安装包。
 
@@ -69,10 +70,18 @@
 2. shared-runtime-services 返回 semanticVersion、forceUpdate、minSupportedVersion、distributionTarget、distributionUrl、releaseNotes。
 3. 业务项目根据结果决定是否提示更新、是否强更、跳转到哪个下载 / 分发地址。
 
+### 流程 6b: Feedback 提交与控制面处理
+1. 业务项目调用 SRS feedback intake 接口提交 `manual / error / crash` submission。
+2. SRS 写入 `feedback_submissions` 真相源，并按项目配置决定是否进入 GitHub issue outbox。
+3. worker 扫描 outbox，统一执行 GitHub issue create / retry / backoff，并回写 submission 同步状态。
+4. admin-platform 通过代理调用 SRS admin feedback API 查看 submission 列表、详情、GitHub issue 状态。
+5. admin-platform 如需重试或批量处理 pending，只触发 SRS `retry/process-pending`，不本地伪造 submission 状态。
+
 ### 流程 7: admin-platform 控制面查询
-1. admin-platform 使用 service token 调用 Release Service / Object Service 的管理查询接口。
-2. 查询 release 列表、当前有效分发链接、对象元数据和审计记录。
-3. 后续支持调整 rollout 状态、强更开关、分发链接和对象治理动作。
+1. admin-platform 使用 service token 调用 Release Service / Object Service / Feedback admin API 的管理接口。
+2. 查询 release 列表、当前有效分发链接、对象元数据、feedback submission 与审计记录。
+3. 控制面动作统一代理到 SRS；admin-platform 不再本地落 release 真相源或 feedback 真相源。
+4. 后续支持调整 rollout 状态、强更开关、分发链接、对象治理动作与 feedback retry/process-pending。
 
 ## 访问策略决策表
 

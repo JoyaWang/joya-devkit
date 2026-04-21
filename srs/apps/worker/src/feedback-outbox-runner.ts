@@ -27,6 +27,7 @@ interface FeedbackSubmissionRecord {
   githubSyncStatus?: string | null;
   githubIssueNumber?: number | null;
   githubIssueUrl?: string | null;
+  issueGroupId?: string | null;
 }
 
 interface FeedbackProjectConfigRecord {
@@ -35,6 +36,19 @@ interface FeedbackProjectConfigRecord {
   githubRepoName: string | null;
   githubToken: string | null;
   githubIssueSyncEnabled: boolean;
+}
+
+interface FeedbackIssueGroupRecord {
+  id: string;
+  projectKey: string;
+  runtimeEnv: string;
+  normalizedFingerprint: string;
+  normalizedSummary: string;
+  githubIssueNumber: number | null;
+  githubIssueUrl: string | null;
+  occurrenceCount: number;
+  latestSubmissionId: string | null;
+  status: string;
 }
 
 export interface FeedbackOutboxPrisma {
@@ -62,6 +76,13 @@ export interface FeedbackOutboxPrisma {
   };
   feedbackProjectConfig: {
     findUnique(args: { where: { projectKey: string } }): Promise<FeedbackProjectConfigRecord | null>;
+  };
+  feedbackIssueGroup: {
+    findUnique(args: { where: { id: string } }): Promise<FeedbackIssueGroupRecord | null>;
+    update(args: {
+      where: { id: string };
+      data: Record<string, unknown>;
+    }): Promise<unknown>;
   };
 }
 
@@ -131,7 +152,14 @@ function buildIssueBody(submission: FeedbackSubmissionRecord): string {
   return lines.join("\n");
 }
 
-function buildIssueTitle(submission: FeedbackSubmissionRecord): string {
+function buildIssueTitle(
+  submission: FeedbackSubmissionRecord,
+  group?: FeedbackIssueGroupRecord | null,
+): string {
+  // For error/crash with a group, use the group's normalized summary
+  if (group?.normalizedSummary) {
+    return `[${submission.projectKey}] ${group.normalizedSummary}`;
+  }
   if (submission.title && submission.title.trim()) {
     return `[${submission.projectKey}] ${submission.title.trim()}`;
   }
@@ -311,6 +339,43 @@ export async function runFeedbackOutbox(
     }
 
     try {
+      // Check if submission belongs to a group that already has a GitHub issue
+      let group: FeedbackIssueGroupRecord | null = null;
+      if (submission.issueGroupId) {
+        group = await input.prisma.feedbackIssueGroup.findUnique({
+          where: { id: submission.issueGroupId },
+        });
+      }
+
+      // If group already has a GitHub issue, reuse it - do NOT create a new one
+      if (group?.githubIssueNumber && group?.githubIssueUrl) {
+        await input.prisma.feedbackIssueOutbox.update({
+          where: { id: job.id },
+          data: {
+            status: "completed",
+            attemptCount: job.attemptCount + 1,
+            lastError: null,
+            nextRetryAt: null,
+          },
+        });
+        await input.prisma.feedbackSubmission.update({
+          where: { id: submission.id },
+          data: {
+            githubIssueNumber: group.githubIssueNumber,
+            githubIssueUrl: group.githubIssueUrl,
+            githubSyncStatus: "synced",
+            githubSyncAttempts: job.attemptCount + 1,
+            githubSyncError: null,
+            githubSyncRequestedAt: startedAt,
+            githubSyncedAt: startedAt,
+            status: "reported",
+          },
+        });
+        result.succeeded += 1;
+        continue;
+      }
+
+      // No existing issue on group - create one
       const response = await fetchImpl(
         `https://api.github.com/repos/${config.githubRepoOwner}/${config.githubRepoName}/issues`,
         {
@@ -322,7 +387,7 @@ export async function runFeedbackOutbox(
             "User-Agent": "shared-runtime-services-feedback-worker",
           },
           body: JSON.stringify({
-            title: buildIssueTitle(submission),
+            title: buildIssueTitle(submission, group),
             body: buildIssueBody(submission),
             labels: ["feedback", `project:${submission.projectKey}`, `channel:${submission.channel}`],
           }),
@@ -335,6 +400,20 @@ export async function runFeedbackOutbox(
       }
 
       const issue = (await response.json()) as { number?: number; html_url?: string };
+      const issueNumber = issue.number ?? null;
+      const issueUrl = issue.html_url ?? null;
+
+      // Write issue back to group so subsequent submissions reuse it
+      if (group && issueNumber && issueUrl) {
+        await input.prisma.feedbackIssueGroup.update({
+          where: { id: group.id },
+          data: {
+            githubIssueNumber: issueNumber,
+            githubIssueUrl: issueUrl,
+          },
+        });
+      }
+
       await input.prisma.feedbackIssueOutbox.update({
         where: { id: job.id },
         data: {
@@ -347,8 +426,8 @@ export async function runFeedbackOutbox(
       await input.prisma.feedbackSubmission.update({
         where: { id: submission.id },
         data: {
-          githubIssueNumber: issue.number ?? null,
-          githubIssueUrl: issue.html_url ?? null,
+          githubIssueNumber: issueNumber,
+          githubIssueUrl: issueUrl,
           githubSyncStatus: "synced",
           githubSyncAttempts: job.attemptCount + 1,
           githubSyncError: null,

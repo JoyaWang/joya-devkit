@@ -7,7 +7,7 @@
 - 项目协议层（`projectKey + runtimeEnv + serviceType`）
 - provider-neutral 的对象存储适配层
 - Object Service / Release Service 真相源
-- feedback crash/error intake 基础路由
+- Feedback submission / admin API / outbox worker 真相源
 - 生产部署与基础健康检查
 
 当前新增锁定方向（2026-04）：
@@ -135,13 +135,20 @@ shared-runtime-services/
 - `deleteObject(input)`：删除对象
 - `normalizeObjectKey(input)`：按统一命名规范生成或校验 `objectKey`
 
+### Feedback Runtime contract（当前已进入正式范围）
+- intake route：至少支持 `submit-manual`、`submit-errors`、`submit-crash`
+- admin route：至少支持 `submissions list/detail`、`retry-github-sync`、`process-pending`、`project-config update`
+- final-state route：支持 `verify-fix`、`mark-fixed` 与用户可见 submission 状态聚合
+- worker contract：统一执行 GitHub issue create / retry / backoff，并将执行结果回写 submission / outbox 真相源
+- control-plane contract：admin-platform 只做代理与 viewer，不本地承接 feedback 真相源
+
 ### provider capability matrix（Phase 1）
 | 能力 | 通用 contract | COS 默认实现 | MinIO 本地实现 | 说明 |
 |------|---------------|-------------|----------------|------|
-| 上传签名 | 支持 | 支持（真实 SDK + fallback） | 支持 | 上层只关心签名结果，不关心供应商字段命名 |
-| 下载签名 | 支持 | 支持（真实 SDK + fallback） | 支持 | 下载链接 TTL 由 adapter 统一折算 |
-| 对象探测 | 支持 | 支持（真实 SDK + fallback） | 支持 | 用于 complete / delete 前校验 |
-| 对象删除 | 支持 | 支持（真实 SDK + fallback） | 支持 | 删除结果回填统一审计语义 |
+| 上传签名 | 支持 | 支持（真实 SDK） | 支持 | 上层只关心签名结果，不关心供应商字段命名 |
+| 下载签名 | 支持 | 支持（真实 SDK） | 支持 | 下载链接 TTL 由 adapter 统一折算 |
+| 对象探测 | 支持 | 支持（真实 SDK） | 支持 | 用于 complete / delete 前校验 |
+| 对象删除 | 支持 | 支持（真实 SDK） | 支持 | 删除结果回填统一审计语义 |
 | 生命周期 / 版本化 | 非 Phase 1 contract | 可选 | 可选 | 供应商特性不得泄漏到通用 API |
 
 ### 项目协议层与资源绑定解析
@@ -205,7 +212,7 @@ shared-runtime-services/
   5. **gradual-cutover**：按项目 / 环境 / object profile / 流量批次灰度提升新 provider 占比，持续监控 302、fallback、错误率与对象完整性。
   6. **finalize**：确认稳定后再停双写、移除旧读 fallback，并在单独审批后清理旧 provider 对象。
 - 回滚原则：任何阶段只要发现对象缺失、签名失败、公共稳定 URL 异常或错误率明显上升，都应立即回退到旧 provider 主读；因为用户侧稳定 URL 不变，所以回滚不应要求业务项目改代码或用户改链接。
-- 验收真相源：迁移完成的判断不以“配置改了”为准，而以真实对象抽样校验、公共稳定 URL 可用、签名下载可用、fallback 命中下降到可接受范围、项目侧无感知为准。
+- 验收真相源：迁移完成的判断不以“配置改了”为准，而以真实对象抽样校验、公共稳定 URL 可用、签名下载可用、候选命中已按物理落点真相源稳定收敛、项目侧无感知为准。
 
 ### 当前状态与目标状态
 - **当前最小实现**：Release Service 已通过 delivery resolver 生成 `distributionUrl`，`dl-dev` / `dl` 由腾讯 CDN `PathBasedOrigin -> 124.222.37.77 -> Nginx bridge -> SRS public-delivery route` 承接；SRS 校验对象后再 302 到 provider 下载地址

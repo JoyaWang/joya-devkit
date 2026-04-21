@@ -181,12 +181,14 @@ model FeedbackSubmission {
   verifiedAt         DateTime? @map("verified_at")
   statusHistoryJson  String?   @map("status_history_json")
   status             String    @default("pending")
+  issueGroupId       String?   @map("issue_group_id")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([projectKey, type, createdAt])
   @@index([projectKey, status])
   @@index([projectKey, githubSyncStatus, createdAt])
+  @@index([issueGroupId])
   @@map("feedback_submissions")
 }
 
@@ -219,4 +221,25 @@ model FeedbackIssueOutbox {
   @@index([projectKey, status, nextRetryAt])
   @@index([submissionId])
   @@map("feedback_issue_outbox")
+}
+
+model FeedbackIssueGroup {
+  id                   String    @id @default(cuid())
+  projectKey           String    @map("project_key")
+  runtimeEnv           String    @map("runtime_env")
+  normalizedFingerprint String   @map("normalized_fingerprint")
+  normalizedSummary    String    @map("normalized_summary")
+  githubIssueNumber    Int?      @map("github_issue_number")
+  githubIssueUrl       String?   @map("github_issue_url")
+  occurrenceCount      Int       @default(1) @map("occurrence_count")
+  firstOccurredAt      DateTime  @default(now()) @map("first_occurred_at")
+  lastOccurredAt       DateTime  @default(now()) @map("last_occurred_at")
+  latestSubmissionId   String?   @map("latest_submission_id")
+  status               String    @default("open")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@unique([projectKey, runtimeEnv, normalizedFingerprint])
+  @@index([projectKey, status])
+  @@map("feedback_issue_groups")
 }

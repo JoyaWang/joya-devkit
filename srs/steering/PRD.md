@@ -55,7 +55,17 @@
 - 能查询对象元数据与对象审计记录
 - 控制面与运行时边界清晰，不把 admin-platform 当作运行时真相源
 
-### F4: 项目协议层
+### F4: Feedback Runtime 收口
+**用户故事：** 作为业务项目或 admin-platform，我希望 feedback submission、GitHub Issue 同步、修复验证与状态生命周期统一收口到 shared-runtime-services，这样反馈真相源、执行器与控制面语义保持一致，不再分散在业务仓库、本地表和临时脚本中。
+
+**验收标准：**
+- SRS 成为 feedback submission 真相源，至少覆盖 `manual` / `error` / `crash` 三类 channel
+- SRS 提供 admin feedback API，支持 submission 列表、详情、retry / process-pending、project config 管理
+- SRS worker 统一执行 GitHub issue create / retry / backoff，不再把执行权留在 admin-platform 或业务后端
+- admin-platform 只作为 feedback control plane viewer / proxy，不再本地伪造反馈状态流转
+- feedback fix / verify 生命周期由 SRS 直接承接，避免控制面与运行时状态漂移
+
+### F5: 项目协议层
 **用户故事：** 作为 shared-runtime-services，我想让接入项目通过统一项目协议声明自身身份、运行环境与共享能力绑定，以便运行时根据 `projectKey + runtimeEnv + serviceType` 自动解析正确的 provider 配置和资源，而不是在每个项目里散落 bucket、provider 与凭据细节。
 
 **验收标准：**
@@ -66,7 +76,7 @@
 - 请求体中的 `project` / `env` 只做一致性校验，不作为最终资源路由真相源
 - 未注册项目、未绑定目标共享能力或环境不匹配时返回明确协议错误，而不是静默回退为全局单例配置
 
-### F5: Shared Delivery Plane
+### F6: Shared Delivery Plane
 **用户故事：** 作为 CI、业务项目或控制面，我想让稳定公共下载地址属于共享分发层，而不是直接绑定到某个项目 bucket，这样多个项目可以复用同一批正式下载域名，未来更换底层对象存储供应商时也不需要改用户侧链接。
 
 **验收标准：**
@@ -77,7 +87,7 @@
 - 底层 provider 迁移应支持双写、回填、读 fallback 或灰度切换，且尽量保持用户侧稳定 URL 不变
 - 当前 Phase 4 最小生产闭环允许 shared prefix 先通过 CDN + Nginx bridge + SRS 实现；后续迁移到新 provider 时，仍以“不改项目 contract、不改用户链接”为首要约束
 
-### F6: Provider-neutral 迁移能力
+### F7: Provider-neutral 迁移能力
 **用户故事：** 作为共享运行时维护者，我想在不打断项目侧调用和用户侧下载入口的前提下，把对象从 COS 迁移到 S3 / OSS / R2 等其他 provider，以便真正做到 provider-neutral，而不是文档上说可迁移、实际上只能硬切。
 
 **验收标准：**
@@ -113,7 +123,6 @@
 
 ## MVP 明确排除的功能
 - 完整的 AI Service Layer
-- 完整的 Feedback / Crash Service
 - 完整的 Domain / Certificate 自动化系统
 - 多租户计费与对外 SaaS 化
 - 全量 UI 控制台实现
@@ -135,6 +144,7 @@
 - `dl-dev.infinex.cn` / `dl.infinex.cn` 这类稳定公共下载入口可以面向多个项目复用，而不是继续绑定单一项目 bucket
 - 受控对象下载仍通过签名 URL，公共长期分发与受控下载出口边界清晰
 - GitHub Release link-only 规则被系统化落实
+- feedback/version 两类 runtime 真相源统一收口到 SRS，admin-platform 退回 control plane / proxy
 - provider 迁移路径在文档和实施计划中可见，未来从 COS 切到其他供应商时不需要让用户改下载入口
 
 ## 参考文档

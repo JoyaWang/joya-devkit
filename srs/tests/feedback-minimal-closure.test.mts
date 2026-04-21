@@ -27,13 +27,18 @@ const mockPrisma = {
     findMany: vi.fn(),
     update: vi.fn(),
   },
+  feedbackIssueGroup: {
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
 };
 
 vi.mock("../apps/api/src/db.js", () => ({
   getPrisma: () => mockPrisma,
 }));
 
-import { registerFeedbackRoutes } from "../apps/api/src/routes/feedback.js";
+import { registerFeedbackRoutes, computeNormalizedFingerprint, buildNormalizedSummary } from "../apps/api/src/routes/feedback.js";
 import { startFeedbackOutboxLoop } from "../apps/worker/src/bootstrap.js";
 import { runFeedbackOutbox } from "../apps/worker/src/feedback-outbox-runner.js";
 
@@ -102,6 +107,44 @@ describe("feedback minimal closure schema", () => {
     expect(schema).toMatch(/verificationFeedback\s+String\?\s+@map\(\"verification_feedback\"\)/);
     expect(schema).toMatch(/verifiedAt\s+DateTime\?\s+@map\(\"verified_at\"\)/);
     expect(schema).toMatch(/statusHistoryJson\s+String\?\s+@map\(\"status_history_json\"\)/);
+    expect(schema).toContain("model FeedbackIssueGroup {");
+    expect(schema).toMatch(/runtimeEnv\s+String\s+@map\("runtime_env"\)/);
+    expect(schema).toMatch(/normalizedFingerprint\s+String\s+@map\("normalized_fingerprint"\)/);
+    expect(schema).toMatch(/normalizedSummary\s+String\s+@map\("normalized_summary"\)/);
+    expect(schema).toMatch(/githubIssueNumber\s+Int\?\s+@map\("github_issue_number"\)/);
+    expect(schema).toMatch(/occurrenceCount\s+Int\s+@default\(1\)\s+@map\("occurrence_count"\)/);
+    expect(schema).toMatch(/lastOccurredAt\s+DateTime\s+@default\(now\(\)\)\s+@map\("last_occurred_at"\)/);
+    expect(schema).toMatch(/@@unique\(\[projectKey, runtimeEnv, normalizedFingerprint\]\)/);
+    expect(schema).toContain("@@map(\"feedback_issue_groups\")");
+  });
+});
+
+describe("feedback dedup helpers", () => {
+  it("normalizes dynamic noise into stable fingerprints", () => {
+    const first = computeNormalizedFingerprint({
+      errorType: "SocketException",
+      errorMessage: "socket timeout at 2026-04-21T10:00:00Z device-id=abc123",
+      stackTrace: "at Foo /app/file.dart:12:34\nat Bar /app/file.dart:56:78",
+      currentRoute: "/home",
+    });
+    const second = computeNormalizedFingerprint({
+      errorType: "SocketException",
+      errorMessage: "socket timeout at 2026-04-21T10:01:59Z device-id=xyz789",
+      stackTrace: "at Foo /app/file.dart:99:88\nat Bar /app/file.dart:77:66",
+      currentRoute: "/home",
+    });
+
+    expect(first).toBe(second);
+  });
+
+  it("builds readable normalized summary from route and error type", () => {
+    expect(
+      buildNormalizedSummary({
+        errorType: "SocketException",
+        errorMessage: "socket timeout",
+        currentRoute: "/home",
+      }),
+    ).toBe("[/home] SocketException");
   });
 });
 
@@ -136,6 +179,20 @@ describe("feedback minimal closure routes", () => {
     mockPrisma.feedbackIssueOutbox.create.mockResolvedValue({ id: "outbox_001" });
     mockPrisma.feedbackIssueOutbox.findMany.mockResolvedValue([]);
     mockPrisma.feedbackIssueOutbox.update.mockResolvedValue(undefined);
+    mockPrisma.feedbackIssueGroup.findUnique.mockResolvedValue(null);
+    mockPrisma.feedbackIssueGroup.create.mockResolvedValue({
+      id: "group_001",
+      projectKey: "laicai",
+      runtimeEnv: "dev",
+      normalizedFingerprint: "fingerprint_001",
+      normalizedSummary: "[/home] SocketException",
+      githubIssueNumber: null,
+      githubIssueUrl: null,
+      occurrenceCount: 1,
+      latestSubmissionId: null,
+      status: "open",
+    });
+    mockPrisma.feedbackIssueGroup.update.mockResolvedValue(undefined);
     handlers = await captureRoutes(registerFeedbackRoutes);
   });
 
@@ -152,6 +209,7 @@ describe("feedback minimal closure routes", () => {
 
     await handler(
       {
+        headers: { "x-project-key": "laicai" },
         query: { projectKey: "laicai" },
       },
       reply,
@@ -171,6 +229,7 @@ describe("feedback minimal closure routes", () => {
 
     await handler(
       {
+        headers: { "x-project-key": "laicai" },
         body: {
           projectKey: "laicai",
           title: "无法上传头像",
@@ -224,6 +283,7 @@ describe("feedback minimal closure routes", () => {
 
     await handler(
       {
+        headers: { "x-project-key": "laicai" },
         body: {
           projectKey: "laicai",
           title: "按钮没反应",
@@ -253,6 +313,7 @@ describe("feedback minimal closure routes", () => {
 
     await handler(
       {
+        headers: { "x-project-key": "laicai" },
         body: {
           projectKey: "laicai",
           title: "按钮没反应",
@@ -285,6 +346,7 @@ describe("feedback minimal closure routes", () => {
 
     await handler(
       {
+        headers: { "x-project-key": "laicai" },
         body: {
           projectKey: "laicai",
           errorMessage: "app crashed",
@@ -337,6 +399,7 @@ describe("feedback minimal closure routes", () => {
 
     await handler(
       {
+        headers: { "x-project-key": "laicai" },
         body: {
           projectKey: "laicai",
           errors: [
@@ -373,6 +436,69 @@ describe("feedback minimal closure routes", () => {
       }),
     });
     expect(mockPrisma.feedbackIssueOutbox.create).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates submit-errors within same batch and reuses single issue group", async () => {
+    const handler = handlers.get("POST /v1/feedback/submit-errors");
+    const reply = makeReply();
+
+    mockPrisma.feedbackSubmission.create
+      .mockResolvedValueOnce({
+        id: "fb_error_001",
+        projectKey: "laicai",
+        type: "error",
+        channel: "error",
+        status: "pending",
+        githubSyncStatus: "pending",
+        githubIssueNumber: null,
+      });
+
+    await handler(
+      {
+        headers: { "x-project-key": "laicai" },
+        body: {
+          projectKey: "laicai",
+          runtimeEnv: "dev",
+          errors: [
+            {
+              errorMessage: "socket timeout at 2026-04-21T10:00:00Z device-id=abc123",
+              errorType: "SocketException",
+              stackTrace: "at Foo /app/file.dart:12:34\nat Bar /app/file.dart:56:78",
+              currentRoute: "/home",
+            },
+            {
+              errorMessage: "socket timeout at 2026-04-21T10:01:59Z device-id=xyz789",
+              errorType: "SocketException",
+              stackTrace: "at Foo /app/file.dart:99:88\nat Bar /app/file.dart:77:66",
+              currentRoute: "/home",
+            },
+          ],
+        },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(201);
+    expect(mockPrisma.feedbackIssueGroup.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.feedbackSubmission.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.feedbackIssueOutbox.create).toHaveBeenCalledTimes(1);
+    expect(reply.payload).toEqual({
+      success: true,
+      results: [
+        {
+          issueNumber: null,
+          submissionId: "fb_error_001",
+          githubSyncQueued: true,
+          skipped: false,
+        },
+        {
+          issueNumber: null,
+          submissionId: "fb_error_001",
+          githubSyncQueued: false,
+          skipped: false,
+        },
+      ],
+    });
   });
 
   it("lists user-facing feedback submissions with final-state fields mapped from raw records", async () => {
@@ -1086,6 +1212,10 @@ describe("feedback outbox worker loop", () => {
           githubIssueSyncEnabled: true,
         }),
       },
+      feedbackIssueGroup: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
     };
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
@@ -1199,6 +1329,10 @@ describe("feedback outbox worker loop", () => {
           githubIssueSyncEnabled: true,
         }),
       },
+      feedbackIssueGroup: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
     };
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: false,
@@ -1283,6 +1417,10 @@ describe("feedback outbox worker loop", () => {
       feedbackProjectConfig: {
         findUnique: vi.fn(),
       },
+      feedbackIssueGroup: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
     };
     const fetchImpl = vi.fn();
 
@@ -1304,6 +1442,111 @@ describe("feedback outbox worker loop", () => {
       where: { id: "outbox_001" },
       data: expect.objectContaining({
         status: "completed",
+      }),
+    });
+  });
+
+  it("reuses existing github issue from issue group without creating a new issue", async () => {
+    const prisma = {
+      feedbackIssueOutbox: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_002",
+              submissionId: "fb_002",
+              projectKey: "laicai",
+              status: "pending",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_002",
+              submissionId: "fb_002",
+              projectKey: "laicai",
+              status: "processing",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ]),
+        update: vi.fn().mockResolvedValue(undefined),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      feedbackSubmission: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "fb_002",
+          projectKey: "laicai",
+          type: "error",
+          channel: "error",
+          title: null,
+          description: null,
+          errorMessage: "socket timeout",
+          errorType: "SocketException",
+          stackTrace: "trace",
+          userId: "user_001",
+          username: "joya",
+          currentRoute: "/home",
+          appVersion: "1.0.0",
+          buildNumber: "10",
+          attachmentsJson: null,
+          metadataJson: null,
+          githubSyncStatus: "pending",
+          githubIssueNumber: null,
+          githubIssueUrl: null,
+          issueGroupId: "group_001",
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      feedbackProjectConfig: {
+        findUnique: vi.fn().mockResolvedValue({
+          projectKey: "laicai",
+          githubRepoOwner: "joya",
+          githubRepoName: "laicai",
+          githubToken: "ghs_test_token",
+          githubIssueSyncEnabled: true,
+        }),
+      },
+      feedbackIssueGroup: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "group_001",
+          projectKey: "laicai",
+          runtimeEnv: "dev",
+          normalizedFingerprint: "fingerprint_001",
+          normalizedSummary: "[/home] SocketException",
+          githubIssueNumber: 42,
+          githubIssueUrl: "https://github.com/joya/laicai/issues/42",
+          occurrenceCount: 2,
+          latestSubmissionId: "fb_001",
+          status: "open",
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    const fetchImpl = vi.fn();
+
+    const result = await runFeedbackOutbox({
+      prisma,
+      now: () => new Date("2026-04-19T10:00:00Z"),
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    expect(result).toEqual({
+      scanned: 1,
+      processed: 1,
+      succeeded: 1,
+      failed: 0,
+      skipped: 0,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(prisma.feedbackSubmission.update).toHaveBeenCalledWith({
+      where: { id: "fb_002" },
+      data: expect.objectContaining({
+        githubIssueNumber: 42,
+        githubIssueUrl: "https://github.com/joya/laicai/issues/42",
+        githubSyncStatus: "synced",
+        status: "reported",
       }),
     });
   });

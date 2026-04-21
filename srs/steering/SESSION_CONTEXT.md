@@ -15,14 +15,14 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 `shared-runtime-services` 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 及后续活跃项目，统一承载 Object Service、Release Service 与 Shared Delivery Plane。`admin-platform` 是控制面，不是 runtime 真相源。真相源围绕 `projectKey + runtimeEnv + serviceType`。
 
 ## Current Mode
-- Mode: `standard`
-- Runtime companion: canonical repo 不依赖 `.agent/runtime/`；若当前机器已初始化本地 runtime companion，可把 `.agent/runtime/*` 当补充恢复线索，但 steering 文档仍是正式真相源
+- Mode: `autonomous`（`.agent/runtime/tasks.json` 已初始化，作为 loop 真相源）
+- Runtime companion: `.agent/runtime/tasks.json` 与 `.agent/runtime/deferred-log.jsonl` 已初始化；当前 task packet 先聚焦 `ops_release_register -> SRS` 收口
 
 ## Current Slice
 - Phase: `feedback-srs-unification`
-- Status: `implementation_complete_pending_live` — feedback schema / route / worker / focused tests 已完成，待送达 live 并联调 admin-platform / Laicai
-- Active slice: `srs-feedback-minimal-closure`
-- Latest checkpoint: 已补 `submit-manual`、admin feedback API、project-scoped guard、feedback outbox worker、Prisma migration、focused tests；线上 404 根因已锁定为反馈代码尚未进入当前部署源
+- Status: **legacy 迁移收尾已完成** — admin-platform `ops_feedback_center` 6 条 action 全部 200；prd/dev `SRS_API_URL/SRS_SERVICE_TOKEN` 已补齐；Laicai 4 条 legacy manual feedback 已迁移，`process-pending-feedback.js` 已退役
+- Active slice: `feedback-live-auth-verification`
+- Latest checkpoint: feedback live 验证已完成（6 条 action 全部 200）；prd/dev `SRS_API_URL/SRS_SERVICE_TOKEN` 已补齐；Laicai legacy 4 条记录已迁移，`process-pending-feedback.js` 已退役；admin-platform 本地 `feedback` 表 count=0 待 drop
 - 已通过的验证：
   - `pnpm exec vitest run tests/feedback-minimal-closure.test.mts` → 18/18 ✅
   - `pnpm exec tsc --noEmit --project tsconfig.json --pretty false` → 通过 ✅
@@ -36,20 +36,20 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - provider-neutral、delivery plane 与 provider plane 分层是长期核心原则。
 - Object Service 通过 ObjectStorageAdapter 抽象与 provider 解耦；CosObjectStorageAdapter 是 Phase 1 默认生产 provider。
 - 测试框架：Vitest；命令：pnpm test / pnpm test:watch；类型检查：pnpm typecheck。
-- 当前 `.agent/runtime/` 状态层已初始化，项目具备 long-running / autonomous mode 的最小恢复能力。
+- `feedback/version 收编到 SRS + admin-platform 退回 control plane + 逐步去 Supabase 化` 的 runtime 已初始化；当前首个自治任务 `ops_release_register -> SRS` 已完成并验收通过。
 - `dl-dev.infinex.cn` / `dl.infinex.cn` 的长期角色是环境级共享公共分发入口，不应继续作为单一项目 bucket 的长期别名。
 - **存储架构**：所有项目共享 2 个物理桶（dev / prd），按 objectKey 前缀逻辑隔离（`{projectKey}/{env}/...`）。
 - **启动自检**：API 启动时验证所有 bindings 都有对应 active manifests，不一致则报警但不阻塞启动。
 - **Seed 安全**：seed-projects.ts 执行时先检查 manifests 是否存在，不存在则创建，保证幂等性。
 
 ## Next Default Action
-1. 先更新 steering 中与 SRS feedback 最小闭环直接相关的文档合同，修正文档与现状漂移
-2. 扩 Feedback schema 与 migration：`FeedbackSubmission` / `FeedbackProjectConfig` / `FeedbackIssueOutbox`
-3. 新增 `submit-manual` 与 admin feedback API，并接入现有 authPreHandler
-4. 在 worker 中增加 feedback outbox loop，统一 GitHub issue 同步
-5. 补最小测试并执行 typecheck/test 验证
+1. ~~补齐 admin-platform prd `infra_service_envs` 中 `SRS_API_URL/SRS_SERVICE_TOKEN`~~ → 已补齐
+2. ~~继续 Laicai legacy feedback 执行权/存储权迁移收尾~~ → 已完成
+3. ~~清理 `joya-lib/joya_ui/` 与 `joya-lib/joya_auth/` 误生目录~~ → 已清理
+4. 按需进入下一迭代；如用户要求，执行 admin-platform 本地空 `feedback` 表 drop
 
 ## Blockers / Watchouts
+- ~~**prd SRS 配置缺失**~~ → **已补齐**（2026-04-21）：`SRS_API_URL=https://srs.infinex.cn`、`SRS_SERVICE_TOKEN=prd-token-laicai`
 - 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；guardrails 已回绿，但删库重跑后仍需复验长期机制。
 - prd 当前 blocker 已明确为 Prisma `P3005`：旧库非空且 migration 历史未 baseline；本轮不走 baseline，按用户授权直接重置 dev + prd 数据库。
 - Laicai binding 已切换到共享桶（dev: `shared-storage-dev-1321178972`，prd: `shared-storage-1321178972`），downloadDomain 已配（dev: `origin-dev.infinex.cn`，prd: `origin.infinex.cn`）。
@@ -89,7 +89,7 @@ When a new session starts in this repository:
 3. Read `memory/` recent logs — restore short-term context
 4. Read `MEMORY.md` — load long-term memory
 5. Read `steering/SESSION_CONTEXT.md` — restore runtime state (this file)
-6. Read `.agent/runtime/execution-state.json` — load autonomous mode companion
+6. If `.agent/runtime/tasks.json` exists, read it first; if `.agent/runtime/deferred-log.jsonl` exists, read latest deferred items
 7. Read `steering/IMPLEMENTATION_PLAN.md` — understand current phase/slice
 8. Read `steering/TECH_STACK.md` and `steering/BACKEND_STRUCTURE.md` — understand project boundaries
 9. Resume from the `Next Default Action` section unless the user gives a higher-priority instruction

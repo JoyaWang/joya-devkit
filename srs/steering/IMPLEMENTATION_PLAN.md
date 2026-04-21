@@ -35,7 +35,7 @@
 | Object Service | direct | shared runtime core | Phase 1 |
 | Release / Update Service | direct | shared runtime core | Phase 1 |
 | Shared Delivery Plane | planned | shared runtime core | Phase 4 |
-| Feedback / Crash Service | local-first | shared runtime module | 后续阶段 |
+| Feedback / Crash Service | in-progress | shared runtime module | 当前阶段 |
 | AI Service Layer | local-first | shared runtime module | 后续阶段 |
 | Domain / Certificate Service | local-first | shared runtime module | 后续阶段 |
 | Config Center | local-first | shared runtime module | 后续阶段 |
@@ -407,27 +407,30 @@
 ### Feedback / Crash Service 最小闭环（2026-04）
 目标：让 feedback submission、GitHub issue 同步与 admin 管理动作收口到 shared-runtime-services，结束“业务仓库存 feedback + admin 本地表假管理 + GitHub issue 分散执行”的裂变状态。
 
-当前已知现状（本轮开始前）：
-- 现有 `FeedbackSubmission` 仅覆盖 crash/error 上报最小字段，尚不足以承接 manual feedback 与 GitHub sync 生命周期
-- 现有 `FeedbackClientSettings` 只承接客户端 error/crash 开关，不能表达项目级 GitHub repo 与 manual feedback 开关
-- 当前 SRS 仅有 `client-settings`、`submit-crash`、`submit-errors` 三个 feedback route；尚无 admin feedback API 与 worker outbox loop
-- 仓库当前不存在 `.agent/runtime/`，因此本轮 feedback 实现不依赖 autonomous runtime companion 文件
+当前真实状态：
+- [x] `FeedbackSubmission` 已扩到可承接 manual feedback 与 GitHub sync 生命周期的最小字段集
+- [x] `FeedbackProjectConfig` / `FeedbackIssueOutbox` 已落地，项目级 GitHub repo 与同步开关已有正式真相源
+- [x] SRS 已提供 `submit-manual`、admin feedback API、retry/process-pending、worker outbox loop
+- [x] focused tests、worker loop 与基础 typecheck 已完成
+- [ ] 仍待完成：fix/verify final-state contract 与与控制面的 live 对齐
 
 任务清单：
-- [ ] 扩 Feedback schema：在 `FeedbackSubmission` 基础上补 `channel/title/description/attachmentsJson/metadataJson/githubSync*` 等字段
-- [ ] 将 `FeedbackClientSettings` 收口为项目级 `FeedbackProjectConfig`，承接 `githubRepoOwner/githubRepoName/githubIssueSyncEnabled/manualFeedbackEnabled/errorReportingEnabled/crashReportingEnabled`
-- [ ] 新增 `FeedbackIssueOutbox`，承接 retry / backoff / process-pending
-- [ ] 新增公开接口：`POST /v1/feedback/submit-manual`
-- [ ] 新增 admin 接口：`GET /v1/admin/feedback/submissions`、`GET /v1/admin/feedback/submissions/:id`、`POST /v1/admin/feedback/submissions/:id/retry-github-sync`、`POST /v1/admin/feedback/process-pending`、`PUT /v1/admin/feedback/project-config/:projectKey`
-- [ ] 补齐 final-state contract：`GET /v1/feedback/submissions`、`POST /v1/feedback/verify-fix`、`POST /v1/admin/feedback/mark-fixed`，以及 `FeedbackSubmission.fixed*/verification/statusHistoryJson` 字段
-- [ ] 在 worker 中新增 feedback outbox loop，统一执行 GitHub issue create / retry / backoff
-- [ ] 补最小测试：schema/migration、manual submit、admin list/detail、retry/process-pending、worker success/failure
+- [x] 扩 Feedback schema：在 `FeedbackSubmission` 基础上补 `channel/title/description/attachmentsJson/metadataJson/githubSync*` 等字段
+- [x] 将 `FeedbackClientSettings` 收口为项目级 `FeedbackProjectConfig`
+- [x] 新增 `FeedbackIssueOutbox`，承接 retry / backoff / process-pending
+- [x] 新增公开接口：`POST /v1/feedback/submit-manual`
+- [x] 新增 admin 接口：`GET /v1/admin/feedback/submissions`、`GET /v1/admin/feedback/submissions/:id`、`POST /v1/admin/feedback/submissions/:id/retry-github-sync`、`POST /v1/admin/feedback/process-pending`、`PUT /v1/admin/feedback/project-config/:projectKey`
+- [x] 补齐 final-state contract：`GET /v1/feedback/submissions`、`POST /v1/feedback/verify-fix`、`POST /v1/admin/feedback/mark-fixed`，以及 `FeedbackSubmission.fixed*/verification/statusHistoryJson` 字段
+- [x] 在 worker 中新增 feedback outbox loop，统一执行 GitHub issue create / retry / backoff
+- [x] 补最小测试：schema/migration、manual submit、admin list/detail、retry/process-pending、worker success/failure
+- [x] 补控制面 live 验证与 legacy 对账/迁移收尾（2026-04-21：admin-platform `ops_feedback_center` 6 条 action live 验证全部 200；Laicai 4 条 legacy manual feedback 已迁移，CloudBase `feedback` 退化为 compat proxy，`process-pending-feedback.js` 已退役）
 
 验收标准：
-- [ ] SRS 成为 feedback submission 真相源
-- [ ] GitHub issue 由 SRS worker 统一执行，不再散落在业务后端或 admin 假状态流转中
-- [ ] admin-platform 能通过代理读取 submission 列表/详情、触发 retry/process-pending、更新项目 feedback config
-- [ ] Laicai legacy 链路可在过渡期共存，但新控制面语义不再依赖 CloudBase `feedback` 或 admin 本地 `feedback` 表
+- [x] SRS 成为 feedback submission 真相源
+- [x] GitHub issue 由 SRS worker 统一执行，不再散落在业务后端或 admin 假状态流转中
+- [x] admin-platform 能通过代理读取 submission 列表/详情、触发 retry/process-pending、更新项目 feedback config
+- [x] fix/verify final-state contract 与 live 联调证据补齐
+- [x] Laicai legacy 链路完成迁移收尾，不再依赖 CloudBase `feedback` 或 admin 本地 `feedback` 表承载新控制面语义（admin-platform 本地 `feedback` 表 count=0，待 drop；CloudBase `feedback` 集合仅剩已标记 `migrated_to_srs` 的历史记录）
 
 ### Laicai 首接入执行边界（2026-04-11 已确认）
 目标：在不影响 `prd` 与现网正式链路的前提下，让 Laicai `dev` 的 Android release 主链路在独立分支中完整切到 shared-runtime-services，并故意不保留 `dev` 的 legacy fallback，以便尽早暴露真实接入问题。
