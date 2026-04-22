@@ -1,3 +1,61 @@
+import { createHash } from "node:crypto";
+
+// ---------------------------------------------------------------------------
+// Inline copy of stripDynamicNoise / computeNormalizedFingerprint
+// (shared-kernel extraction deferred to a follow-up)
+// ---------------------------------------------------------------------------
+
+function _stripDynamicNoise(raw: string): string {
+  let s = raw;
+  s = s.replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/g, "<ts>");
+  s = s.replace(/\b\d{10,13}\b/g, "<ts>");
+  s = s.replace(/\b\d+(?:\.\d+)?(?:ms|s|sec|min)\b/g, "<dur>");
+  s = s.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "<id>");
+  s = s.replace(/\b[a-z][a-z0-9]{24,}\b/g, "<id>");
+  s = s.replace(/0x[0-9a-fA-F]+/g, "<hex>");
+  s = s.replace(/\b[0-9a-fA-F]{16,}\b/g, "<hex>");
+  // Remove pretty-print clock lines BEFORE line:col to avoid destroying time format
+  // Format: "12:34:56.789 (+0:01:23.456)" where the parenthesized part is
+  // relative duration (hours:minutes:seconds.millis), NOT another timestamp.
+  s = s.replace(/\d{2}:\d{2}:\d{2}\.\d{3}\s+\(\+\d:\d{2}:\d{2}\.\d{3}\)/g, "");
+  // Remove line:col in stack frames (at X /path/file.dart:123:45)
+  s = s.replace(/:(\d+)(?::(\d+))?/g, ":<ln>");
+  // Remove device identifiers
+  s = s.replace(/(?:device[-_]?id|udid|idfa|idfv|android[-_]?id|advertising[-_]?id)[\s:=]+["']?\S+["']?/gi, "<device>");
+  s = s.replace(/<\d+\.\d+\.\d+>/g, "<pid>");
+  s = s.replace(/[┌┐└┘├┤┬┴─┄│╔╗╚╝╟╢═╤╧╫╪╡╞╬┼]+/g, "");
+  s = s.replace(/\[CrashReporter\]/gi, "[source]");
+  s = s.replace(/\[Global\]/gi, "[source]");
+  s = s.replace(/\[CloudImage\]/gi, "[source]");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+function _computeFingerprint(input: {
+  errorType?: string | null;
+  errorMessage?: string | null;
+  stackTrace?: string | null;
+}): string {
+  const parts: string[] = [];
+  if (input.errorType && input.errorType.trim()) {
+    parts.push(input.errorType.trim());
+  }
+  if (input.errorMessage && input.errorMessage.trim()) {
+    parts.push(_stripDynamicNoise(input.errorMessage.trim()).slice(0, 500));
+  }
+  if (input.stackTrace && input.stackTrace.trim()) {
+    const lines = input.stackTrace
+      .trim().split("\n").map((l) => l.trim()).filter((l) => l.length > 0)
+      .slice(0, 3).map((l) => _stripDynamicNoise(l));
+    parts.push(lines.join("|"));
+  }
+  return createHash("sha256").update(parts.join("::")).digest("hex");
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 interface FeedbackOutboxRecord {
   id: string;
   submissionId: string;
@@ -339,6 +397,44 @@ export async function runFeedbackOutbox(
     }
 
     try {
+      // Phase 2: Fallback — if submission has no issueGroupId, compute fingerprint
+      // from submission fields and try to find / create a group so the issue can be reused.
+      if (!submission.issueGroupId && (submission.type === "error" || submission.type === "crash")) {
+        const fingerprint = _computeFingerprint({
+          errorType: submission.errorType,
+          errorMessage: submission.errorMessage,
+          stackTrace: submission.stackTrace,
+        });
+        // Search groups by projectKey + fingerprint (runtimeEnv unknown for old submissions)
+        const groups = await (input.prisma as any).feedbackIssueGroup.findMany({
+          where: {
+            projectKey: submission.projectKey,
+            normalizedFingerprint: fingerprint,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        });
+        if (groups.length > 0) {
+          // Backfill: link submission to existing group
+          const existingGroup = groups[0] as FeedbackIssueGroupRecord;
+          await (input.prisma as any).feedbackSubmission.update({
+            where: { id: submission.id },
+            data: { issueGroupId: existingGroup.id },
+          });
+          // Reload submission with backfilled group id
+          submission.issueGroupId = existingGroup.id;
+          // Update group occurrence count
+          await input.prisma.feedbackIssueGroup.update({
+            where: { id: existingGroup.id },
+            data: {
+              occurrenceCount: { increment: 1 },
+              lastOccurredAt: new Date(),
+              latestSubmissionId: submission.id,
+            },
+          });
+        }
+      }
+
       // Check if submission belongs to a group that already has a GitHub issue
       let group: FeedbackIssueGroupRecord | null = null;
       if (submission.issueGroupId) {
@@ -411,6 +507,33 @@ export async function runFeedbackOutbox(
             githubIssueNumber: issueNumber,
             githubIssueUrl: issueUrl,
           },
+        });
+      } else if (!group && issueNumber && issueUrl && (submission.type === "error" || submission.type === "crash")) {
+        // No group existed before — create one so future submissions reuse this issue
+        const fingerprint = _computeFingerprint({
+          errorType: submission.errorType,
+          errorMessage: submission.errorMessage,
+          stackTrace: submission.stackTrace,
+        });
+        const summary = submission.errorType
+          ? `${submission.errorType}`
+          : (submission.errorMessage?.slice(0, 120) ?? "Unknown error");
+        const newGroup = await (input.prisma as any).feedbackIssueGroup.create({
+          data: {
+            projectKey: submission.projectKey,
+            runtimeEnv: "unknown",
+            normalizedFingerprint: fingerprint,
+            normalizedSummary: summary,
+            githubIssueNumber: issueNumber,
+            githubIssueUrl: issueUrl,
+            occurrenceCount: 1,
+            latestSubmissionId: submission.id,
+          },
+        });
+        // Backfill issueGroupId on submission
+        await (input.prisma as any).feedbackSubmission.update({
+          where: { id: submission.id },
+          data: { issueGroupId: newGroup.id },
         });
       }
 

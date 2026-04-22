@@ -31,6 +31,9 @@ import { getPrisma } from "../db.js";
  *  - line/column numbers from stack traces (at <method> file:line:col)
  *  - memory addresses (0x...)
  *  - numeric IDs in angle brackets (e.g. <0.123.0>)
+ *  - pretty-print border / box-drawing characters (logger framing)
+ *  - pretty-print clock lines ("12:34:56.789 (+0:01:23.456)")
+ *  - source labels like [CrashReporter], [Global], [CloudImage]
  */
 function stripDynamicNoise(raw: string): string {
   let s = raw;
@@ -47,18 +50,36 @@ function stripDynamicNoise(raw: string): string {
   // Remove long hex sequences (memory addresses, hashes)
   s = s.replace(/0x[0-9a-fA-F]+/g, "<hex>");
   s = s.replace(/\b[0-9a-fA-F]{16,}\b/g, "<hex>");
+  // Remove pretty-print clock lines BEFORE line:col to avoid destroying time format
+  // Format: "12:34:56.789 (+0:01:23.456)" where the parenthesized part is
+  // relative duration (hours:minutes:seconds.millis), NOT another timestamp.
+  s = s.replace(/\d{2}:\d{2}:\d{2}\.\d{3}\s+\(\+\d:\d{2}:\d{2}\.\d{3}\)/g, "");
   // Remove line:col in stack frames (at X /path/file.dart:123:45)
   s = s.replace(/:(\d+)(?::(\d+))?/g, ":<ln>");
   // Remove device identifiers
   s = s.replace(/(?:device[-_]?id|udid|idfa|idfv|android[-_]?id|advertising[-_]?id)[\s:=]+["']?\S+["']?/gi, "<device>");
   // Remove numeric IDs in angle brackets (Erlang-style)
   s = s.replace(/<\d+\.\d+\.\d+>/g, "<pid>");
+  // Remove pretty-print box-drawing / border characters (logger framing lines)
+  s = s.replace(/[┌┐└┘├┤┬┴─┄│╔╗╚╝╟╢═╤╧╫╪╡╞╬┼]+/g, "");
+  // Normalize source labels to reduce noise from different reporting channels
+  s = s.replace(/\[CrashReporter\]/gi, "[source]");
+  s = s.replace(/\[Global\]/gi, "[source]");
+  s = s.replace(/\[CloudImage\]/gi, "[source]");
+  // Collapse whitespace after removals (box chars leave gaps)
+  s = s.replace(/\s+/g, " ").trim();
   return s;
 }
 
 /**
  * Build a normalized fingerprint from error/crash fields.
  * Only used for channel=error or channel=crash.
+ *
+ * Fingerprint is based on errorType + normalized errorMessage + normalized
+ * stackTrace only. source and currentRoute are intentionally excluded so that
+ * the same root cause (e.g. HttpException on /home and /profile) merges into
+ * a single issue group.
+ *
  * Returns SHA-256 hex digest.
  */
 export function computeNormalizedFingerprint(input: {
@@ -92,14 +113,8 @@ export function computeNormalizedFingerprint(input: {
     parts.push(lines.join("|"));
   }
 
-  if (input.source && input.source.trim()) {
-    const stripped = stripDynamicNoise(input.source.trim());
-    parts.push(stripped.slice(0, 200));
-  }
-
-  if (input.currentRoute && input.currentRoute.trim()) {
-    parts.push(input.currentRoute.trim());
-  }
+  // NOTE: source and currentRoute are intentionally excluded from fingerprint.
+  // They remain available in the submission record and summary for display.
 
   const raw = parts.join("::");
   return createHash("sha256").update(raw).digest("hex");

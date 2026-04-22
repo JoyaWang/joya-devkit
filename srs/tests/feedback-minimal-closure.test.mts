@@ -137,6 +137,39 @@ describe("feedback dedup helpers", () => {
     expect(first).toBe(second);
   });
 
+  it("produces same fingerprint for same root cause on different routes", () => {
+    const routeA = computeNormalizedFingerprint({
+      errorType: "HttpException",
+      errorMessage: "Invalid statusCode: 400",
+      stackTrace: "at CloudImage /app/widgets/cloud_image.dart:12:34",
+      currentRoute: "/home",
+      source: "FlutterError",
+    });
+    const routeB = computeNormalizedFingerprint({
+      errorType: "HttpException",
+      errorMessage: "Invalid statusCode: 400",
+      stackTrace: "at CloudImage /app/widgets/cloud_image.dart:12:34",
+      currentRoute: "/profile",
+      source: "runZonedGuarded",
+    });
+    // source and currentRoute must NOT affect fingerprint
+    expect(routeA).toBe(routeB);
+  });
+
+  it("strips pretty-print noise from error messages", () => {
+    const withNoise = computeNormalizedFingerprint({
+      errorType: "HttpException",
+      errorMessage: "┌─────────────────────┐\n│ Invalid statusCode: 400 │\n└─────────────────────┘\n12:34:56.789 (+0:01:23.456)",
+      stackTrace: "at CloudImage /app/widgets/cloud_image.dart:12:34",
+    });
+    const clean = computeNormalizedFingerprint({
+      errorType: "HttpException",
+      errorMessage: "Invalid statusCode: 400",
+      stackTrace: "at CloudImage /app/widgets/cloud_image.dart:12:34",
+    });
+    expect(withNoise).toBe(clean);
+  });
+
   it("builds readable normalized summary from route and error type", () => {
     expect(
       buildNormalizedSummary({
