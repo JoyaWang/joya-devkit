@@ -8,7 +8,7 @@ set -euo pipefail
 ENV="${1:-dev}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-OUTPUT="$PROJECT_DIR/srs/infra/.env.runtime"
+OUTPUT="$PROJECT_DIR/srs/infra/env.runtime"
 
 # 从 ~/.joya/vault/.env 读取 token
 VAULT_ENV="$HOME/.joya/vault/.env"

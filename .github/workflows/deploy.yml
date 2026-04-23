@@ -71,7 +71,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           source: "env.runtime"
-          target: "/home/ubuntu/apps/joya-devkit/srs/infra/.env.runtime"
+          target: "/home/ubuntu/apps/joya-devkit/srs/infra/"
           overwrite: true
 
       - name: Deploy via SSH
@@ -99,9 +99,9 @@ jobs:
             echo "[OK] Code pulled" | tee -a $LOG_FILE
 
             # 2. Validate runtime env (uploaded by previous SCP step)
-            RUNTIME_ENV="$PROJECT_DIR/srs/infra/.env.runtime"
+            RUNTIME_ENV="$PROJECT_DIR/srs/infra/env.runtime"
             if [ ! -f "$RUNTIME_ENV" ]; then
-              echo "[FAIL] Missing .env.runtime — Vault secrets not deployed" | tee -a $LOG_FILE
+              echo "[FAIL] Missing env.runtime — Vault secrets not deployed" | tee -a $LOG_FILE
               exit 1
             fi
             bash scripts/check-runtime-env.sh "$RUNTIME_ENV" 2>&1 | tee -a $LOG_FILE

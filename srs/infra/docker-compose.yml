@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: infra/Dockerfile.api
     env_file:
-      - .env.runtime
+      - env.runtime
     ports:
       - "3010:3010"
     environment:
@@ -22,7 +22,7 @@ services:
       context: ..
       dockerfile: infra/Dockerfile.worker
     env_file:
-      - .env.runtime
+      - env.runtime
     environment:
       NODE_ENV: production
     depends_on:

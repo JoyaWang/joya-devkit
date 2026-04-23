@@ -5,7 +5,7 @@ set -euo pipefail
 # 用法: bash scripts/check-runtime-env.sh [env-file]
 # 默认: srs/infra/.env.runtime
 
-ENV_FILE="${1:-srs/infra/.env.runtime}"
+ENV_FILE="${1:-srs/infra/env.runtime}"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "❌ Missing runtime env: $ENV_FILE"
