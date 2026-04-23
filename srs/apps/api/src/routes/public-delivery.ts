@@ -135,7 +135,14 @@ export async function registerPublicDeliveryRoute(
       });
 
       if (!signedResult) {
-        return reply.status(404).send({ error: "object not found" });
+        return reply.status(404).send({
+          error: "object not found",
+          debug: {
+            objectKey,
+            candidateCount: candidateBindings.length,
+            bindings: candidateBindings.map(b => ({ id: b.id, config: b.config })),
+          }
+        });
       }
 
       reply.header("Cache-Control", "no-store");
