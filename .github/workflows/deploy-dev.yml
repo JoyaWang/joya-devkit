@@ -29,6 +29,57 @@ jobs:
           echo "Workflow run ID: $GITHUB_RUN_ID"
           echo "==================="
 
+      - name: Fetch secrets from Vault
+        env:
+          VAULT_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_DEV }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, urllib.request
+
+          token = os.environ["VAULT_TOKEN"]
+          pid = "3d835c43-59e7-4b4f-bf98-466f5585fe53"
+          url = "https://vault.infinex.cn/api"
+          env = "dev"
+          paths = ["/", "/BE/runtime"]
+
+          secrets_map = {}
+          for secret_path in paths:
+              api = f"{url}/v3/secrets/raw?workspaceId={pid}&environment={env}&secretPath={secret_path}"
+              req = urllib.request.Request(api, headers={"Authorization": f"Bearer {token}"})
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      data = json.loads(resp.read())
+                      for item in data.get("secrets", []):
+                          key = item.get("secretKey") or item.get("key")
+                          value = item.get("secretValue") or item.get("value")
+                          if key is not None:
+                              secrets_map[key] = str(value)
+              except Exception as exc:
+                  print(f"Warning: failed to fetch {secret_path}: {exc}")
+
+          lines = []
+          for key, value in secrets_map.items():
+              if "\n" in value:
+                  lines.append(f'{key}="{value}"')
+              else:
+                  lines.append(f"{key}={value}")
+
+          with open("env.runtime", "w") as f:
+              f.write("\n".join(lines) + "\n")
+
+          print(f"Wrote {len(secrets_map)} secrets to env.runtime")
+          PYEOF
+
+      - name: Upload .env.runtime to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEV_SERVER_HOST }}
+          username: ${{ secrets.DEV_SERVER_USER }}
+          key: ${{ secrets.DEV_SERVER_SSH_KEY }}
+          source: "env.runtime"
+          target: "/home/ubuntu/apps/joya-devkit/srs/infra/.env.runtime"
+          overwrite: true
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -76,19 +127,27 @@ jobs:
             git reset --hard origin/$BRANCH
             echo "[OK] Code pulled" | tee -a $LOG_FILE
 
-            # 2. Build images (default uses cache; set workflow input force_no_cache=true when needed)
+            # 2. Validate runtime env (uploaded by previous SCP step)
+            RUNTIME_ENV="$PROJECT_DIR/srs/infra/.env.runtime"
+            if [ ! -f "$RUNTIME_ENV" ]; then
+              echo "[FAIL] Missing .env.runtime — Vault secrets not deployed" | tee -a $LOG_FILE
+              exit 1
+            fi
+            bash scripts/check-runtime-env.sh "$RUNTIME_ENV" 2>&1 | tee -a $LOG_FILE
+
+            # 3. Build images (default uses cache; set workflow input force_no_cache=true when needed)
             docker compose -f srs/infra/docker-compose.yml build $BUILD_FLAGS api worker 2>&1 | tee -a $LOG_FILE
             echo "[OK] Build complete (flags: ${BUILD_FLAGS:-none})" | tee -a $LOG_FILE
 
-            # 3. Restart api and worker (postgres/redis stay running)
+            # 4. Restart api and worker (postgres/redis stay running)
             docker compose -f srs/infra/docker-compose.yml up -d --no-deps --build api worker 2>&1 | tee -a $LOG_FILE
             echo "[OK] Services restarted" | tee -a $LOG_FILE
 
-            # 4. Run database migrations inside api container
+            # 5. Run database migrations inside api container
             docker compose -f srs/infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma' 2>&1 | tee -a $LOG_FILE
             echo "[OK] Migrations applied" | tee -a $LOG_FILE
 
-            # 4b. Seed project bindings (idempotent upsert via raw SQL)
+            # 5b. Seed project bindings (idempotent upsert via raw SQL)
             docker compose -f srs/infra/docker-compose.yml exec -T api node <<'NODE' 2>&1 | tee -a $LOG_FILE
             const pg = require('pg');
             function upper(v) { return v.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase(); }
@@ -97,13 +156,13 @@ jobs:
               throw new Error('Missing env: one of ' + keys.join(', '));
             }
             function resolveConfig(projectKey, runtimeEnv, env) {
-              const ek = upper(runtimeEnv), pk = upper(projectKey);
+              const pk = upper(projectKey);
               return {
-                bucket: requireEnv(env, ['SHARED_'+ek+'_COS_BUCKET', pk+'_'+ek+'_COS_BUCKET', pk+'_COS_BUCKET']),
-                region: requireEnv(env, ['SHARED_'+ek+'_COS_REGION', pk+'_'+ek+'_COS_REGION', pk+'_COS_REGION']),
-                secretId: requireEnv(env, ['SHARED_'+ek+'_COS_SECRET_ID', pk+'_'+ek+'_COS_SECRET_ID', pk+'_COS_SECRET_ID']),
-                secretKey: requireEnv(env, ['SHARED_'+ek+'_COS_SECRET_KEY', pk+'_'+ek+'_COS_SECRET_KEY', pk+'_COS_SECRET_KEY']),
-                downloadDomain: requireEnv(env, ['SHARED_'+ek+'_COS_DOWNLOAD_DOMAIN', pk+'_'+ek+'_COS_DOWNLOAD_DOMAIN', pk+'_COS_DOWNLOAD_DOMAIN']),
+                bucket: requireEnv(env, [pk+'_COS_BUCKET', 'COS_BUCKET']),
+                region: requireEnv(env, [pk+'_COS_REGION', 'COS_REGION']),
+                secretId: requireEnv(env, [pk+'_COS_SECRET_ID', 'COS_SECRET_ID']),
+                secretKey: requireEnv(env, [pk+'_COS_SECRET_KEY', 'COS_SECRET_KEY']),
+                downloadDomain: requireEnv(env, [pk+'_COS_DOWNLOAD_DOMAIN', 'COS_DOWNLOAD_DOMAIN']),
               };
             }
             async function run() {
@@ -132,7 +191,7 @@ jobs:
             NODE
             echo "[OK] Seed done" | tee -a $LOG_FILE
 
-            # 5. Health check
+            # 6. Health check
             sleep 5
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3010/health || echo "000")
             if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
@@ -143,11 +202,15 @@ jobs:
               exit 1
             fi
 
-            # 6. Verify worker is running
+            # 7. Verify worker is running
             WORKER_STATUS=$(docker compose -f srs/infra/docker-compose.yml ps worker --format json 2>/dev/null | grep -o '"Health":"[^"]*"' | head -1 || echo "unknown")
             echo "[INFO] Worker status: $WORKER_STATUS" | tee -a $LOG_FILE
 
-            # 7. Clean up old images
+            # 8. Clean up old images
             docker image prune -f 2>&1 | tee -a $LOG_FILE
 
             echo "=== Dev deploy finished at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
+
+      - name: Cleanup local secrets artifact
+        if: always()
+        run: rm -f env.runtime

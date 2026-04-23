@@ -49,9 +49,31 @@ app.addHook("preHandler", async (request, reply) => {
   await authPreHandler(request, reply);
 });
 
-// Health check
-app.get("/health", async () => {
-  return { status: "ok", timestamp: new Date().toISOString() };
+// Health check — validates env config + DB connectivity
+app.get("/health", async (_request, reply) => {
+  const checks: Record<string, string> = {};
+
+  // Required env vars
+  for (const v of ["DATABASE_URL", "SERVICE_TOKENS"]) {
+    checks[v] = process.env[v] ? "ok" : "MISSING";
+  }
+
+  // DB connectivity
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = "ok";
+  } catch {
+    checks.database = "FAIL";
+  }
+
+  const allOk = Object.values(checks).every((v) => v === "ok");
+  const status = allOk ? "ok" : "degraded";
+
+  if (!allOk) {
+    reply.code(503);
+  }
+
+  return { status, checks, timestamp: new Date().toISOString() };
 });
 
 // Register shared public delivery entrypoint before authenticated API routes

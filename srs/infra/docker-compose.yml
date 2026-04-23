@@ -4,14 +4,12 @@ services:
       context: ..
       dockerfile: infra/Dockerfile.api
     env_file:
-      - ../.env
+      - .env.runtime
     ports:
       - "3010:3010"
     environment:
       NODE_ENV: production
       PORT: 3010
-      DATABASE_URL: ${DATABASE_URL:-postgres://srs:srs@postgres:5432/srs}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy
@@ -24,11 +22,9 @@ services:
       context: ..
       dockerfile: infra/Dockerfile.worker
     env_file:
-      - ../.env
+      - .env.runtime
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-postgres://srs:srs@postgres:5432/srs}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy
