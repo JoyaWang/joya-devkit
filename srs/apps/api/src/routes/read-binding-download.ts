@@ -14,8 +14,10 @@ export async function resolveReadableDownloadFromBindings(
   input: ResolveReadableDownloadInput,
 ): Promise<DownloadRequestResult | null> {
   for (const binding of input.candidateBindings) {
+    console.log(`[DEBUG] Trying binding: ${binding.id}, config:`, JSON.stringify(binding.config));
     const adapter = input.factory.getOrCreate(binding);
     const headResult = await adapter.headObject({ objectKey: input.objectKey });
+    console.log(`[DEBUG] headObject result for ${binding.id}:`, JSON.stringify(headResult));
 
     if (!headResult.exists) {
       continue;
