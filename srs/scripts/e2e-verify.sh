@@ -20,9 +20,9 @@ PROJECT="infov"
 # Expected bucket names — read from env to support real COS credentials;
 # fallback to placeholder bucket names for local dev without real COS.
 EXPECTED_INFOV_DEV_BUCKET="${EXPECTED_INFOV_DEV_BUCKET:-${EXPECTED_INFOV_BUCKET:-infov-dev-bucket}}"
-EXPECTED_INFOV_PRD_BUCKET="${EXPECTED_INFOV_PRD_BUCKET:-infov-prd-bucket}"
+EXPECTED_INFOV_PROD_BUCKET="${EXPECTED_INFOV_PROD_BUCKET:-infov-prod-bucket}"
 EXPECTED_LAICAI_DEV_BUCKET="${EXPECTED_LAICAI_DEV_BUCKET:-${EXPECTED_LAICAI_BUCKET:-laicai-dev-bucket}}"
-EXPECTED_LAICAI_PRD_BUCKET="${EXPECTED_LAICAI_PRD_BUCKET:-laicai-prd-bucket}"
+EXPECTED_LAICAI_PROD_BUCKET="${EXPECTED_LAICAI_PROD_BUCKET:-laicai-prod-bucket}"
 
 PASS=0
 FAIL=0
@@ -117,22 +117,22 @@ assert_field_contains "infov dev objectKey format correct" "$BODY" "objectKey" "
 assert_field_contains "infov dev upload URL hits dev bucket" "$BODY" "uploadUrl" "$EXPECTED_INFOV_DEV_BUCKET"
 INFOV_DEV_OBJECT_KEY=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['objectKey'])" 2>/dev/null)
 
-# --- O-01a: Upload request (infov/prd) ---
+# --- O-01a: Upload request (infov/prod) ---
 echo ""
-echo "[O-01a] POST /v1/objects/upload-requests (infov/prd)"
-STATUS=$(curl -s -o /tmp/e2e-upload-infov-prd.json -w "%{http_code}" -X POST "$BASE_URL/v1/objects/upload-requests" \
+echo "[O-01a] POST /v1/objects/upload-requests (infov/prod)"
+STATUS=$(curl -s -o /tmp/e2e-upload-infov-prod.json -w "%{http_code}" -X POST "$BASE_URL/v1/objects/upload-requests" \
   -H "Authorization: Bearer prd-token-infov" -H "Content-Type: application/json" \
   -d '{
-    "project": "infov", "env": "prd", "domain": "member",
-    "scope": "avatar", "entityId": "user_infov_prd",
-    "fileKind": "profile", "fileName": "infov-prd.png",
+    "project": "infov", "env": "prod", "domain": "member",
+    "scope": "avatar", "entityId": "user_infov_prod",
+    "fileKind": "profile", "fileName": "infov-prod.png",
     "contentType": "image/png", "size": 4096
   }')
-BODY=$(cat /tmp/e2e-upload-infov-prd.json)
-assert_status "infov prd upload returns 201" 201 "$STATUS"
-assert_field_contains "infov prd objectKey format correct" "$BODY" "objectKey" "infov/prd/member/avatar/user_infov_prd"
-assert_field_contains "infov prd upload URL hits prd bucket" "$BODY" "uploadUrl" "$EXPECTED_INFOV_PRD_BUCKET"
-INFOV_PRD_OBJECT_KEY=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['objectKey'])" 2>/dev/null)
+BODY=$(cat /tmp/e2e-upload-infov-prod.json)
+assert_status "infov prod upload returns 201" 201 "$STATUS"
+assert_field_contains "infov prod objectKey format correct" "$BODY" "objectKey" "infov/prod/member/avatar/user_infov_prod"
+assert_field_contains "infov prod upload URL hits prod bucket" "$BODY" "uploadUrl" "$EXPECTED_INFOV_PROD_BUCKET"
+INFOV_PROD_OBJECT_KEY=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['objectKey'])" 2>/dev/null)
 
 # --- O-01b: Project mismatch ---
 echo ""
@@ -155,7 +155,7 @@ echo "[O-01c] POST /v1/objects/upload-requests (env mismatch)"
 STATUS=$(curl -s -o /tmp/e2e-mismatch-env.json -w "%{http_code}" -X POST "$BASE_URL/v1/objects/upload-requests" \
   -H "Authorization: Bearer dev-token-infov" -H "Content-Type: application/json" \
   -d '{
-    "project": "infov", "env": "prd", "domain": "member",
+    "project": "infov", "env": "prod", "domain": "member",
     "scope": "avatar", "entityId": "user_env_mismatch",
     "fileKind": "profile", "fileName": "env-mismatch.png",
     "contentType": "image/png", "size": 1024
@@ -181,22 +181,22 @@ assert_field_contains "laicai dev objectKey correct" "$BODY" "objectKey" "laicai
 assert_field_contains "laicai dev upload URL hits dev bucket" "$BODY" "uploadUrl" "$EXPECTED_LAICAI_DEV_BUCKET"
 LAICAI_DEV_OBJECT_KEY=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['objectKey'])" 2>/dev/null)
 
-# --- O-01e: laicai upload (prd) ---
+# --- O-01e: laicai upload (prod) ---
 echo ""
-echo "[O-01e] POST /v1/objects/upload-requests (laicai/prd)"
-STATUS=$(curl -s -o /tmp/e2e-upload-laicai-prd.json -w "%{http_code}" -X POST "$BASE_URL/v1/objects/upload-requests" \
+echo "[O-01e] POST /v1/objects/upload-requests (laicai/prod)"
+STATUS=$(curl -s -o /tmp/e2e-upload-laicai-prod.json -w "%{http_code}" -X POST "$BASE_URL/v1/objects/upload-requests" \
   -H "Authorization: Bearer prd-token-laicai" -H "Content-Type: application/json" \
   -d '{
-    "project": "laicai", "env": "prd", "domain": "member",
-    "scope": "avatar", "entityId": "user_laicai_prd",
-    "fileKind": "profile", "fileName": "laicai-prd.png",
+    "project": "laicai", "env": "prod", "domain": "member",
+    "scope": "avatar", "entityId": "user_laicai_prod",
+    "fileKind": "profile", "fileName": "laicai-prod.png",
     "contentType": "image/png", "size": 2048
   }')
-BODY=$(cat /tmp/e2e-upload-laicai-prd.json)
-assert_status "laicai prd upload returns 201" 201 "$STATUS"
-assert_field_contains "laicai prd objectKey correct" "$BODY" "objectKey" "laicai/prd/member/avatar/user_laicai_prd"
-assert_field_contains "laicai prd upload URL hits prd bucket" "$BODY" "uploadUrl" "$EXPECTED_LAICAI_PRD_BUCKET"
-LAICAI_PRD_OBJECT_KEY=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['objectKey'])" 2>/dev/null)
+BODY=$(cat /tmp/e2e-upload-laicai-prod.json)
+assert_status "laicai prod upload returns 201" 201 "$STATUS"
+assert_field_contains "laicai prod objectKey correct" "$BODY" "objectKey" "laicai/prod/member/avatar/user_laicai_prod"
+assert_field_contains "laicai prod upload URL hits prod bucket" "$BODY" "uploadUrl" "$EXPECTED_LAICAI_PROD_BUCKET"
+LAICAI_PROD_OBJECT_KEY=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['objectKey'])" 2>/dev/null)
 
 # --- O-01f: Unbound project returns service_binding_missing ---
 echo ""
@@ -285,7 +285,7 @@ echo ""
 echo "[O-03c] POST /v1/objects/download-requests (env mismatch)"
 STATUS=$(curl -s -o /tmp/e2e-download-env-mismatch.json -w "%{http_code}" -X POST "$BASE_URL/v1/objects/download-requests" \
   -H "Authorization: Bearer dev-token-infov" -H "Content-Type: application/json" \
-  -d "{\"objectKey\": \"$INFOV_PRD_OBJECT_KEY\"}")
+  -d "{\"objectKey\": \"$INFOV_PROD_OBJECT_KEY\"}")
 BODY=$(cat /tmp/e2e-download-env-mismatch.json)
 assert_status "download env mismatch returns 403" 403 "$STATUS"
 assert_field_contains "download env mismatch error" "$BODY" "error" "env_mismatch"

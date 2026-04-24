@@ -202,10 +202,12 @@ shared-runtime-services/
 - `downloadDomain` 允许随着 provider / CDN / 回源策略演进而变化；但 `dl-dev` / `dl` 这类稳定公共入口合同应保持独立
 
 ### runtime object storage 配置合同
+- **业务 env 唯一 canonical 真相源**：Vault / Infisical Vault。服务器 `.env` / `env.runtime` 只是 Vault 生成的 mirror，不得作为 canonical 来源。
+- GitHub Secrets 只保留 Vault bootstrap / SSH bootstrap 用途，不承载业务 env canonical。
 - `ProjectServiceBinding.config` 的 object storage provider 配置由 `scripts/seed-projects.ts` 写入数据库；seed 配置解析唯一入口是 `scripts/seed-projects-config.ts`。
 - 正式 runtime object storage env keys 仅为 `SHARED_COS_BUCKET`、`SHARED_COS_REGION`、`SHARED_COS_SECRET_ID`、`SHARED_COS_SECRET_KEY`、`SHARED_COS_DOWNLOAD_DOMAIN`。
-- dev / prd 差异只由 Infisical dev / prod environment 区分；key 名不再携带 `DEV` / `PRD`。
-- `SHARED_DEV_*`、`SHARED_PRD_*`、`INFOV_*`、`LAICAI_*` 与 legacy `COS_*` 不再是 object storage binding seed 的正式输入源。
+- dev / prod 差异只由 Infisical dev / prod environment 区分；key 名不再携带 `DEV` / `PROD`。
+- `SHARED_DEV_*`、`SHARED_PROD_*`、`INFOV_*`、`LAICAI_*` 与 legacy `COS_*` 不再是 object storage binding seed 的正式输入源。
 - deploy workflow 不得内联 COS env reader 或 raw SQL seed；部署时必须在 API 容器中调用 canonical seed 入口，让 env -> DB binding 只经过 `scripts/seed-projects.ts` / `scripts/seed-projects-config.ts` 一套逻辑。
 - `ObjectStorageAdapterFactory` 按进程内 cache 复用 adapter；任何 binding config 变更后必须重启 API，避免旧 adapter 继续持有旧 bucket / domain / credentials。
 
@@ -224,8 +226,8 @@ shared-runtime-services/
 
 ### 当前状态与目标状态
 - **当前最小实现**：Release Service 已通过 delivery resolver 生成 `distributionUrl`，`dl-dev` / `dl` 由腾讯 CDN `PathBasedOrigin -> 124.222.37.77 -> Nginx bridge -> SRS public-delivery route` 承接；SRS 校验对象后再 302 到 provider 下载地址
-- **当前 provider 现实态**：Laicai 仍是项目自有 dev/prd bucket；旧链路中的 `dl-dev` / `dl` 仍与该项目的历史下载合同有关，尚未完成“共享两桶”物理收口
-- **中期目标状态**：provider plane 收敛为“两个共享 bucket + 两个共享 origin 域名”——`shared-dev-bucket` / `shared-prd-bucket` 承载对象本体，`origin-dev.infinex.cn` / `origin.infinex.cn` 承接真实下载出口；不同项目继续通过 `objectKey` 前缀隔离
+- **当前 provider 现实态**：Laicai 仍是项目自有 dev/prod bucket；旧链路中的 `dl-dev` / `dl` 仍与该项目的历史下载合同有关，尚未完成”共享两桶”物理收口
+- **中期目标状态**：provider plane 收敛为”两个共享 bucket + 两个共享 origin 域名”——`shared-dev-bucket` / `shared-prod-bucket` 承载对象本体，`origin-dev.infinex.cn` / `origin.infinex.cn` 承接真实下载出口；不同项目继续通过 `objectKey` 前缀隔离
 - **长期目标状态**：在不改变项目 contract 与用户侧稳定 URL 的前提下，把 `dl-dev` / `dl` 背后的最小 redirect-gateway 继续演进为更正式的 shared origin / gateway / delivery adapter
 
 ## Object Service

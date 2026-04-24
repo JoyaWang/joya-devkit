@@ -22,7 +22,7 @@ export interface TokenValidator {
  *   SERVICE_TOKENS=token1=projectKey1:runtimeEnv1,token2=projectKey2:runtimeEnv2
  *
  * Example:
- *   SERVICE_TOKENS=dev-token-infov=infov:dev,prd-token-laicai=laicai:prd
+ *   SERVICE_TOKENS=dev-token-infov=infov:dev,prd-token-laicai=laicai:prod
  */
 export class EnvTokenValidator implements TokenValidator {
   private readTokenMap(): Map<string, { projectKey: string; runtimeEnv: string }> {

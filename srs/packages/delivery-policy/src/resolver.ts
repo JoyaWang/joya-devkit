@@ -52,7 +52,7 @@ export class DeliveryPolicyResolver {
       };
     }
 
-    // Resolve domain based on env (prd is alias for prod)
+    // Resolve domain based on env (prd is legacy alias for prod, kept for backward compat)
     const normalizedEnv = env === "prd" ? "prod" : env;
     const domain = this.config.publicStableDomains[normalizedEnv] ?? this.config.publicStableDomains[env];
     if (!domain) {

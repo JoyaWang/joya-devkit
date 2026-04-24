@@ -60,12 +60,12 @@ describe("ObjectStorageAdapterFactory", () => {
     it("returns different adapters for different runtime environments of the same project", () => {
       const factory = new ObjectStorageAdapterFactory();
       const devBinding = makeBinding({ projectKey: "infov", runtimeEnv: "dev", config: JSON.stringify({ bucket: "infov-dev-bucket", region: "ap-guangzhou", secretId: "id1", secretKey: "key1" }) });
-      const prdBinding = makeBinding({ projectKey: "infov", runtimeEnv: "prd", config: JSON.stringify({ bucket: "infov-prd-bucket", region: "ap-guangzhou", secretId: "id2", secretKey: "key2" }) });
+      const prodBinding = makeBinding({ projectKey: "infov", runtimeEnv: "prod", config: JSON.stringify({ bucket: "infov-prod-bucket", region: "ap-guangzhou", secretId: "id2", secretKey: "key2" }) });
 
       const devAdapter = factory.getOrCreate(devBinding);
-      const prdAdapter = factory.getOrCreate(prdBinding);
+      const prodAdapter = factory.getOrCreate(prodBinding);
 
-      expect(devAdapter).not.toBe(prdAdapter);
+      expect(devAdapter).not.toBe(prodAdapter);
     });
 
     it("returns different adapters for different projects", () => {
@@ -131,16 +131,16 @@ describe("ObjectStorageAdapterFactory", () => {
     it("invalidate removes a specific cached adapter for one runtimeEnv only", () => {
       const factory = new ObjectStorageAdapterFactory();
       const devBinding = makeBinding({ projectKey: "infov", runtimeEnv: "dev" });
-      const prdBinding = makeBinding({ projectKey: "infov", runtimeEnv: "prd", config: JSON.stringify({ bucket: "infov-prd-bucket", region: "ap-guangzhou", secretId: "id2", secretKey: "key2" }) });
+      const prodBinding = makeBinding({ projectKey: "infov", runtimeEnv: "prod", config: JSON.stringify({ bucket: "infov-prod-bucket", region: "ap-guangzhou", secretId: "id2", secretKey: "key2" }) });
 
       const devAdapter1 = factory.getOrCreate(devBinding);
-      const prdAdapter1 = factory.getOrCreate(prdBinding);
+      const prodAdapter1 = factory.getOrCreate(prodBinding);
       factory.invalidate("infov", "dev", "object_storage");
       const devAdapter2 = factory.getOrCreate(devBinding);
-      const prdAdapter2 = factory.getOrCreate(prdBinding);
+      const prodAdapter2 = factory.getOrCreate(prodBinding);
 
       expect(devAdapter1).not.toBe(devAdapter2);
-      expect(prdAdapter1).toBe(prdAdapter2);
+      expect(prodAdapter1).toBe(prodAdapter2);
     });
 
     it("invalidateAll removes all cached adapters", () => {

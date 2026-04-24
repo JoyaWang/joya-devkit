@@ -175,7 +175,7 @@ describe("POST /v1/releases using object metadata as accessClass truth source", 
       await handler(
         {
           projectKey: "infov",
-          runtimeEnv: "prd",
+          runtimeEnv: "prod",
           body: {
             ...baseReleaseBody,
             env: "prod",

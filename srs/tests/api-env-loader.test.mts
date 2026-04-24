@@ -38,7 +38,7 @@ describe("loadProjectEnv", () => {
     fs.mkdirSync(srcDir, { recursive: true });
     fs.writeFileSync(
       path.join(repoRoot, ".env"),
-      "SERVICE_TOKENS=dev-token-infov=infov:dev,prd-token-laicai=laicai:prd\n",
+      "SERVICE_TOKENS=dev-token-infov=infov:dev,prd-token-laicai=laicai:prod\n",
       "utf8",
     );
 
@@ -49,6 +49,6 @@ describe("loadProjectEnv", () => {
     });
 
     expect(loaded).toContain(path.join(repoRoot, ".env"));
-    expect(process.env.SERVICE_TOKENS).toBe("dev-token-infov=infov:dev,prd-token-laicai=laicai:prd");
+    expect(process.env.SERVICE_TOKENS).toBe("dev-token-infov=infov:dev,prd-token-laicai=laicai:prod");
   });
 });

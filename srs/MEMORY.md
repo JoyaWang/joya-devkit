@@ -7,3 +7,4 @@
 - 项目级 `IDENTITY.md` 必须表达“项目是谁”，不能误写成执行任务的 agent 身份；否则会污染 fresh session 的恢复入口。
 - 启用 autonomous mode 时，`steering/SESSION_CONTEXT.md`、`.agent/runtime/execution-state.json`、`slice-packets/*`、`evidence/*` 必须一起收尾并保持状态一致；只改其中一个会造成 long-running 恢复口径漂移。
 - SRS shared COS seed 配置已收口为单一 `SHARED_COS_*` 合同；若后续看到 `SHARED_DEV_*` / `SHARED_PRD_*` / `INFOV_*` / `LAICAI_*` / legacy `COS_*` 被当作正式 seed 输入源，应视为配置漂移。
+- 若 `dl-dev` / `dl` 公网入口出现 `404/400/502`，先以同一 objectKey 做三段对照：`origin-*`、SRS 鉴权下载接口、源站 Host 直打；若源站 Host 命中已 `302` 而公网异常，多半是 CDN 回源协议 / 端口 / Host 或 Nginx vhost 漂移，而非 object/provider 真相源损坏。

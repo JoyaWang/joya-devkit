@@ -36,7 +36,7 @@ describe("resolveObjectStorageSeedConfig", () => {
     expect(() =>
       resolveObjectStorageSeedConfig({
         projectKey: "infov",
-        runtimeEnv: "prd",
+        runtimeEnv: "prod",
         env: {
           SHARED_PRD_COS_BUCKET: "legacy-shared-prd-bucket",
           SHARED_PRD_COS_REGION: "ap-guangzhou",
@@ -56,7 +56,7 @@ describe("resolveObjectStorageSeedConfig", () => {
     ).toThrow("Missing required env var: SHARED_COS_BUCKET");
   });
 
-  it("gets dev and prd differences from different Infisical env objects, not from key names", () => {
+  it("gets dev and prod differences from different Infisical env objects, not from key names", () => {
     const devConfig = resolveObjectStorageSeedConfig({
       projectKey: "laicai",
       runtimeEnv: "dev",
@@ -69,21 +69,21 @@ describe("resolveObjectStorageSeedConfig", () => {
       },
     });
 
-    const prdConfig = resolveObjectStorageSeedConfig({
+    const prodConfig = resolveObjectStorageSeedConfig({
       projectKey: "laicai",
-      runtimeEnv: "prd",
+      runtimeEnv: "prod",
       env: {
         SHARED_COS_BUCKET: "shared-storage-1321178972",
         SHARED_COS_REGION: "ap-shanghai",
-        SHARED_COS_SECRET_ID: "prd-id",
-        SHARED_COS_SECRET_KEY: "prd-key",
+        SHARED_COS_SECRET_ID: "prod-id",
+        SHARED_COS_SECRET_KEY: "prod-key",
         SHARED_COS_DOWNLOAD_DOMAIN: "https://origin.infinex.cn",
       },
     });
 
     expect(devConfig.bucket).toBe("shared-storage-dev-1321178972");
     expect(devConfig.downloadDomain).toBe("https://origin-dev.infinex.cn");
-    expect(prdConfig.bucket).toBe("shared-storage-1321178972");
-    expect(prdConfig.downloadDomain).toBe("https://origin.infinex.cn");
+    expect(prodConfig.bucket).toBe("shared-storage-1321178972");
+    expect(prodConfig.downloadDomain).toBe("https://origin.infinex.cn");
   });
 });

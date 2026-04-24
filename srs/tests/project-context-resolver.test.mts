@@ -111,14 +111,14 @@ describe("ProjectContextResolver", () => {
       const resolver = new ProjectContextResolver(db);
 
       try {
-        await resolver.resolve("infov", "prd", "object_storage");
+        await resolver.resolve("infov", "prod", "object_storage");
         expect.unreachable("should have thrown");
       } catch (err) {
         expect(err).toBeInstanceOf(ProjectContextError);
         const e = err as ProjectContextError;
         expect(e.code).toBe("service_binding_missing");
         expect(e.statusCode).toBe(422);
-        expect(e.runtimeEnv).toBe("prd");
+        expect(e.runtimeEnv).toBe("prod");
         expect(e.serviceType).toBe("object_storage");
       }
     });
@@ -142,13 +142,13 @@ describe("ProjectContextResolver", () => {
             createdAt: now,
             updatedAt: now,
           },
-          "infov:prd:object_storage": {
-            id: "binding-infov-prd-object-storage",
+          "infov:prod:object_storage": {
+            id: "binding-infov-prod-object-storage",
             projectKey: "infov",
-            runtimeEnv: "prd",
+            runtimeEnv: "prod",
             serviceType: "object_storage",
             provider: "cos",
-            config: JSON.stringify({ bucket: "infov-prd-bucket", region: "ap-guangzhou", secretId: "id3", secretKey: "key3" }),
+            config: JSON.stringify({ bucket: "infov-prod-bucket", region: "ap-guangzhou", secretId: "id3", secretKey: "key3" }),
             createdAt: now,
             updatedAt: now,
           },
@@ -167,11 +167,11 @@ describe("ProjectContextResolver", () => {
 
       const resolver = new ProjectContextResolver(db);
       const infovDevCtx = await resolver.resolve("infov", "dev", "object_storage");
-      const infovPrdCtx = await resolver.resolve("infov", "prd", "object_storage");
+      const infovProdCtx = await resolver.resolve("infov", "prod", "object_storage");
       const laicaiDevCtx = await resolver.resolve("laicai", "dev", "object_storage");
 
       expect(infovDevCtx.binding.config).toContain("infov-dev-bucket");
-      expect(infovPrdCtx.binding.config).toContain("infov-prd-bucket");
+      expect(infovProdCtx.binding.config).toContain("infov-prod-bucket");
       expect(laicaiDevCtx.binding.config).toContain("laicai-dev-bucket");
     });
   });

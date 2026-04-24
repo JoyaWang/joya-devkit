@@ -47,7 +47,7 @@ interface ActivateReleaseChannelBody {
 }
 
 const VALID_PLATFORMS = ["ios", "android", "desktop"];
-const VALID_ENVS = ["dev", "staging", "prd"];
+const VALID_ENVS = ["dev", "staging", "prod"];
 const VALID_ROLLOUT_STATUSES = ["draft", "active", "paused", "completed"];
 
 type ParsedVersion = {
@@ -60,7 +60,7 @@ type ParsedVersion = {
 function normalizeEnv(raw: unknown): string {
   const normalized = String(raw || "").trim().toLowerCase();
   if (!normalized) return "";
-  if (normalized === "prod" || normalized === "production") return "prd";
+  if (normalized === "prod" || normalized === "production" || normalized === "prd") return "prod";
   return normalized;
 }
 
@@ -573,7 +573,7 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
         return reply.status(400).send({ error: "query param \"platform\" is required (ios|android|desktop)" });
       }
       if (!VALID_ENVS.includes(env)) {
-        return reply.status(400).send({ error: "query param \"env\" is required (dev|staging|prd)" });
+        return reply.status(400).send({ error: "query param \"env\" is required (dev|staging|prod)" });
       }
 
       const release = await getActiveReleaseForChannel({
@@ -624,7 +624,7 @@ export async function registerReleasesRoutes(app: FastifyInstance): Promise<void
         return reply.status(400).send({ error: "query param \"platform\" is required (ios|android|desktop)" });
       }
       if (!VALID_ENVS.includes(env)) {
-        return reply.status(400).send({ error: "query param \"env\" is required (dev|staging|prd)" });
+        return reply.status(400).send({ error: "query param \"env\" is required (dev|staging|prod)" });
       }
       if (!currentVersion) {
         return reply.status(400).send({ error: "query param \"currentVersion\" is required" });

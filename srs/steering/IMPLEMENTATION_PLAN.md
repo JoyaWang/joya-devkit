@@ -16,14 +16,16 @@
 将 runtime object storage 的 Vault/env -> workflow -> seed -> DB binding 链路收口为单一真相源，消除 workflow inline reader 与 `scripts/seed-projects-config.ts` 分叉。
 
 ### 正式配置合同
+- **业务 env 唯一 canonical 真相源**：Vault / Infisical Vault。服务器 `.env` / `env.runtime` 只是 Vault 生成的 mirror，不得作为 canonical 来源。
+- GitHub Secrets 只保留 Vault bootstrap / SSH bootstrap 用途，不承载业务 env canonical。
 - runtime object storage canonical keys 仅为：
   - `SHARED_COS_BUCKET`
   - `SHARED_COS_REGION`
   - `SHARED_COS_SECRET_ID`
   - `SHARED_COS_SECRET_KEY`
   - `SHARED_COS_DOWNLOAD_DOMAIN`
-- dev / prd 差异只由 Infisical environment 区分；key 名中不再携带 `DEV` / `PRD`。
-- `SHARED_DEV_*`、`SHARED_PRD_*`、`INFOV_*`、`LAICAI_*`、legacy `COS_*` 不再是正式输入源。
+- dev / prod 差异只由 Infisical environment 区分；key 名中不再携带 `DEV` / `PROD`。
+- `SHARED_DEV_*`、`SHARED_PROD_*`、`INFOV_*`、`LAICAI_*`、legacy `COS_*` 不再是正式输入源。
 
 ### 实施步骤
 1. 文档与 `.env.example` 先统一到 `SHARED_COS_*` 合同。
@@ -38,7 +40,7 @@
 - [ ] deploy workflows 不再维护第二套 COS env reader。
 - [ ] deploy 在 migration 后调用 API 容器内 canonical seed 入口。
 - [ ] deploy gate 校验 `SHARED_COS_*` 五个键。
-- [ ] seed config tests 只覆盖单一路径，并验证 dev/prd 由不同 env object 表达。
+- [ ] seed config tests 只覆盖单一路径，并验证 dev/prod 由不同 env object 表达。
 
 ## Existing Project Onboarding
 
@@ -102,7 +104,7 @@
 - [x] 建立 ObjectStorageAdapter 抽象与 provider 配置基线
 - [x] 建立 Prisma schema 与 migration 机制
 - [x] 编写 Docker Compose 基础编排
-- [x] 完成生产部署硬化（clean Docker build、Prisma generate、Nginx 反代、GitHub `prd` environment）
+- [x] 完成生产部署硬化（clean Docker build、Prisma generate、Nginx 反代、GitHub `prod` environment）
 
 ### 验收标准
 - [x] Docker Compose 可一键启动基础环境（本地使用本地 PostgreSQL）
@@ -166,7 +168,7 @@
 - [x] 建立 `ObjectStorageAdapterFactory`
 - [x] 将 `CosObjectStorageAdapter` 保持显式配置驱动，并让 factory 按项目+环境 binding 创建实例
 - [x] 将 Object Service 四个路由从模块级 adapter 单例重构为按项目+环境解析 binding + 工厂创建
-- [x] 为 `infov` / `laicai` 准备 dev / prd 首批项目 binding 数据
+- [x] 为 `infov` / `laicai` 准备 dev / prod 首批项目 binding 数据
 - [x] 补齐单元测试、路由测试和 E2E 验证
 
 ### 验收标准
@@ -261,7 +263,7 @@
 - 将上述 playbook 逐步落实为对象治理字段、迁移任务模型、fallback 策略与验收脚本
 - 结合 InfoV / Laicai 首批接入，选择一条真实 provider 迁移演练路径
 - 在未完成实现前，不把“切 binding”冒充为可用迁移方案
-- 同时把 provider plane 与 delivery plane 的中期收口方案固化为：`shared-dev/shared-prd` 两个共享 bucket + `origin-dev/origin` 两个共享真实下载出口域名；`dl-dev/dl` 继续保留为稳定公共入口
+- 同时把 provider plane 与 delivery plane 的中期收口方案固化为：`shared-dev/shared-prod` 两个共享 bucket + `origin-dev/origin` 两个共享真实下载出口域名；`dl-dev/dl` 继续保留为稳定公共入口
 
 ### Phase 4 第四切片（已完成：迁移真相源骨架）
 目标：把 provider-neutral 迁移方案从纯文档升级为“有真相源、可继续扩实现”的工程骨架；本轮仍不真正切第二个 provider，但已经把后续 dual-write / backfill / read fallback 所需的最小数据与读路径接口补齐。
@@ -430,8 +432,8 @@
 下一默认动作：
 - 优先拿 Laicai 作为第一条真实发布链路接入 shared-runtime-services 的 Release Service / Delivery Plane
 - 当前已确认的首接入 MVP 边界为：仅在 Laicai 独立分支内切 `dev` Android release 主链路；release 相关读写一次性全切到 SRS，不做 fallback，不兼容 legacy
-- 本轮不扩到用户头像、用户媒体、业务中的发布需求图片、私有文档等非 release 对象域；`prd` 与现网 legacy 下载合同不在本轮范围内
-- InfoV 继续保留为第二接入对象；当前发布链路最短阻塞是 Android dev/prd 双产物（flavor）尚未稳定产出，完整 object-storage dev/prd 独立配置来源确认也仍待补
+- 本轮不扩到用户头像、用户媒体、业务中的发布需求图片、私有文档等非 release 对象域；`prod` 与现网 legacy 下载合同不在本轮范围内
+- InfoV 继续保留为第二接入对象；当前发布链路最短阻塞是 Android dev/prod 双产物（flavor）尚未稳定产出，完整 object-storage dev/prod 独立配置来源确认也仍待补
 - 若要在线上真实运行 backfill verify loop，仍需重新部署 worker 新版本；现网 legacy `/releases/android/...` 仍维持不迁移、不破坏
 
 ### Feedback / Crash Service 最小闭环（2026-04）
@@ -463,12 +465,12 @@
 - [x] Laicai legacy 链路完成迁移收尾，不再依赖 CloudBase `feedback` 或 admin 本地 `feedback` 表承载新控制面语义（admin-platform 本地 `feedback` 表 count=0，待 drop；CloudBase `feedback` 集合仅剩已标记 `migrated_to_srs` 的历史记录）
 
 ### Laicai 首接入执行边界（2026-04-11 已确认）
-目标：在不影响 `prd` 与现网正式链路的前提下，让 Laicai `dev` 的 Android release 主链路在独立分支中完整切到 shared-runtime-services，并故意不保留 `dev` 的 legacy fallback，以便尽早暴露真实接入问题。
+目标：在不影响 `prod` 与现网正式链路的前提下，让 Laicai `dev` 的 Android release 主链路在独立分支中完整切到 shared-runtime-services，并故意不保留 `dev` 的 legacy fallback，以便尽早暴露真实接入问题。
 
 补充架构前置结论：
 - 本轮 Laicai 接入解决的是“首条真实项目链路接入 shared delivery / provider-neutral contract”，不是一次性完成所有项目的共享 bucket 物理迁移。
 - 因此短期现实态允许 Laicai 继续使用项目自有 bucket，只要 `dl-dev` / `dl` 与 provider 下载出口已经分层即可。
-- 中期若按最佳实践继续推进，再把 provider plane 收敛到 `shared-dev/shared-prd` 两个共享 bucket，并统一以 `origin-dev.infinex.cn` / `origin.infinex.cn` 作为真实下载出口。
+- 中期若按最佳实践继续推进，再把 provider plane 收敛到 `shared-dev/shared-prod` 两个共享 bucket，并统一以 `origin-dev.infinex.cn` / `origin.infinex.cn` 作为真实下载出口。
 - 迁移完成前，禁止把 `dl-dev` / `dl` 直接回填为 provider 下载域名；它们仍只承担稳定公共入口角色。
 
 任务清单：
@@ -477,13 +479,13 @@
 - [ ] 将 `dev` Android release 读侧切到 SRS：`latest release`、`distributionUrl`、下载主路径
 - [ ] 验证 `dev` 路径不再依赖 legacy backend 真相源
 - [ ] 验证本轮未误扩到用户头像、业务图片/媒体、发布需求图片、私有文档等非 release 对象域
-- [ ] 验证 `prd` 与现网 legacy 下载路径未受影响
+- [ ] 验证 `prod` 与现网 legacy 下载路径未受影响
 
 验收标准：
 - [ ] Laicai `dev` Android 发布产物可完成 `upload -> complete -> release create -> latest/distributionUrl 消费` 的闭环
 - [ ] `dev` 运行路径无 fallback、无 legacy 兼容分支
 - [ ] 问题直接暴露在 SRS 接入链路，而不是被兼容层掩盖
-- [ ] `prd` 与现网正式链路不受本轮切片影响
+- [ ] `prod` 与现网正式链路不受本轮切片影响
 - [ ] `dl-dev` / `dl` 与 provider 下载出口保持分层，不出现 redirect loop
 - [ ] 若 binding 配置了 `downloadDomain`，其 host 只承担 provider plane 真实下载出口角色，不复用共享稳定入口
 
@@ -496,14 +498,14 @@
 3. [ ] 去掉 dev 常态化 `--no-cache`；仅在显式强制 rebuild 时才走无缓存构建，避免每次部署都堆新 layer。
 4. [ ] 新增 maintenance workflow（定时任务），周期性清理 Docker image / builder cache，并留下清理前后空间证据。
 5. [ ] 收口 migration 语义：将当前 `warn-or-skip` 模糊输出改为明确成功/失败，避免 deploy 假绿。
-6. [ ] 对已确认“无保留数据”的 dev / prd 环境执行数据库重置，清空旧 schema 后按当前 Prisma migration 从零重建，正式消除 `P3005` 历史债务。
+6. [ ] 对已确认”无保留数据”的 dev / prod 环境执行数据库重置，清空旧 schema 后按当前 Prisma migration 从零重建，正式消除 `P3005` 历史债务。
 
 验收标准：
 - [ ] dev deploy 前会打印磁盘与 Docker 占用，并执行前置清理
 - [ ] 清理后空间不足时，workflow 会在构建前明确失败，而不是等写日志或构建中途炸掉
 - [ ] dev 默认部署不再强制 `--no-cache`
 - [ ] maintenance workflow 已建立并可独立执行
-- [ ] dev / prd 删库重建后，`prisma migrate deploy` 不再报 `P3005`
+- [ ] dev / prod 删库重建后，`prisma migrate deploy` 不再报 `P3005`
 - [ ] 文档中已明确此机制的触发条件、阈值与证据输出
 
 ## Phase 5: 首批项目接入
@@ -511,11 +513,11 @@
 让共享服务真正跑在现有项目上，而不只是文档和空 API。
 
 ### 任务清单
-- [ ] 为 InfoV 注册 `ProjectManifest` 与 dev / prd 首批共享能力 binding
-- [ ] InfoV Object Service dev / prd 协议接入验证
+- [ ] 为 InfoV 注册 `ProjectManifest` 与 dev / prod 首批共享能力 binding
+- [ ] InfoV Object Service dev / prod 协议接入验证
 - [ ] InfoV 发布链路接入 Release Service / Delivery Plane
-- [ ] 为 Laicai 注册 `ProjectManifest` 与 dev / prd 首批共享能力 binding
-- [ ] Laicai Object Service dev / prd 协议接入验证
+- [ ] 为 Laicai 注册 `ProjectManifest` 与 dev / prod 首批共享能力 binding
+- [ ] Laicai Object Service dev / prod 协议接入验证
 - [ ] Laicai 发布链路接入 Release Service / Delivery Plane
 - [ ] 对比迁移前后的重复逻辑与维护成本
 - [ ] 更新接入项目的 `TECH_STACK.md` / `BACKEND_STRUCTURE.md` / `IMPLEMENTATION_PLAN.md`

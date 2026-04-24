@@ -7,7 +7,7 @@
  *
  * Behavior:
  * - only active + public-stable objects are eligible
- * - host/env must match (dl-dev => dev/staging, dl => prod/prd)
+ * - host/env must match (dl-dev => dev/staging, dl => prod; prd kept for backward compat)
  * - resolves provider binding from object.projectKey + object.env
  * - redirects to provider download URL so the stable public host is decoupled
  *   from the underlying provider host
