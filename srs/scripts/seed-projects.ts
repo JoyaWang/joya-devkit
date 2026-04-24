@@ -2,7 +2,8 @@
  * Seed script: populate ProjectManifest and ProjectServiceBinding
  * for infov and laicai projects.
  *
- * Usage: npx tsx scripts/seed-projects.ts
+ * Local usage: pnpm run build:seed && pnpm run seed:projects
+ * Runtime container usage: node dist-seed/scripts/seed-projects.js
  *
  * Safety: This script is idempotent — it will upsert manifests and bindings,
  * and will NOT delete any existing records.

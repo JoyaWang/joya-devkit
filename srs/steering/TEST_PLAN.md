@@ -41,6 +41,11 @@
 - P0 核心路径自动化率：80%+
 - 回归测试自动化率：70%+
 
+### Shared COS 配置合同测试
+- `tests/seed-projects-config.test.mts` 锁定 seed resolver 只读取 `SHARED_COS_*`。
+- 测试必须覆盖：单一路径成功、旧 key 不再被接受、dev/prd 通过不同 env object 注入不同 shared config。
+- deploy/workflow 的 seed 行为不允许再通过 inline Node resolver 或 raw SQL reader 测试；应通过 canonical seed 入口与静态 workflow 检查确认。
+
 ### 常用测试命令
 
 ```bash

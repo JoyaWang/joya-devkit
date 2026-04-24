@@ -98,6 +98,6 @@ export function logConsistencyResult(result: ConsistencyCheckResult): void {
   }
 
   console.warn(
-    `   💡 Tip: Run 'npx tsx scripts/seed-projects.ts' to create missing manifests`
+    `   Tip: Run 'node dist-seed/scripts/seed-projects.js' in the API runtime container to create missing manifests and bindings`
   );
 }

@@ -13,6 +13,7 @@ env.runtime
 
 node_modules/
 dist/
+dist-seed/
 generated/
 *.tsbuildinfo
 apps/api/src/generated/

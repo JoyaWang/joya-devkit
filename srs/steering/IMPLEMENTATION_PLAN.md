@@ -8,7 +8,37 @@
 
 当前 Phase 4（Shared Delivery Plane）正在执行多个 slice：
 - Slice 1–8：已交付 provider migration 骨架（dual-write metadata / read fallback / backfill runner）。
-- **当前 Slice**：`p4-onboarding-and-runtime-stabilization` — 补齐项目身份层、autonomous runtime state 与合规基线。
+- **当前 Slice**：`shared-cos-config-closure` — 将 shared object storage runtime 配置收口为 Infisical 环境隔离下的单一 `SHARED_COS_*` 合同。
+
+## Shared COS 配置收口（2026-04-24）
+
+### 目标
+将 runtime object storage 的 Vault/env -> workflow -> seed -> DB binding 链路收口为单一真相源，消除 workflow inline reader 与 `scripts/seed-projects-config.ts` 分叉。
+
+### 正式配置合同
+- runtime object storage canonical keys 仅为：
+  - `SHARED_COS_BUCKET`
+  - `SHARED_COS_REGION`
+  - `SHARED_COS_SECRET_ID`
+  - `SHARED_COS_SECRET_KEY`
+  - `SHARED_COS_DOWNLOAD_DOMAIN`
+- dev / prd 差异只由 Infisical environment 区分；key 名中不再携带 `DEV` / `PRD`。
+- `SHARED_DEV_*`、`SHARED_PRD_*`、`INFOV_*`、`LAICAI_*`、legacy `COS_*` 不再是正式输入源。
+
+### 实施步骤
+1. 文档与 `.env.example` 先统一到 `SHARED_COS_*` 合同。
+2. `scripts/seed-projects-config.ts` 作为唯一 COS config resolver，仅读取 `SHARED_COS_*`。
+3. `scripts/seed-projects.ts` 继续作为 canonical seed 逻辑，幂等写入 manifests 与 bindings。
+4. deploy workflows 删除 inline `resolveConfig` / raw SQL seed，改为在 API 容器内执行 canonical seed 入口。
+5. API runtime image 必须具备执行 seed 入口所需的脚本、Prisma generated client 与运行时依赖。
+6. binding 变更后必须重启 API，因为 `ObjectStorageAdapterFactory` 有进程内 adapter cache。
+
+### 验收标准
+- [ ] `resolveObjectStorageSeedConfig()` 只读取 `SHARED_COS_*`。
+- [ ] deploy workflows 不再维护第二套 COS env reader。
+- [ ] deploy 在 migration 后调用 API 容器内 canonical seed 入口。
+- [ ] deploy gate 校验 `SHARED_COS_*` 五个键。
+- [ ] seed config tests 只覆盖单一路径，并验证 dev/prd 由不同 env object 表达。
 
 ## Existing Project Onboarding
 

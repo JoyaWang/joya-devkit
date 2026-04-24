@@ -153,7 +153,7 @@
 - **长期磁盘卫生机制收口**：验证 dev deploy preflight guard + maintenance workflow，并根据结果微调阈值/清理范围
 - **migration 结果收口**：确认 prd/dev migration 输出已经是明确成功/失败，不再出现假绿 warn
 - **Laicai 真实 APK 发布验证**：手动触发 `APP Release` workflow，用真实 Flutter 构建 + SRS 全链路发布一次
-- **seed 脚本共享桶同步**：把 `scripts/seed-projects-config.ts` bucket 配置从项目桶更新为共享桶
+- **seed 脚本共享桶同步**：已锁定为单一 `SHARED_COS_*` 合同，dev/prd 差异只由 Infisical environment 区分；待完成代码、workflow 与测试收口
 - 将 provider 迁移 playbook 继续落为实现层机制（下一步重点是 backfill 执行层与验收脚本）
 - 推进 InfoV 接入共享 Release Service / Delivery Plane
 - 在未明确批准前，继续保持 legacy `/releases/android/...` 不迁移、不破坏
@@ -171,6 +171,17 @@
 
 ## 日期日志
 
+### 2026-04-24（shared COS 配置链收口）
+- 文档合同先收口到单一 `SHARED_COS_BUCKET / SHARED_COS_REGION / SHARED_COS_SECRET_ID / SHARED_COS_SECRET_KEY / SHARED_COS_DOWNLOAD_DOMAIN`。
+- dev / prd 差异只由 Infisical dev / prod environment 区分，key 名中不再携带 `DEV` / `PRD`。
+- `SHARED_DEV_*`、`SHARED_PRD_*`、`INFOV_*`、`LAICAI_*`、legacy `COS_*` 不再是 object storage binding seed 的正式输入源。
+- deploy 侧目标是删除 inline env resolver / raw SQL seed，统一在 API 容器内调用 canonical seed 入口；binding 变更后仍必须重启 API，因为 `ObjectStorageAdapterFactory` 有进程内 cache。
+- 继续核对 Vault 真实现状后确认：dev/prod 之前都缺失 `SHARED_COS_*`，且 `LAICAI_COS_BUCKET` 仍指向项目桶（dev: `laicai-storage-dev-1321178972`，prd: `laicai-storage-1321178972`），证明 shared bucket 机制确实发生过运行态漂移。
+- 已将 `SHARED_COS_*` 回写到 Infisical dev/prod：dev → `shared-storage-dev-1321178972` + `https://origin-dev.infinex.cn`，prod → `shared-storage-1321178972` + `https://origin.infinex.cn`。
+- 本地 helper `scripts/gen-env-runtime.sh` 已修正 `prd -> prod` 环境映射；dev/prod 生成的 `srs/infra/env.runtime` 均可通过 `scripts/check-runtime-env.sh`。
+- 通过 `headBucket` 实测验证：dev/prd 两个 `SHARED_COS_BUCKET` 都真实存在且凭据可访问；下一步转入 deploy + seed + `dl-dev` 404 复测。
+
+
 ### 2026-04-16（SRS dev API 修复 + Laicai backend storage E2E 验证通过 + Flutter 前端契约对齐）
 - **SRS dev API 500 修复**：根因是 `Dockerfile.api` 将 Prisma generated client 复制到 runner 的 `./src/generated`，但编译后的代码在 `dist/` 目录下执行，解析 imports 时寻找的是 `./dist/generated`。修复方式：增加 `COPY --from=builder /app/apps/api/src/generated ./dist/generated`。
 - **SRS dev 容器重启验证**：在 `119.29.221.161` 重新构建并重启 `infra-api-1` 容器，`/health` 返回正常，`upload-requests` 返回真实 COS signed URL。
@@ -187,7 +198,7 @@
   - `ImageUploadWidget` 已传入 `domain='post'`, `scope='attachment'` 并在 `getUploadInfo` 前计算 `size`。
   - `RealNameVerificationScreen`（KYC 身份证上传）已传入 `domain='member'`, `scope='identity'` 并提前计算 `size`。
 - **SRS scope 扩展**：为支持 KYC 证件照，在 `packages/object-service/src/scopes.ts` 新增 `identity: ["member"]`，SRS dev 容器已重建重启。
-- **运行时产物落点确认**：通过直接 curl SRS dev `upload-requests` 验证，当前 Laicai dev 的 object 写入落点为 `laicai-storage-dev-1321178972`，prd 落点为 `laicai-storage-1321178972`。根因是 `shared-runtime-services/.env` 未配置 `SHARED_DEV_COS_BUCKET` / `SHARED_PRD_COS_BUCKET`，seed 逻辑 fallback 到 `LAICAI_DEV_COS_BUCKET` / `LAICAI_PRD_COS_BUCKET`。若需切到共享桶，需补全 `SHARED_*` 环境变量并重新执行 `seed-projects.ts`。
+- **历史运行时产物落点确认（已废弃口径）**：当时通过直接 curl SRS dev `upload-requests` 验证，Laicai dev/prd 曾命中项目桶，根因是旧 seed 逻辑存在 shared env-scoped 与 project-scoped fallback。2026-04-24 已将正式输入源收口为单一 `SHARED_COS_*`，此历史 fallback 口径不得继续作为配置指南。
 - **未触碰 production 环境**：全部验证与修复仅针对 dev 环境。
 
 ### 2026-04-15（双环境全链路 E2E 验证通过）

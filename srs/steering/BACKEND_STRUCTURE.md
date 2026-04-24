@@ -201,6 +201,14 @@ shared-runtime-services/
 - 若该 host 走腾讯云 CDN / 自定义下载域名，COS adapter 生成签名下载 URL 时必须显式使用 `Domain=<custom-domain>`，并关闭 `ForceSignHost`，避免 Host 被强签名后与自定义域名不一致
 - `downloadDomain` 允许随着 provider / CDN / 回源策略演进而变化；但 `dl-dev` / `dl` 这类稳定公共入口合同应保持独立
 
+### runtime object storage 配置合同
+- `ProjectServiceBinding.config` 的 object storage provider 配置由 `scripts/seed-projects.ts` 写入数据库；seed 配置解析唯一入口是 `scripts/seed-projects-config.ts`。
+- 正式 runtime object storage env keys 仅为 `SHARED_COS_BUCKET`、`SHARED_COS_REGION`、`SHARED_COS_SECRET_ID`、`SHARED_COS_SECRET_KEY`、`SHARED_COS_DOWNLOAD_DOMAIN`。
+- dev / prd 差异只由 Infisical dev / prod environment 区分；key 名不再携带 `DEV` / `PRD`。
+- `SHARED_DEV_*`、`SHARED_PRD_*`、`INFOV_*`、`LAICAI_*` 与 legacy `COS_*` 不再是 object storage binding seed 的正式输入源。
+- deploy workflow 不得内联 COS env reader 或 raw SQL seed；部署时必须在 API 容器中调用 canonical seed 入口，让 env -> DB binding 只经过 `scripts/seed-projects.ts` / `scripts/seed-projects-config.ts` 一套逻辑。
+- `ObjectStorageAdapterFactory` 按进程内 cache 复用 adapter；任何 binding config 变更后必须重启 API，避免旧 adapter 继续持有旧 bucket / domain / credentials。
+
 ### provider 迁移 playbook（正式协议）
 - 迁移对象存储 provider 时，项目侧 contract 保持不变：调用方继续只传 `projectKey + runtimeEnv` 与业务语义字段，用户侧继续使用既有稳定 URL 或签名接口。
 - 迁移动作优先收敛在项目协议层 binding、provider adapter、delivery resolver 与对象治理流程内部，不把 bucket/provider 变更扩散到业务项目。

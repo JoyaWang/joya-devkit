@@ -23,6 +23,9 @@ COPY . .
 # Generate Prisma client (required for clean build)
 RUN DATABASE_URL=postgres://placeholder:placeholder@localhost:5432/placeholder pnpm db:generate
 
+# Build canonical seed entry for runtime execution inside the api image
+RUN pnpm run build:seed
+
 # Build workspace packages in dependency order
 RUN pnpm --filter @srs/shared-kernel run build
 RUN pnpm --filter @srs/delivery-policy run build
@@ -59,7 +62,11 @@ COPY --from=builder /app/api-prod/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
-# Copy seed scripts for binding initialization
+# Copy canonical seed entry for binding initialization
+COPY --from=builder /app/dist-seed ./dist-seed
+# Runtime seed imports the generated Prisma client from ../apps/api/src/generated.
+COPY --from=builder /app/apps/api/src/generated ./apps/api/src/generated
+# Keep source seed scripts available for diagnostics; deploy uses dist-seed.
 COPY --from=builder /app/scripts ./scripts
 
 EXPOSE 3010

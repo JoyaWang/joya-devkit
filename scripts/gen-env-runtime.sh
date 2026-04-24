@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# gen-env-runtime.sh — 从 Vault 拉取 secrets 并写入 srs/infra/.env.runtime
+# gen-env-runtime.sh — 从 Vault 拉取 runtime secrets 并写入 srs/infra/env.runtime
+# Object storage 正式合同为 SHARED_COS_*；dev/prd 差异由 Infisical environment 区分。
+# 继续从 Vault / 与 /BE/runtime 拉取并合并输出 env.runtime。
 # 用法: bash scripts/gen-env-runtime.sh [dev|prd]
 # 默认: dev
 
@@ -19,8 +21,13 @@ fi
 
 PID=$(grep '^INFISICAL_PROJECT_ID_JOYA_DEVKIT=' "$VAULT_ENV" | cut -d'=' -f2-)
 case "$ENV" in
-  dev) TOKEN=$(grep '^INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_DEV=' "$VAULT_ENV" | cut -d'=' -f2-) ;;
-  prod|prd) TOKEN=$(grep '^INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_PROD=' "$VAULT_ENV" | cut -d'=' -f2-) ;;
+  dev)
+    TOKEN=$(grep '^INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_DEV=' "$VAULT_ENV" | cut -d'=' -f2-)
+    ;;
+  prod|prd)
+    TOKEN=$(grep '^INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_PROD=' "$VAULT_ENV" | cut -d'=' -f2-)
+    ENV="prod"
+    ;;
   *) echo "❌ Unsupported env: $ENV (use dev or prd)" >&2; exit 1 ;;
 esac
 

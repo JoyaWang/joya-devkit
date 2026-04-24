@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist-seed",
+    "baseUrl": ".",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": false
+  },
+  "include": [
+    "scripts/seed-projects.ts",
+    "scripts/seed-projects-config.ts",
+    "apps/api/src/generated/prisma/**/*.ts"
+  ]
+}

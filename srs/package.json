@@ -12,6 +12,8 @@
     "dev:worker": "pnpm --filter @srs/worker run dev",
     "db:generate": "prisma generate --schema=prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
+    "build:seed": "tsc --project tsconfig.seed.json",
+    "seed:projects": "node dist-seed/scripts/seed-projects.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },

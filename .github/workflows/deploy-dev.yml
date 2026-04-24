@@ -147,49 +147,13 @@ jobs:
             docker compose -f srs/infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma' 2>&1 | tee -a $LOG_FILE
             echo "[OK] Migrations applied" | tee -a $LOG_FILE
 
-            # 5b. Seed project bindings (idempotent upsert via raw SQL)
-            docker compose -f srs/infra/docker-compose.yml exec -T api node <<'NODE' 2>&1 | tee -a $LOG_FILE
-            const pg = require('pg');
-            function upper(v) { return v.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase(); }
-            function requireEnv(env, keys) {
-              for (const k of keys) { const v = env[k]; if (v && v.trim()) return v; }
-              throw new Error('Missing env: one of ' + keys.join(', '));
-            }
-            function resolveConfig(projectKey, runtimeEnv, env) {
-              const pk = upper(projectKey);
-              return {
-                bucket: requireEnv(env, [pk+'_COS_BUCKET', 'COS_BUCKET']),
-                region: requireEnv(env, [pk+'_COS_REGION', 'COS_REGION']),
-                secretId: requireEnv(env, [pk+'_COS_SECRET_ID', 'COS_SECRET_ID']),
-                secretKey: requireEnv(env, [pk+'_COS_SECRET_KEY', 'COS_SECRET_KEY']),
-                downloadDomain: requireEnv(env, [pk+'_COS_DOWNLOAD_DOMAIN', 'COS_DOWNLOAD_DOMAIN']),
-              };
-            }
-            async function run() {
-              const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
-              await client.connect();
-              for (const t of [
-                { projectKey: 'laicai', runtimeEnv: 'dev' },
-                { projectKey: 'laicai', runtimeEnv: 'prd' },
-                { projectKey: 'infov', runtimeEnv: 'dev' },
-                { projectKey: 'infov', runtimeEnv: 'prd' },
-              ]) {
-                const config = resolveConfig(t.projectKey, t.runtimeEnv, process.env);
-                const configJson = JSON.stringify(config);
-                await client.query(
-                  `INSERT INTO project_service_bindings (id, project_key, runtime_env, service_type, provider, config, created_at, updated_at)
-                   VALUES ($1, $2, $3, 'object_storage', 'cos', $4, NOW(), NOW())
-                   ON CONFLICT (project_key, runtime_env, service_type)
-                   DO UPDATE SET config = EXCLUDED.config, provider = EXCLUDED.provider, updated_at = NOW()`,
-                  [crypto.randomUUID(), t.projectKey, t.runtimeEnv, configJson],
-                );
-              }
-              await client.end();
-              console.log('[OK] Seed complete');
-            }
-            run().catch(e => { console.error('[FAIL] Seed failed:', e.message); process.exit(1); });
-            NODE
+            # 5b. Seed project manifests and bindings via canonical seed entry
+            docker compose -f srs/infra/docker-compose.yml exec -T api node dist-seed/scripts/seed-projects.js 2>&1 | tee -a $LOG_FILE
             echo "[OK] Seed done" | tee -a $LOG_FILE
+
+            # 5c. Restart API after binding seed because ObjectStorageAdapterFactory caches adapters in-process
+            docker compose -f srs/infra/docker-compose.yml restart api 2>&1 | tee -a $LOG_FILE
+            echo "[OK] API restarted after seed" | tee -a $LOG_FILE
 
             # 6. Health check
             sleep 5
