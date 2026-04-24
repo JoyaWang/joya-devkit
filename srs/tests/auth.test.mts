@@ -10,7 +10,7 @@ describe("EnvTokenValidator", () => {
 
   beforeEach(() => {
     // Set up environment for each test
-    process.env.SERVICE_TOKENS = "test-token-1=project_a:dev,test-token-2=project_b:prd";
+    process.env.SERVICE_TOKENS = "test-token-1=project_a:dev,test-token-2=project_b:prod";
     validator = new EnvTokenValidator();
   });
 

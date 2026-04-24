@@ -73,13 +73,13 @@ function makeRelease(overrides: Record<string, any> = {}) {
     id: "release-001",
     projectKey: "laicai",
     platform: "android",
-    env: "prd",
+    env: "prod",
     channel: "official",
     appVersion: "1.0.2",
     buildNumber: 18,
     semanticVersion: "1.0.2+18",
     distributionTarget: "direct",
-    distributionUrl: "https://dl.infinex.cn/laicai/prd/release.apk",
+    distributionUrl: "https://dl.infinex.cn/laicai/prod/release.apk",
     artifactObjectKey: null,
     releaseNotes: "修复版本链路",
     changelog: null,
@@ -124,7 +124,7 @@ describe("Release Service channel control", () => {
       id: "channel-001",
       projectKey: "laicai",
       platform: "android",
-      env: "prd",
+      env: "prod",
       channel: "official",
       activeReleaseId: "release-active",
     });
@@ -134,10 +134,10 @@ describe("Release Service channel control", () => {
     await latestHandler(
       {
         projectKey: "laicai",
-        runtimeEnv: "prd",
+        runtimeEnv: "prod",
         query: {
           platform: "android",
-          env: "prd",
+          env: "prod",
           channel: "official",
           deviceId: "device-1",
         },
@@ -148,7 +148,7 @@ describe("Release Service channel control", () => {
     expect(reply.statusCode).toBe(200);
     expect(reply.payload).toMatchObject({
       id: "release-active",
-      env: "prd",
+      env: "prod",
       channel: "official",
       channelActive: true,
     });
@@ -170,7 +170,7 @@ describe("Release Service channel control", () => {
       id: "channel-001",
       projectKey: "laicai",
       platform: "android",
-      env: "prd",
+      env: "prod",
       channel: "official",
       activeReleaseId: "release-check",
     });
@@ -180,10 +180,10 @@ describe("Release Service channel control", () => {
     await checkHandler(
       {
         projectKey: "laicai",
-        runtimeEnv: "prd",
+        runtimeEnv: "prod",
         query: {
           platform: "android",
-          env: "prd",
+          env: "prod",
           channel: "official",
           currentVersion: "1.0.2+17",
           deviceId: "device-1",
@@ -215,7 +215,7 @@ describe("Release Service channel control", () => {
       id: "channel-001",
       projectKey: "laicai",
       platform: "android",
-      env: "prd",
+      env: "prod",
       channel: "official",
       activeReleaseId: "release-prev",
     });
@@ -224,7 +224,7 @@ describe("Release Service channel control", () => {
     await patchHandler(
       {
         projectKey: "laicai",
-        runtimeEnv: "prd",
+        runtimeEnv: "prod",
         params: { releaseId: "release-next" },
         body: { rolloutStatus: "active" },
       },
@@ -266,7 +266,7 @@ describe("Release Service channel control", () => {
         id: "channel-001",
         projectKey: "laicai",
         platform: "android",
-        env: "prd",
+        env: "prod",
         channel: "official",
         activeReleaseId: "release-active",
       })
@@ -274,7 +274,7 @@ describe("Release Service channel control", () => {
         id: "channel-001",
         projectKey: "laicai",
         platform: "android",
-        env: "prd",
+        env: "prod",
         channel: "official",
         activeReleaseId: null,
       });
@@ -283,7 +283,7 @@ describe("Release Service channel control", () => {
     await patchHandler(
       {
         projectKey: "laicai",
-        runtimeEnv: "prd",
+        runtimeEnv: "prod",
         params: { releaseId: "release-active" },
         body: { rolloutStatus: "paused" },
       },
@@ -296,7 +296,7 @@ describe("Release Service channel control", () => {
         projectKey_platform_env_channel: {
           projectKey: "laicai",
           platform: "android",
-          env: "prd",
+          env: "prod",
           channel: "official",
         },
       },

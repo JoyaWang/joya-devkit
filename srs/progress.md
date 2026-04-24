@@ -31,13 +31,13 @@
 - [x] SRS 侧配置已就绪：infov manifest 和 binding 已在 seed-projects.ts 中，token 已配
 - [ ] 待完成：方案评审确认，进入 dev 分支执行
 
-### 2026-04-17 dev/prd 数据库重置与重建
+### 2026-04-17 dev/prod 数据库重置与重建
 
-- [x] 通过 vault skill 连接 dev/prd 服务器
+- [x] 通过 vault skill 连接 dev/prod 服务器
 - [x] 停止 api/worker 服务
 - [x] 执行 `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`
 - [x] 使用 `prisma db push --accept-data-loss` 从 schema.prisma 重建表结构
-- [x] 运行 seed 脚本写入 4 个 project_service_bindings（laicai/infov × dev/prd）
+- [x] 运行 seed 脚本写入 4 个 project_service_bindings（laicai/infov × dev/prod）
 - [x] 验证 health 200 ✅
 - [x] 验证 11 张表已创建 ✅
 - [x] 验证 4 个 bindings 已写入 ✅
@@ -55,23 +55,23 @@
 ### 2026-04-16 dev 磁盘卫生与 deploy guardrails
 - **共享桶 + 共享 CDN origin 双环境全链路 E2E 验证通过**（2026-04-15）：
   - dev 共享桶 `shared-storage-dev-1321178972` + CDN `origin-dev.infinex.cn`
-  - prd 共享桶 `shared-storage-1321178972` + CDN `origin.infinex.cn`
+  - prod 共享桶 `shared-storage-1321178972` + CDN `origin.infinex.cn`
   - 双环境链路：upload → COS → complete → release → `dl-dev/dl.infinex.cn` → SRS 302 → `origin-dev/origin.infinex.cn` → COS
   - SHA256 完整性验证通过（上传 = 下载）
   - 根因修复：CDN「私有存储桶访问」关闭后，presigned URL 签名参数不再被 CDN 自身凭据覆盖
-  - prd binding 已恢复 `downloadDomain: https://origin.infinex.cn`
+  - prod binding 已恢复 `downloadDomain: https://origin.infinex.cn`
 - **Laicai 统一 APP Release workflow 接入 SRS 并 E2E 全分支验证通过**（2026-04-15）：
   - 还原 `app-release.yml`（4-job: prepare → build-android / build-ios → release），接入 SRS 全链路
   - 删除旧 workflow：`production-android.yml`、`production-ios.yml`、`auto-release-after-fix.yml`、`preview.yml`
-  - E2E 全 4 分支通过：Android dev/prd、iOS dev/prd（upload-request → COS → complete → release register → download verify）
-  - 修复 SRS `prd` env 兼容：release route VALID_ENVS 加 `prd`、delivery resolver 自动映射 `prd → prod` 域名
+  - E2E 全 4 分支通过：Android dev/prod、iOS dev/prod（upload-request → COS → complete → release register → download verify）
+  - 修复 SRS `prod` env 兼容：release route VALID_ENVS 包含 `prod`，delivery resolver 自动映射环境别名到对应域名
   - Laicai 分支 `feat/srs-release-integration` 已合并 main 并删除
   - dev 共享桶 `shared-storage-dev-1321178972` + CDN `origin-dev.infinex.cn`
-  - prd 共享桶 `shared-storage-1321178972` + CDN `origin.infinex.cn`
+  - prod 共享桶 `shared-storage-1321178972` + CDN `origin.infinex.cn`
   - 双环境链路：upload → COS → complete → release → `dl-dev/dl.infinex.cn` → SRS 302 → `origin-dev/origin.infinex.cn` → COS
   - SHA256 完整性验证通过（上传 = 下载）
   - 根因修复：CDN「私有存储桶访问」关闭后，presigned URL 签名参数不再被 CDN 自身凭据覆盖
-  - prd binding 已恢复 `downloadDomain: https://origin.infinex.cn`
+  - prod binding 已恢复 `downloadDomain: https://origin.infinex.cn`
 - 新建项目目录：`/Users/joya/JoyaProjects/shared-runtime-services`
 - 建立标准根目录入口：`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`README.md`、`.gitignore`、`progress.md`
 - 建立标准 `steering/` 文档合同
@@ -128,7 +128,7 @@
   - `ProjectServiceBinding` 类型、resolver 查询键、factory cache key 全部升级到 `projectKey + runtimeEnv + serviceType`
   - Object Service 四个路由已增加 `env_mismatch` 拒绝逻辑，请求体与 objectKey 里的环境都必须与认证环境一致
   - `prisma/schema.prisma` 已将 `project_service_bindings` 升级为 `runtime_env` + 新唯一键
-  - `scripts/seed-projects.ts`、`.env.example`、本地 `.env`、E2E 脚本已升级为 dev / prd 双环境协议
+  - `scripts/seed-projects.ts`、`.env.example`、本地 `.env`、E2E 脚本已升级为 dev / prod 双环境协议
   - Vitest 全量 79 tests passed，增强版 E2E 59 assertions passed
 - 生产部署闭环已完成：
   - 服务器 `124.222.37.77` 上的 `infra-api-1` 与 `infra-worker-1` 均稳定运行
@@ -151,9 +151,9 @@
 - **补 release / feedback 测试合同**：锁定 admin-platform 只做代理，SRS 才是 runtime 真相源
 - **如需继续自治执行再重启 joya-loop**：按下一批 task packet 进入自治实现
 - **长期磁盘卫生机制收口**：验证 dev deploy preflight guard + maintenance workflow，并根据结果微调阈值/清理范围
-- **migration 结果收口**：确认 prd/dev migration 输出已经是明确成功/失败，不再出现假绿 warn
+- **migration 结果收口**：确认 prod/dev migration 输出已经是明确成功/失败，不再出现假绿 warn
 - **Laicai 真实 APK 发布验证**：手动触发 `APP Release` workflow，用真实 Flutter 构建 + SRS 全链路发布一次
-- **seed 脚本共享桶同步**：已锁定为单一 `SHARED_COS_*` 合同，dev/prd 差异只由 Infisical environment 区分；待完成代码、workflow 与测试收口
+- **seed 脚本共享桶同步**：已锁定为单一 `SHARED_COS_*` 合同，dev/prod 差异只由 Infisical environment 区分；待完成代码、workflow 与测试收口
 - 将 provider 迁移 playbook 继续落为实现层机制（下一步重点是 backfill 执行层与验收脚本）
 - 推进 InfoV 接入共享 Release Service / Delivery Plane
 - 在未明确批准前，继续保持 legacy `/releases/android/...` 不迁移、不破坏
@@ -173,13 +173,20 @@
 
 ### 2026-04-24（shared COS 配置链收口）
 - 文档合同先收口到单一 `SHARED_COS_BUCKET / SHARED_COS_REGION / SHARED_COS_SECRET_ID / SHARED_COS_SECRET_KEY / SHARED_COS_DOWNLOAD_DOMAIN`。
-- dev / prd 差异只由 Infisical dev / prod environment 区分，key 名中不再携带 `DEV` / `PRD`。
+- dev / prod 差异只由 Infisical dev / prod environment 区分，key 名中不再携带 `DEV` / `PROD`。
 - `SHARED_DEV_*`、`SHARED_PRD_*`、`INFOV_*`、`LAICAI_*`、legacy `COS_*` 不再是 object storage binding seed 的正式输入源。
 - deploy 侧目标是删除 inline env resolver / raw SQL seed，统一在 API 容器内调用 canonical seed 入口；binding 变更后仍必须重启 API，因为 `ObjectStorageAdapterFactory` 有进程内 cache。
-- 继续核对 Vault 真实现状后确认：dev/prod 之前都缺失 `SHARED_COS_*`，且 `LAICAI_COS_BUCKET` 仍指向项目桶（dev: `laicai-storage-dev-1321178972`，prd: `laicai-storage-1321178972`），证明 shared bucket 机制确实发生过运行态漂移。
+- 继续核对 Vault 真实现状后确认：dev/prod 之前都缺失 `SHARED_COS_*`，且 `LAICAI_COS_BUCKET` 仍指向项目桶（dev: `laicai-storage-dev-1321178972`，prod: `laicai-storage-1321178972`），证明 shared bucket 机制确实发生过运行态漂移。
 - 已将 `SHARED_COS_*` 回写到 Infisical dev/prod：dev → `shared-storage-dev-1321178972` + `https://origin-dev.infinex.cn`，prod → `shared-storage-1321178972` + `https://origin.infinex.cn`。
-- 本地 helper `scripts/gen-env-runtime.sh` 已修正 `prd -> prod` 环境映射；dev/prod 生成的 `srs/infra/env.runtime` 均可通过 `scripts/check-runtime-env.sh`。
-- 通过 `headBucket` 实测验证：dev/prd 两个 `SHARED_COS_BUCKET` 都真实存在且凭据可访问；下一步转入 deploy + seed + `dl-dev` 404 复测。
+- 本地 helper `scripts/gen-env-runtime.sh` 已修正 `prod` 环境映射；dev/prod 生成的 `srs/infra/env.runtime` 均可通过 `scripts/check-runtime-env.sh`。
+- 通过 `headBucket` 实测验证：dev/prod 两个 `SHARED_COS_BUCKET` 都真实存在且凭据可访问。
+- 用同一条 laicai dev 自传 objectKey 继续复测，先后确认：`origin-dev` 真实对象始终 `200`，而 `dl-dev` 历经 `404 -> 502 -> 400`，说明问题已从 provider / object 存在性收敛到 public ingress 层。
+- 通过 vault 登录 dev shared server 后确认：SRS 本机 `curl -I -H 'Host: dl-dev.infinex.cn' http://127.0.0.1/{objectKey}` 可返回 `302 -> origin-dev`，但 Nginx 原先缺少 `dl-dev.infinex.cn` vhost，故公网入口未稳定命中 shared delivery plane。
+- 已在 dev shared server 新增 `/etc/nginx/sites-available/dl-dev.infinex.cn` 80 反代入口，并启用到 `sites-enabled/`；Nginx reload 后，源站 Host 命中已恢复 `302`。
+- CDN 回源最终收口为 `119.29.221.161:80`，回源 Host 为 `dl-dev.infinex.cn`；公网 `curl -I https://dl-dev.infinex.cn/{objectKey}` 已返回 `302 Found`，`Location` 指向 `https://origin-dev.infinex.cn/{objectKey}`。
+- 最终验收报告已写入：`test-reports/2026-04-24_12-48_laicai-dev-dl-dev-recovery.md`；此前 `2026-04-24_11-02_laicai-dev-self-upload-chain.md` 中关于 `dl-dev stable delivery` 的失败结论已被覆盖。
+- 随后手动重跑 GitHub Actions `Deploy to Dev`（run `24873253269`），整条 workflow 成功，原失败步 `Deploy via SSH` 已通过；`https://srs-dev.infinex.cn/health` 返回 `{"status":"ok"...}`，同一 objectKey 的 `dl-dev` 与源站 Host 命中仍保持 `302 -> origin-dev`。
+- 当前剩余工作从“修复 canonical deploy workflow 的 `Deploy via SSH` 失败”进一步切换为“把 vhost / CDN 回源配置沉淀为 infra baseline，并继续做 prod / 双环境抽检”。
 
 
 ### 2026-04-16（SRS dev API 修复 + Laicai backend storage E2E 验证通过 + Flutter 前端契约对齐）
@@ -198,7 +205,7 @@
   - `ImageUploadWidget` 已传入 `domain='post'`, `scope='attachment'` 并在 `getUploadInfo` 前计算 `size`。
   - `RealNameVerificationScreen`（KYC 身份证上传）已传入 `domain='member'`, `scope='identity'` 并提前计算 `size`。
 - **SRS scope 扩展**：为支持 KYC 证件照，在 `packages/object-service/src/scopes.ts` 新增 `identity: ["member"]`，SRS dev 容器已重建重启。
-- **历史运行时产物落点确认（已废弃口径）**：当时通过直接 curl SRS dev `upload-requests` 验证，Laicai dev/prd 曾命中项目桶，根因是旧 seed 逻辑存在 shared env-scoped 与 project-scoped fallback。2026-04-24 已将正式输入源收口为单一 `SHARED_COS_*`，此历史 fallback 口径不得继续作为配置指南。
+- **历史运行时产物落点确认（已废弃口径）**：当时通过直接 curl SRS dev `upload-requests` 验证，Laicai dev/prod 曾命中项目桶，根因是旧 seed 逻辑存在 shared env-scoped 与 project-scoped fallback。2026-04-24 已将正式输入源收口为单一 `SHARED_COS_*`，此历史 fallback 口径不得继续作为配置指南。
 - **未触碰 production 环境**：全部验证与修复仅针对 dev 环境。
 
 ### 2026-04-15（双环境全链路 E2E 验证通过）
@@ -206,9 +213,9 @@
 - **CDN origin 配置**：`origin.infinex.cn` → prd 共享桶，`origin-dev.infinex.cn` → dev 共享桶。
 - **CDN 修复**：关闭两个 CDN 的「私有存储桶访问」，回源协议改为 HTTPS；修复了 presigned URL 签名被 CDN 自身凭据覆盖导致 `InvalidAccessKeyId` 的问题。
 - **`origin-dev.infinex.cn` SSL 证书**：发现并修复证书不匹配（CDN 默认返回 `*.cdn.myqcloud.com` 证书），用户在腾讯云控制台补配正确证书。
-- **prd binding downloadDomain 恢复**：测试期间被移除，已恢复为 `https://origin.infinex.cn`。
+- **prod binding downloadDomain 恢复**：测试期间被移除，已恢复为 `https://origin.infinex.cn`。
 - **E2E 验证结果**：
-  - prd：upload 100KB → COS → complete → release create → `dl.infinex.cn` 302 → `origin.infinex.cn` 200 → SHA256 一致 ✅
+  - prod：upload 100KB → COS → complete → release create → `dl.infinex.cn` 302 → `origin.infinex.cn` 200 → SHA256 一致 ✅
   - dev：upload 100KB → COS → complete → release create → `dl-dev.infinex.cn` 302 → `origin-dev.infinex.cn` 200 → SHA256 一致 ✅
 - **阶段结论**：Shared Delivery Plane 双环境最小生产闭环已完成；下一步进入 Laicai 真实接入。
 
@@ -218,7 +225,7 @@
 - **重写 SESSION_CONTEXT.md**：已从 Laicai 接入口径切回本项目 runtime baseline 口径，新增 `Current Mode: autonomous` 与 `Runtime companion: .agent/runtime/execution-state.json`，并移除 Laicai 接入任务描述。
 - **补入 IMPLEMENTATION_PLAN.md 顶部 long-running framing**：加入"计划视角（Phase / Slice）"与"Existing Project Onboarding"段落，解释为什么现在有 `.agent/runtime/` 与当前 onboarding slice。
 - **更新 TEST_PLAN.md**：修正"Vitest / Jest 待定"等过时口径为真实工具与命令（`pnpm test` / `pnpm test:watch` / `pnpm typecheck` / `bash scripts/e2e-verify.sh`）。
-- **修复 seed-config 测试根因**：RED-GREEN 修复 `tests/seed-projects-config.test.mts`，根因是 `downloadDomain` fallback 逻辑未覆盖"共享 bucket 存在但未显式给出下载域"的场景，修复为 `|| (runtimeEnv !== "prd" ? "https://origin-dev.infinex.cn" : undefined)`。
+- **修复 seed-config 测试根因**：RED-GREEN 修复 `tests/seed-projects-config.test.mts`，根因是 `downloadDomain` fallback 逻辑未覆盖"共享 bucket 存在但未显式给出下载域"的场景，修复为 `|| (runtimeEnv !== "prod" ? "https://origin-dev.infinex.cn" : undefined)`。
 - **验证结果**：
   - `pnpm exec vitest run tests/seed-projects-config.test.mts tests/object-routes-runtime-env.test.mts tests/adapter-factory.test.mts` -> 3 个测试文件 / 20 个测试全部通过
   - `pnpm exec vitest run` -> 19 个测试文件 / 138 个测试全部通过
@@ -228,13 +235,13 @@
 ### 2026-04-11（上午 — Laicai 首接入方案收口，等待独立分支落地）
 - 用户已明确要求：先给 Laicai 接入方案，先不动代码；后续会在新会话中继续该任务。
 - 本轮已完成 Laicai 当前发布链路与存储真相源梳理：重点读取并分析了 `.github/workflows/app-release.yml`、`backend/cloudbase/functions/storage/cos_storage_provider.js`、`.env.dev.example`、`.env.prod.example`、`ENVIRONMENT_SWITCHING.md`、`docs/dl.infinex.cn-cdn-android-release-setup.md`。
-- 初版收口结论：Laicai 可以作为 shared-runtime-services 第一条真实接入链路，且最初建议采用“独立分支接入、先 dev 后 prd、先写侧后读侧、保留旧 backend/workflow 与 legacy 下载链路作为 fallback、验证通过后再合并”的安全策略，目标是不影响现网 App 可用性。
+- 初版收口结论：Laicai 可以作为 shared-runtime-services 第一条真实接入链路，且最初建议采用”独立分支接入、先 dev 后 prod、先写侧后读侧、保留旧 backend/workflow 与 legacy 下载链路作为 fallback、验证通过后再合并”的安全策略，目标是不影响现网 App 可用性。
 - 本轮未对 Laicai 仓库动代码；下一步若获批准，应先在 Laicai 仓库创建专用分支，再把 Android dev 发布写侧接入 SRS。
 
 ### 2026-04-11（上午后段 — Laicai 首接入边界二次收口：仅 dev release 域全量切换）
 - 用户进一步明确：Laicai 首接入只切 `dev`，不做 fallback，不兼容 legacy，并且读写一次性全切。
 - 经过 MVP 收敛后，正式确认本轮“全量切换”仅覆盖 **Laicai 独立分支中的 `dev` Android release 主链路**，即 release 相关对象域（APK / AAB / 安装包等 `release_artifact`）与 release 真相源的读写闭环：`upload -> complete -> release create -> latest/distributionUrl/download`。
-- 同时明确排除：用户头像、用户上传图片/媒体、业务中的发布需求图片、私有文档等非 release 对象域；`prd` 与现网 legacy 下载合同也不在本轮范围内。
+- 同时明确排除：用户头像、用户上传图片/媒体、业务中的发布需求图片、私有文档等非 release 对象域；`prod` 与现网 legacy 下载合同也不在本轮范围内。
 - 已同步回写 `steering/PRD.md`、`steering/APP_FLOW.md`、`steering/IMPLEMENTATION_PLAN.md`、`steering/SESSION_CONTEXT.md`，把“只切 dev + 只切 release 域 + 不做 fallback + 不兼容 legacy”的边界固化为当前默认方案。
 - 当前状态仍为文档/方案阶段，尚未对 Laicai 仓库动代码；下一步应在 Laicai 仓库创建独立分支，并按上述边界准备实施清单。
 
@@ -369,7 +376,7 @@
 - 最新公网探针结果已确认：
   - `https://dl-dev.infinex.cn/infov/dev/...probe.txt` 返回 `302 Found`，`Server: nginx/1.24.0 (Ubuntu)`，并跳转到 provider 签名下载 URL
   - `https://dl.infinex.cn/infov/prd/...probe.txt` 返回 `302 Found`，`Server: nginx/1.24.0 (Ubuntu)`，并跳转到 provider 签名下载 URL
-  - legacy `https://dl-dev.infinex.cn/releases/android/dev/test.apk` 与 `https://dl.infinex.cn/releases/android/prd/test.apk` 仍返回 `Server: tencent-cos` 的 `404 Not Found`
+  - legacy `https://dl-dev.infinex.cn/releases/android/dev/test.apk` 与 `https://dl.infinex.cn/releases/android/prod/test.apk` 仍返回 `Server: tencent-cos` 的 `404 Not Found`
 - 这说明当前生产已形成**非破坏式切流**：shared objectKey 前缀（当前 `/infov`、`/laicai`）走 SRS 公共入口，而 legacy `/releases/android/...` 继续保留旧 COS 默认回源，不影响既有链路。
 - 在实际验收中还确认了一个关键生产事实：腾讯 CDN `Origin.PathBasedOrigin` 虽可配置为 `Origin=["srs.infinex.cn"]`，但公网行为不稳定；在根因未收口前，当前稳定方案是把 shared 前缀回源固定到 `Origin=["124.222.37.77"]`，再由宿主机 Nginx + `Tencent-Acceleration-Domain-Name` 头桥接到 SRS。
 - 当前稳定可用的生产入口合同是：
@@ -389,14 +396,14 @@
 - 当前注意事项：worker keep-alive 热修复和对应测试仍处于本地未提交状态，但服务器已运行这版代码；下次若继续用归档同步，必须先提交或显式同步工作区文件。
 
 ### 2026-04-09 (深夜收尾 — Laicai prd 真实分桶验证 & Release 评估)
-- 从 `Laicai/backend/.env.dev.example`、`.env.prod.example` 与 `ENVIRONMENT_SWITCHING.md` 确认 Laicai dev / prd 应使用不同 COS bucket；prod 模板 bucket 为 `laicai-storage-1321178972`。
-- 将 `shared-runtime-services/.env` 中 `LAICAI_PRD_COS_BUCKET` 切到真实 prd 桶名，重新执行 `pnpm exec tsx scripts/seed-projects.ts` 成功。
+- 从 `Laicai/backend/.env.dev.example`、`.env.prod.example` 与 `ENVIRONMENT_SWITCHING.md` 确认 Laicai dev / prod 应使用不同 COS bucket；prod 模板 bucket 为 `laicai-storage-1321178972`。
+- 将 `shared-runtime-services/.env` 中 `LAICAI_PROD_COS_BUCKET` 切到真实 prod 桶名，重新执行 `pnpm exec tsx scripts/seed-projects.ts` 成功。
 - 首次 E2E 58/59 失败，根因不是协议错误，而是运行中的 API 进程继续持有旧 `ObjectStorageAdapterFactory` cache；显式以 `PORT=3010 pnpm dev:api` 重启后，增强版 E2E 59/59 通过。
 - 当前验证结论：Laicai 已完成真实 dev / prd 分桶路由验证；InfoV 目前仅发现单一 `infov-storage-1321178972` 配置，尚未发现独立 prd bucket 配置来源。
 - Release Service 评估结论：当前只算“部分协议化”（`projectKey` 真相源已接入，`runtimeEnv` / binding 未接入）；现阶段建议延后到真正需要外部分发资源配置时再升级到完整项目协议层。
 
 ### 2026-04-09 (深夜 — 多环境协议文档升级)
-- 用户确认共享运行时正式协议需从 `projectKey + serviceType` 升级为 `projectKey + runtimeEnv + serviceType`，以覆盖同一项目 dev / prd 不同 bucket 的真实生产形态。
+- 用户确认共享运行时正式协议需从 `projectKey + serviceType` 升级为 `projectKey + runtimeEnv + serviceType`，以覆盖同一项目 dev / prod 不同 bucket 的真实生产形态。
 - 已完成 joya-ai-sys canonical 文档升级：`doc-template/steering/{AI_RULES_BASE,BACKEND_STRUCTURE,TECH_STACK,IMPLEMENTATION_PLAN}.md`、`skills/{delivery-execution,project-bootstrap,preview-release}/SKILL.md`、`shared_memories/经验教训登记册.md`。
 - 已完成 `shared-runtime-services` 项目合同升级：`steering/{PRD,TECH_STACK,BACKEND_STRUCTURE,IMPLEMENTATION_PLAN,PROJECT_RULES,SESSION_CONTEXT,LESSONS_LEARNED}.md` 已统一改为多环境 binding 协议。
 - 正式锁定：调用方只暴露 `projectKey + runtimeEnv`；鉴权真相源升级为 `token -> projectKey:runtimeEnv`；`ProjectServiceBinding` 正式唯一键升级为 `projectKey + runtimeEnv + serviceType`；请求体 `project` / `env` 仅作一致性校验。
@@ -406,7 +413,7 @@
 - 按 TDD 完成 auth / resolver / adapter factory / object routes 的多环境协议改造，并新增 route 级 runtimeEnv 一致性测试。
 - `SERVICE_TOKENS` 正式升级为 `token=projectKey:runtimeEnv` 形式；`AuthResult` 与 Fastify request 均携带 `runtimeEnv`。
 - `ProjectServiceBinding` 与 Prisma schema 升级为 `runtime_env` 列与 `projectKey + runtimeEnv + serviceType` 唯一键。
-- `scripts/seed-projects.ts` 升级为 infov / laicai 的 dev / prd 双环境 binding seed；`.env.example` 与本地 `.env` 已同步为 env-aware 协议示例。
+- `scripts/seed-projects.ts` 升级为 infov / laicai 的 dev / prod 双环境 binding seed；`.env.example` 与本地 `.env` 已同步为 env-aware 协议示例。
 - 由于本地数据库已有旧数据，未使用 destructive reset，而是先增量补列、把旧 binding 安全回填为 `dev`，再切换唯一键，保证迁移过程非破坏。
 - 验证结果：`pnpm build` 通过、`pnpm typecheck` 通过、`pnpm test` 通过（42 tests）、增强版 `scripts/e2e-verify.sh` 通过（59 passed, 0 failed）。
 
@@ -477,9 +484,9 @@
 ## 2026-04-17 Laicai 全量接入验证
 
 ### 完成项
-- [x] 补齐 `project_manifests` 表（dev/prd）— 数据库重置后未重新 seed manifests，导致 `ProjectContextResolver` 抛 `project_not_registered`
+- [x] 补齐 `project_manifests` 表（dev/prod）— 数据库重置后未重新 seed manifests，导致 `ProjectContextResolver` 抛 `project_not_registered`
 - [x] 验证 Laicai dev 上传请求：avatar、post attachment 均返回有效 uploadUrl
-- [x] 验证 Laicai prd 上传请求：avatar、KYC identity 均返回有效 uploadUrl
+- [x] 验证 Laicai prod 上传请求：avatar、KYC identity 均返回有效 uploadUrl
 - [x] 确认 Laicai release workflow 已完整接入 SRS（Android APK + iOS IPA）
 - [x] 确认 Laicai backend CloudBase storage function 已配置 SRS 环境变量
 
@@ -496,9 +503,9 @@ curl -s -X POST https://srs-dev.infinex.cn/v1/objects/upload-requests \
   -d '{"project":"laicai","domain":"member","scope":"avatar","entityId":"test-user-123","fileKind":"avatar","fileName":"avatar.jpg","contentType":"image/jpeg","size":102400}'
 # 返回：objectKey=laicai/dev/member/avatar/...，uploadUrl 指向 shared-storage-dev bucket
 
-# Laicai prd KYC identity 上传请求
+# Laicai prod KYC identity 上传请求
 curl -s -X POST https://srs.infinex.cn/v1/objects/upload-requests \
-  -H "Authorization: Bearer prd-token-laicai" \
+  -H "Authorization: Bearer prod-token-laicai" \
   -H "Content-Type: application/json" \
   -d '{"project":"laicai","domain":"member","scope":"identity","entityId":"user-kyc-001","fileKind":"idcard","fileName":"idcard_front.jpg","contentType":"image/jpeg","size":512000}'
 # 返回：objectKey=laicai/prd/member/identity/...，uploadUrl 指向 shared-storage bucket

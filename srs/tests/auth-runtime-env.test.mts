@@ -12,7 +12,7 @@ beforeEach(() => {
 describe("EnvTokenValidator runtime env behavior", () => {
   it("reads SERVICE_TOKENS at validate-time so late-loaded env is honored", async () => {
     const validator = new EnvTokenValidator();
-    process.env.SERVICE_TOKENS = "dev-token-infov=infov:dev,prd-token-laicai=laicai:prd";
+    process.env.SERVICE_TOKENS = "dev-token-infov=infov:dev,prd-token-laicai=laicai:prod";
 
     const result = await validator.validate("dev-token-infov");
 

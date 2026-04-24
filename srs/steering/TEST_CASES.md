@@ -73,7 +73,7 @@
 
 **前置条件**:
 - 提供合法 project token，且 token 解析出的 `runtimeEnv=dev`
-- body.env 与 token 的 `runtimeEnv` 不一致（如 body.env=prd）
+- body.env 与 token的 `runtimeEnv` 不一致（如 body.env=prod）
 
 **断言（必须全部通过）**:
 - 返回拒绝状态码
@@ -84,12 +84,12 @@
 **优先级**: P0 | **阶段**: 1
 
 **前置条件**:
-- 准备同一项目的 dev / prd 两种 token
+- 准备同一项目的 dev / prod 两种 token
 - 已注册对应 `ProjectServiceBinding(projectKey, runtimeEnv, object_storage)`
 
 **断言（必须全部通过）**:
 - dev token 请求命中 dev bucket
-- prd token 请求命中 prd bucket
+- prod token 请求命中 prod bucket
 - 两次返回的 `objectKey` 环境段不同且与 token 解析结果一致
 
 ### O-02: 非法 scope 被拒绝

@@ -392,7 +392,7 @@ describe("shared public delivery entrypoint", () => {
     expect(mockResolver.resolve).toHaveBeenCalledWith("infov", "prod", "object_storage");
   });
 
-  it("redirects active public-stable object from prd host binding", async () => {
+  it("redirects active public-stable object from legacy prd env in database (backward compat)", async () => {
     const objectKey = "infov/prd/release/android/1.0.0+100/apk/2026/04/uuid-app-release.apk";
     mockPrisma.object.findUnique.mockResolvedValue(
       makeObjectRecord({ objectKey, accessClass: "public-stable", env: "prd" })

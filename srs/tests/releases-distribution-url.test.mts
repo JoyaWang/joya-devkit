@@ -168,7 +168,7 @@ describe("Release Service distributionUrl auto-generation", () => {
       await handler(
         {
           projectKey: "infov",
-          runtimeEnv: "prd",
+          runtimeEnv: "prod",
           body: {
             ...baseReleaseBody,
             env: "prod",
@@ -198,7 +198,7 @@ describe("Release Service distributionUrl auto-generation", () => {
       await handler(
         {
           projectKey: "infov",
-          runtimeEnv: "prd",
+          runtimeEnv: "prod",
           body: {
             ...baseReleaseBody,
             env: "prod",
@@ -227,7 +227,7 @@ describe("Release Service distributionUrl auto-generation", () => {
       await handler(
         {
           projectKey: "infov",
-          runtimeEnv: "prd",
+          runtimeEnv: "prod",
           body: {
             ...baseReleaseBody,
             env: "prod",

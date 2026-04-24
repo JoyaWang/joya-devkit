@@ -111,9 +111,9 @@ async function main() {
   // Seed object_storage bindings by project + runtimeEnv
   for (const target of [
     { projectKey: "infov", runtimeEnv: "dev" },
-    { projectKey: "infov", runtimeEnv: "prd" },
+    { projectKey: "infov", runtimeEnv: "prod" },
     { projectKey: "laicai", runtimeEnv: "dev" },
-    { projectKey: "laicai", runtimeEnv: "prd" },
+    { projectKey: "laicai", runtimeEnv: "prod" },
   ] as const) {
     const config = resolveObjectStorageSeedConfig({
       projectKey: target.projectKey,

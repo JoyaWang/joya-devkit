@@ -57,7 +57,7 @@
 - 本轮“全量切换”仅指 release 相关读写全切到 shared-runtime-services：`upload -> complete -> release create -> latest/distributionUrl/download`。
 - 本轮不为 `dev` 保留 legacy fallback 或兼容分支，目标是让问题直接暴露在 shared-runtime-services 接入链路上。
 - 本轮不扩到用户头像、用户图片/媒体、业务中的发布需求图片、私有文档等非 release 对象域。
-- `prd` 与现网 legacy 下载合同不在本轮范围内。
+- `prod` 与现网 legacy 下载合同不在本轮范围内。
 
 ### 流程 5: iOS Release 发布
 1. GitHub Actions 构建 IPA。

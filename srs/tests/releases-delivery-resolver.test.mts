@@ -158,7 +158,7 @@ describe("Release Service using DeliveryPolicyResolver", () => {
       await handler(
         {
           projectKey: "infov",
-          runtimeEnv: "prd",
+          runtimeEnv: "prod",
           body: {
             ...baseReleaseBody,
             env: "prod",
@@ -181,7 +181,7 @@ describe("Release Service using DeliveryPolicyResolver", () => {
       await handler(
         {
           projectKey: "infov",
-          runtimeEnv: "prd",
+          runtimeEnv: "prod",
           body: {
             ...baseReleaseBody,
             env: "prod",
@@ -201,7 +201,7 @@ describe("Release Service using DeliveryPolicyResolver", () => {
       await handler(
         {
           projectKey: "infov",
-          runtimeEnv: "prd",
+          runtimeEnv: "prod",
           body: {
             ...baseReleaseBody,
             env: "prod",

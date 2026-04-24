@@ -48,7 +48,7 @@
 - **规则**：凡是共享运行时引入协议层状态机后，测试必须按错误语义逐类覆盖，不能只测一个模糊的失败场景
 
 ### 2026-04-09: 仅按 projectKey 路由不够，多环境必须进入正式协议
-- **问题**：首轮项目协议层虽然解决了“不同项目命中不同 bucket”，但仍默认同一项目只有一条 object_storage binding，无法覆盖 dev / prd 各自不同 bucket 的真实生产形态
+- **问题**：首轮项目协议层虽然解决了”不同项目命中不同 bucket”，但仍默认同一项目只有一条 object_storage binding，无法覆盖 dev / prod 各自不同 bucket 的真实生产形态
 - **根因**：把环境维度留在 objectKey 或请求体里，却没有进入 binding 真相源与认证真相源，导致资源路由仍然不完整
 - **解法**：将正式协议升级为 `projectKey + runtimeEnv + serviceType`，并把 `runtimeEnv` 纳入 token 解析、binding 唯一键、resolver、factory cache key 与 E2E 覆盖
 - **规则**：以后任何共享运行时服务只要涉及不同环境命中不同底层资源，必须把环境维度写进正式协议层，不能只在请求体或命名约定里临时携带
@@ -60,9 +60,9 @@
 - **规则**：以后共享运行时的协议层字段升级只要碰到存量数据，就优先设计 non-destructive migration path，禁止为了省事直接 reset 本地数据库
 
 ### 2026-04-09: binding 更新后，运行中的 adapter cache 不是自动刷新的
-- **问题**：把 `laicai/prd` 的 bucket 从 dev 桶改为真实 prd 桶并重新 seed 后，首轮 E2E 仍继续命中旧 dev bucket，看起来像协议路由失败
+- **问题**：把 `laicai/prod` 的 bucket 从 dev 桶改为真实 prod 桶并重新 seed 后，首轮 E2E 仍继续命中旧 dev bucket，看起来像协议路由失败
 - **根因**：真正的问题不是 resolver 或 binding 查询错了，而是运行中的 API 进程已经通过 `ObjectStorageAdapterFactory` 缓存了旧 adapter；数据库 binding 更新不会自动让进程内 cache 失效
-- **解法**：确认 seed 成功后，重启 API 进程并重新执行 E2E；重启后 `laicai/prd` 立即命中真实 prd bucket，59/59 断言通过
+- **解法**：确认 seed 成功后，重启 API 进程并重新执行 E2E；重启后 `laicai/prod` 立即命中真实 prod bucket，59/59 断言通过
 - **规则**：以后共享运行时只要采用进程内 adapter/cache 复用，任何 binding/provider 配置变更验证前都必须显式刷新进程或提供 cache invalidation 机制，不能默认认为“改库后运行中实例会自动拿到新配置”
 
 ### 2026-04-10: Worker 型容器必须显式保持事件循环活跃
@@ -86,8 +86,8 @@
 ### 2026-04-16: admin-platform 是唯一环境配置真相源，禁止在下游写死 fallback
 - **问题**：`cloudbaserc.json` 中被直接写入了 `PROJECT_KEY: "laicai"` 和 `SRS_API_URL`/`SRS_PUBLIC_DOMAIN`/`SRS_SERVICE_TOKEN` 的静态值，绕过了 `pull-infra-env.js` 的统一拉取机制
 - **根因**：admin-platform 的 `infra_env_bundle` Edge Function 默认返回里缺少 `PROJECT_KEY` 和 SRS 占位字段，导致为了快速修复直接在 Laicai backend 写死配置
-- **解法**：在 admin-platform `DEFAULT_RUNTIME_CONFIG_BY_ENV` 的 dev/stg/prd 中加入 `PROJECT_KEY`、`SRS_API_URL`、`SRS_PUBLIC_DOMAIN`、`SRS_SERVICE_TOKEN` 默认值占位；重新部署 `infra_env_bundle` Edge Function；将 `cloudbaserc.json` 改回 `{{env.XXX}}` 占位符；移除 `pull-infra-env.js` 中特殊注入 `PROJECT_KEY` 的 workaround
-- **规则**：任何共享运行时/业务项目的 env 配置必须通过 admin-platform Infra bundle 注入，禁止在 `cloudbaserc.json`、workflow 或脚本中写死环境相关常量 → 已写入 `progress.md`
+- **解法**：在 admin-platform `DEFAULT_RUNTIME_CONFIG_BY_ENV` 的 dev/stg/prod 中加入 `PROJECT_KEY`、`SRS_API_URL`、`SRS_PUBLIC_DOMAIN`、`SRS_SERVICE_TOKEN` 默认值占位；重新部署 `infra_env_bundle` Edge Function；将 `cloudbaserc.json` 改回 `{{env.XXX}}` 占位符；移除 `pull-infra-env.js` 中特殊注入 `PROJECT_KEY` 的 workaround
+- **规则**：任何共享运行时/业务项目的 env 配置必须通过 Vault / Infisical Vault 注入；`admin-platform Infra` / `runtime_config` / `secret_values` 为历史字段/迁移期 mirror，不得作为 canonical 真相源。禁止在 `cloudbaserc.json`、workflow 或脚本中写死环境相关常量 → 已写入 `progress.md`
 
 ### 2026-04-16: SRS Object Service 协议层新增必填字段时，必须同步检查所有转发层和 E2E 调用方
 - **问题**：SRS `upload-requests` 校验新增 `fileKind` 必填后，Laicai 的 Flutter E2E 测试通过 CloudBase `storage` 函数转发时返回 500，但直接 curl SRS 是通的

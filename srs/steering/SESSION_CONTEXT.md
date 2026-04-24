@@ -20,14 +20,19 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Current Slice
 - Phase: `shared-delivery-plane`
-- Status: **shared COS 配置收口进行中** — 文档合同、seed resolver、deploy workflow、API runtime seed 入口与 focused 测试已统一到 `SHARED_COS_*`
+- Status: **shared COS 配置收口 + dev public ingress 修复完成** — 文档合同、seed resolver、deploy workflow、API runtime seed 入口与 focused 测试已统一到 `SHARED_COS_*`；`dl-dev` 已恢复稳定 302
 - Active slice: `shared-cos-config-closure`
-- Latest checkpoint: 已确认 Vault 历史漂移真实存在（dev/prod 均缺 `SHARED_COS_*`，且 `LAICAI_COS_BUCKET` 仍指向项目桶）；现已把 `SHARED_COS_*` 写回 Infisical dev/prod，且本地验证 `headBucket` 命中 dev/prd 共享桶成功
+- Latest checkpoint: 已确认 Vault 历史漂移真实存在（dev/prod 均缺 `SHARED_COS_*`，且 `LAICAI_COS_BUCKET` 仍指向项目桶）；现已把 `SHARED_COS_*` 写回 Infisical dev/prod，且本地验证 `headBucket` 命中 dev/prod 共享桶成功。同时已完成 `dl-dev` 收口：同一 laicai dev objectKey 现可经公网 `dl-dev` 返回 `302 -> origin-dev`，根因锁定为 shared dev server 缺失 `dl-dev.infinex.cn` Nginx vhost，且 CDN 回源协议 / 端口 / Host 曾未对齐；dev shared server 已新增 `/etc/nginx/sites-available/dl-dev.infinex.cn`，CDN 已收口到 `119.29.221.161:80` + Host `dl-dev.infinex.cn`
 - 已通过的验证：
   - `pnpm exec vitest run tests/seed-projects-config.test.mts` → 3/3 ✅
   - `pnpm run build:seed` → 通过 ✅
   - `scripts/check-runtime-env.sh srs/infra/env.runtime`（dev / prod）→ 通过 ✅
   - `SHARED_COS_*` dev/prod `headBucket` → 共享桶存在且可访问 ✅
+  - `curl -I https://dl-dev.infinex.cn/{objectKey}` → `302 Found`，`Location: https://origin-dev.infinex.cn/{objectKey}` ✅
+  - `curl -I https://origin-dev.infinex.cn/{objectKey}` → `200 OK` ✅
+  - `vault SSH -> curl -I -H 'Host: dl-dev.infinex.cn' http://127.0.0.1/{objectKey}` → `302 Found` ✅
+  - GitHub Actions `Deploy to Dev` run `24873253269` → `success`，`Deploy via SSH` 通过 ✅
+  - `curl https://srs-dev.infinex.cn/health` → `{"status":"ok"...}` ✅
 
 ## Locked Decisions
 - shared-runtime-services 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
@@ -38,26 +43,26 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - 测试框架：Vitest；命令：pnpm test / pnpm test:watch；类型检查：pnpm typecheck。
 - `feedback/version 收编到 SRS + admin-platform 退回 control plane + 逐步去 Supabase 化` 的 runtime 已初始化；当前首个自治任务 `ops_release_register -> SRS` 已完成并验收通过。
 - `dl-dev.infinex.cn` / `dl.infinex.cn` 的长期角色是环境级共享公共分发入口，不应继续作为单一项目 bucket 的长期别名。
-- **存储架构**：所有项目共享 2 个物理桶（dev / prd），按 objectKey 前缀逻辑隔离（`{projectKey}/{env}/...`）。
+- **存储架构**：所有项目共享 2 个物理桶（dev / prod），按 objectKey 前缀逻辑隔离（`{projectKey}/{env}/...`）。
 - **启动自检**：API 启动时验证所有 bindings 都有对应 active manifests，不一致则报警但不阻塞启动。
 - **Seed 安全**：seed-projects.ts 执行时先检查 manifests 是否存在，不存在则创建，保证幂等性。
 
 ## Next Default Action
-1. 触发 dev / prod deploy，使 workflow 使用新 `SHARED_COS_*` + canonical seed 入口重写 `project_service_bindings`
-2. deploy 后确认 API 已重启并清空 `ObjectStorageAdapterFactory` cache
-3. 复测 `dl-dev.infinex.cn` 真实 objectKey；若仍 404，继续查 `object_storage_locations` 与 `headObject` 链路
-4. 再决定是否清理 Vault 旧 `COS_* / INFOV_* / LAICAI_*` 遗留键
+1. 将 dev shared server 的 `dl-dev.infinex.cn` vhost 与 CDN 回源设置沉淀到 infra baseline / 操作手册，避免手工配置再次漂移
+2. 以本次 dev deploy 成功结果为基线，补一次 prod deploy / 抽检，确认 `SHARED_COS_*` canonical seed 闭环双环境一致
+3. 根据稳定结果再决定是否清理 Vault 旧 `COS_* / INFOV_* / LAICAI_*` 遗留键
+4. 若 `Deploy via SSH` 再次偶发失败，再回捞远端 `deploy.log` 与 Actions step raw log 做根因固化
 
 ## Blockers / Watchouts
-- ~~**prd SRS 配置缺失**~~ → **已补齐**（2026-04-21）：`SRS_API_URL=https://srs.infinex.cn`、`SRS_SERVICE_TOKEN=prd-token-laicai`
-- 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；guardrails 已回绿，但删库重跑后仍需复验长期机制。
-- prd 当前 blocker 已明确为 Prisma `P3005`：旧库非空且 migration 历史未 baseline；本轮不走 baseline，按用户授权直接重置 dev + prd 数据库。
-- Laicai binding 已切换到共享桶（dev: `shared-storage-dev-1321178972`，prd: `shared-storage-1321178972`），downloadDomain 已配（dev: `origin-dev.infinex.cn`，prd: `origin.infinex.cn`）。
-- Runtime object storage canonical env keys 已锁定为 `SHARED_COS_BUCKET / SHARED_COS_REGION / SHARED_COS_SECRET_ID / SHARED_COS_SECRET_KEY / SHARED_COS_DOWNLOAD_DOMAIN`；dev/prd 差异只由 Infisical environment 区分，`SHARED_DEV_*` / `SHARED_PRD_*` / `INFOV_*` / `LAICAI_*` / legacy `COS_*` 不再是 seed 正式输入源。
+- 旧 blocker `24868683261 / Deploy via SSH` 已由重跑 `24873253269` 成功暂时解除；当前未复现固定脚本故障，更像一次性环境 / 远端状态波动，后续仍需观察是否偶发。
+- 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；本次 deploy 成功说明 pre-clean + 构建链路可工作，但仍需继续复验长期机制。
+- 当前主要 watchout：`dl-dev` 现阶段依赖 CDN 回源 `119.29.221.161:80` + Host `dl-dev.infinex.cn`；若要切回 HTTPS 回源，需先补源站 `dl-dev.infinex.cn` 证书。
+- Laicai binding 已切换到共享桶（dev: `shared-storage-dev-1321178972`，prod: `shared-storage-1321178972`），downloadDomain 已配（dev: `origin-dev.infinex.cn`，prod: `origin.infinex.cn`）。
+- Runtime object storage canonical env keys 已锁定为 `SHARED_COS_BUCKET / SHARED_COS_REGION / SHARED_COS_SECRET_ID / SHARED_COS_SECRET_KEY / SHARED_COS_DOWNLOAD_DOMAIN`；dev/prod 差异只由 Infisical environment 区分，`SHARED_DEV_*` / `SHARED_PRD_*` / `INFOV_*` / `LAICAI_*` / legacy `COS_*` 不再是 seed 正式输入源。
 - CDN `origin.infinex.cn` 和 `origin-dev.infinex.cn` 已确认关闭「私有存储桶访问」，回源协议 HTTPS。
 - ObjectStorageAdapterFactory 按进程内 cache 复用 adapter；binding 变更后需重启 API。
 - Laicai CI workflow 已接入 SRS（`app-release.yml` 已合并 main，`feat/srs-release-integration` 已删除）。旧 workflow（`production-android`、`production-ios`、`auto-release-after-fix`、`preview`）已删除。
-- SRS release route 和 delivery resolver 已修复 `prd` env 别名：`VALID_ENVS` 加 `prd`，resolver 自动映射 `prd → prod` 域名。
+- SRS release route 和 delivery resolver 已修复 `prod` env 兼容：`VALID_ENVS` 包含 `prod`，resolver 自动映射环境别名到对应域名。
 
 ## Key Files
 - `steering/PRD.md`

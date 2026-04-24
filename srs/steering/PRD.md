@@ -107,7 +107,7 @@
 - dev 路径直接以 shared-runtime-services 为唯一真相源，不做 fallback，不兼容 legacy
 
 ### Out Of Scope
-- `prd` 环境
+- `prod` 环境
 - 用户头像、用户上传图片 / 媒体
 - 业务中的发布需求图片
 - 私有文档 / 附件与其他非 release 对象域
@@ -119,7 +119,7 @@
 - Android `dev` 发布产物可完成 `upload -> complete -> release create -> latest/distributionUrl 消费` 的闭环
 - `dev` 运行路径不再依赖 legacy backend 真相源
 - 问题应直接暴露在 shared-runtime-services 接入链路上，而不是被兼容层掩盖
-- `prd` 与现网正式下载路径不受本轮切片影响
+- `prod` 与现网正式下载路径不受本轮切片影响
 
 ## MVP 明确排除的功能
 - 完整的 AI Service Layer

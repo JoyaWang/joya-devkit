@@ -1,0 +1,45 @@
+{
+  "verifiedAt": "2026-04-24T12:48:49+08:00",
+  "previousReport": "test-reports/2026-04-24_11-02_laicai-dev-self-upload-chain.md",
+  "objectKey": "laicai/dev/android/release/chaintest-node-full-20260424/apk/2026/04/71008997-61d5-4726-8f3d-221f1b1e43b0-laicai-chain-test-20260424.apk",
+  "distributionUrl": "https://dl-dev.infinex.cn/laicai/dev/android/release/chaintest-node-full-20260424/apk/2026/04/71008997-61d5-4726-8f3d-221f1b1e43b0-laicai-chain-test-20260424.apk",
+  "originUrl": "https://origin-dev.infinex.cn/laicai/dev/android/release/chaintest-node-full-20260424/apk/2026/04/71008997-61d5-4726-8f3d-221f1b1e43b0-laicai-chain-test-20260424.apk",
+  "steps": {
+    "public_dl_dev_head": {
+      "status": 302,
+      "headers": {
+        "server": "nginx/1.18.0 (Ubuntu)",
+        "location": "https://origin-dev.infinex.cn/laicai/dev/android/release/chaintest-node-full-20260424/apk/2026/04/71008997-61d5-4726-8f3d-221f1b1e43b0-laicai-chain-test-20260424.apk",
+        "x-cache-lookup": "Cache Miss",
+        "cache-control": "no-store"
+      }
+    },
+    "origin_dev_head": {
+      "status": 200,
+      "headers": {
+        "server": "tencent-cos",
+        "content-type": "application/vnd.android.package-archive",
+        "content-length": "43",
+        "etag": "\"8109fa3bd0fbd63b46c13c25e4cfd1f9\""
+      }
+    },
+    "source_server_host_head": {
+      "status": 302,
+      "headers": {
+        "server": "nginx/1.18.0 (Ubuntu)",
+        "location": "https://origin-dev.infinex.cn/laicai/dev/android/release/chaintest-node-full-20260424/apk/2026/04/71008997-61d5-4726-8f3d-221f1b1e43b0-laicai-chain-test-20260424.apk",
+        "cache-control": "no-store"
+      },
+      "note": "Validated on dev shared server via vault SSH using curl -I -H 'Host: dl-dev.infinex.cn' http://127.0.0.1/{objectKey}"
+    }
+  },
+  "rootCause": {
+    "entry": "dl-dev public ingress misconfiguration",
+    "details": [
+      "shared dev server originally lacked nginx vhost for dl-dev.infinex.cn",
+      "CDN origin path then showed 502 due to source TLS certificate mismatch",
+      "after switching CDN to HTTP, public traffic still returned 400 until origin port 80 and Host were aligned to dl-dev.infinex.cn"
+    ]
+  },
+  "finalState": "PASS"
+}
