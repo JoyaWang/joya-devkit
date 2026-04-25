@@ -9,11 +9,19 @@ on:
         default: false
         type: boolean
   push:
-    branches: [main]
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
 
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
+    environment: dev
     timeout-minutes: 20
 
     steps:
@@ -32,43 +40,9 @@ jobs:
       - name: Fetch secrets from Vault
         env:
           VAULT_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_DEV }}
-        run: |
-          python3 - <<'PYEOF'
-          import json, os, urllib.request
-
-          token = os.environ["VAULT_TOKEN"]
-          pid = "3d835c43-59e7-4b4f-bf98-466f5585fe53"
-          url = "https://vault.infinex.cn/api"
-          env = "dev"
-          paths = ["/", "/BE/runtime"]
-
-          secrets_map = {}
-          for secret_path in paths:
-              api = f"{url}/v3/secrets/raw?workspaceId={pid}&environment={env}&secretPath={secret_path}"
-              req = urllib.request.Request(api, headers={"Authorization": f"Bearer {token}"})
-              try:
-                  with urllib.request.urlopen(req) as resp:
-                      data = json.loads(resp.read())
-                      for item in data.get("secrets", []):
-                          key = item.get("secretKey") or item.get("key")
-                          value = item.get("secretValue") or item.get("value")
-                          if key is not None:
-                              secrets_map[key] = str(value)
-              except Exception as exc:
-                  print(f"Warning: failed to fetch {secret_path}: {exc}")
-
-          lines = []
-          for key, value in secrets_map.items():
-              if "\n" in value:
-                  lines.append(f'{key}="{value}"')
-              else:
-                  lines.append(f"{key}={value}")
-
-          with open("env.runtime", "w") as f:
-              f.write("\n".join(lines) + "\n")
-
-          print(f"Wrote {len(secrets_map)} secrets to env.runtime")
-          PYEOF
+          INFISICAL_PROJECT_ID_JOYA_DEVKIT: 3d835c43-59e7-4b4f-bf98-466f5585fe53
+          OUTPUT_PATH: env.runtime
+        run: bash scripts/gen-env-runtime.sh dev
 
       - name: Upload .env.runtime to server
         uses: appleboy/scp-action@v0.1.7
@@ -89,91 +63,10 @@ jobs:
           command_timeout: 20m
           script: |
             set -euo pipefail
-
-            PROJECT_DIR="/home/ubuntu/apps/joya-devkit"
-            BRANCH="main"
-            LOG_FILE="$PROJECT_DIR/deploy.log"
-            MIN_FREE_KB=$((5 * 1024 * 1024))
-            FORCE_NO_CACHE="${{ github.event.inputs.force_no_cache || 'false' }}"
-            BUILD_FLAGS=""
-            if [ "$FORCE_NO_CACHE" = "true" ]; then
-              BUILD_FLAGS="--no-cache"
-            fi
-            mkdir -p /tmp >/dev/null 2>&1 || true
-            : >> "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/shared-runtime-services-deploy.log"
-
-            echo "=== Dev deploy started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
-            echo "[INFO] Disk usage before cleanup" | tee -a $LOG_FILE
-            df -h / | tee -a $LOG_FILE
-            echo "[INFO] Docker usage before cleanup" | tee -a $LOG_FILE
-            docker system df 2>&1 | tee -a $LOG_FILE || true
-            echo "[INFO] Running docker cleanup" | tee -a $LOG_FILE
-            docker image prune -af 2>&1 | tee -a $LOG_FILE || true
-            docker builder prune -af 2>&1 | tee -a $LOG_FILE || true
-            echo "[INFO] Disk usage after cleanup" | tee -a $LOG_FILE
-            df -h / | tee -a $LOG_FILE
-            echo "[INFO] Docker usage after cleanup" | tee -a $LOG_FILE
-            docker system df 2>&1 | tee -a $LOG_FILE || true
-            FREE_KB=$(df -Pk / | awk 'NR==2 {print $4}')
-            if [ -z "$FREE_KB" ] || [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
-              echo "[FAIL] Free disk below threshold after cleanup: ${FREE_KB:-unknown} KB (< $MIN_FREE_KB KB)" | tee -a $LOG_FILE
-              exit 1
-            fi
-            echo "[OK] Free disk after cleanup: $FREE_KB KB" | tee -a $LOG_FILE
-
-            # 1. Pull latest code
-            cd $PROJECT_DIR
-            git fetch origin $BRANCH
-            git reset --hard origin/$BRANCH
-            echo "[OK] Code pulled" | tee -a $LOG_FILE
-
-            # 2. Validate runtime env (uploaded by previous SCP step)
-            RUNTIME_ENV="$PROJECT_DIR/srs/infra/env.runtime"
-            if [ ! -f "$RUNTIME_ENV" ]; then
-              echo "[FAIL] Missing env.runtime — Vault secrets not deployed" | tee -a $LOG_FILE
-              exit 1
-            fi
-            bash scripts/check-runtime-env.sh "$RUNTIME_ENV" 2>&1 | tee -a $LOG_FILE
-
-            # 3. Build images (default uses cache; set workflow input force_no_cache=true when needed)
-            docker compose -f srs/infra/docker-compose.yml build $BUILD_FLAGS api worker 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Build complete (flags: ${BUILD_FLAGS:-none})" | tee -a $LOG_FILE
-
-            # 4. Restart api and worker (postgres/redis stay running)
-            docker compose -f srs/infra/docker-compose.yml up -d --no-deps --build api worker 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Services restarted" | tee -a $LOG_FILE
-
-            # 5. Run database migrations inside api container
-            docker compose -f srs/infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma' 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Migrations applied" | tee -a $LOG_FILE
-
-            # 5b. Seed project manifests and bindings via canonical seed entry
-            docker compose -f srs/infra/docker-compose.yml exec -T api node dist-seed/scripts/seed-projects.js 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Seed done" | tee -a $LOG_FILE
-
-            # 5c. Restart API after binding seed because ObjectStorageAdapterFactory caches adapters in-process
-            docker compose -f srs/infra/docker-compose.yml restart api 2>&1 | tee -a $LOG_FILE
-            echo "[OK] API restarted after seed" | tee -a $LOG_FILE
-
-            # 6. Health check
-            sleep 5
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3010/health || echo "000")
-            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-              echo "[OK] Health check passed (HTTP $HTTP_STATUS)" | tee -a $LOG_FILE
-            else
-              echo "[FAIL] Health check returned HTTP $HTTP_STATUS" | tee -a $LOG_FILE
-              docker compose -f srs/infra/docker-compose.yml logs api --tail 20 2>&1 | tee -a $LOG_FILE
-              exit 1
-            fi
-
-            # 7. Verify worker is running
-            WORKER_STATUS=$(docker compose -f srs/infra/docker-compose.yml ps worker --format json 2>/dev/null | grep -o '"Health":"[^"]*"' | head -1 || echo "unknown")
-            echo "[INFO] Worker status: $WORKER_STATUS" | tee -a $LOG_FILE
-
-            # 8. Clean up old images
-            docker image prune -f 2>&1 | tee -a $LOG_FILE
-
-            echo "=== Dev deploy finished at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
+            cd /home/ubuntu/apps/joya-devkit
+            git fetch origin dev
+            git reset --hard origin/dev
+            bash srs/scripts/deploy-remote-ssh.sh dev --force-no-cache "${{ github.event.inputs.force_no_cache || 'false' }}"
 
       - name: Cleanup local secrets artifact
         if: always()

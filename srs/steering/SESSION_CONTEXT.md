@@ -12,7 +12,9 @@ It should stay short and answer:
 Do not turn this file into a dated work log. Detailed history belongs in `progress.md`.
 
 ## Project Positioning
-`shared-runtime-services` 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 及后续活跃项目，统一承载 Object Service、Release Service 与 Shared Delivery Plane。`admin-platform` 是控制面，不是 runtime 真相源。真相源围绕 `projectKey + runtimeEnv + serviceType`。
+`joya-devkit` 是 Joya 统一开发工具库：Flutter SDK + Shared Runtime Services（SRS）。
+- 根目录 `steering/` 为 joya-devkit 总合同；`srs/steering/` 为 SRS 模块级合同。
+- SRS 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 及后续活跃项目，统一承载 Object Service、Release Service 与 Shared Delivery Plane。`admin-platform` 是控制面，不是 runtime 真相源。真相源围绕 `projectKey + runtimeEnv + serviceType`。
 
 ## Current Mode
 - Mode: `autonomous`（`.agent/runtime/tasks.json` 已初始化，作为 loop 真相源）
@@ -35,7 +37,8 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
   - `curl https://srs-dev.infinex.cn/health` → `{"status":"ok"...}` ✅
 
 ## Locked Decisions
-- shared-runtime-services 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
+- joya-devkit 是 Joya 统一开发工具库：Flutter SDK + Shared Runtime Services（SRS）。
+- SRS 是多个业务项目共用的共享运行时服务底座，面向 InfoV、Laicai 与后续活跃项目。
 - 当前核心范围是统一 Object Service / Release Service / Shared Delivery Plane；admin-platform 是控制面，不是 runtime 真相源。
 - 真相源围绕 projectKey + runtimeEnv + serviceType。
 - provider-neutral、delivery plane 与 provider plane 分层是长期核心原则。
@@ -55,7 +58,7 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Blockers / Watchouts
 - 旧 blocker `24868683261 / Deploy via SSH` 已由重跑 `24873253269` 成功暂时解除；当前未复现固定脚本故障，更像一次性环境 / 远端状态波动，后续仍需观察是否偶发。
-- 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；本次 deploy 成功说明 pre-clean + 构建链路可工作，但仍需继续复验长期机制。
+- 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；本次 deploy 成功说明 pre-clean + 构建链路可工作。定时 Docker cleanup 已从 GitHub-hosted runner SSH 改为服务器本机 cron：`/opt/joya-governance/bin/joya-devkit-docker-cleanup.sh`。
 - 当前主要 watchout：`dl-dev` 现阶段依赖 CDN 回源 `119.29.221.161:80` + Host `dl-dev.infinex.cn`；若要切回 HTTPS 回源，需先补源站 `dl-dev.infinex.cn` 证书。
 - Laicai binding 已切换到共享桶（dev: `shared-storage-dev-1321178972`，prod: `shared-storage-1321178972`），downloadDomain 已配（dev: `origin-dev.infinex.cn`，prod: `origin.infinex.cn`）。
 - Runtime object storage canonical env keys 已锁定为 `SHARED_COS_BUCKET / SHARED_COS_REGION / SHARED_COS_SECRET_ID / SHARED_COS_SECRET_KEY / SHARED_COS_DOWNLOAD_DOMAIN`；dev/prod 差异只由 Infisical environment 区分，`SHARED_DEV_*` / `SHARED_PRD_*` / `INFOV_*` / `LAICAI_*` / legacy `COS_*` 不再是 seed 正式输入源。
