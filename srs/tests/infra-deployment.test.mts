@@ -18,6 +18,15 @@ function readFileContent(relativePath: string): string {
   return readFileSync(fullPath, "utf-8");
 }
 
+function readRepoFileContent(relativePath: string): string {
+  const fullPath = resolve(ROOT_DIR, "..", relativePath);
+  return readFileSync(fullPath, "utf-8");
+}
+
+function lineIndex(content: string, needle: string): number {
+  return content.split("\n").findIndex((line) => line.includes(needle));
+}
+
 /**
  * Parse Dockerfile into array of instructions
  */
@@ -37,6 +46,20 @@ function extractRunInstructions(content: string): string[] {
     .filter((line) => line.startsWith("RUN "))
     .map((line) => line.slice(4).trim());
 }
+
+describe("GitHub deploy workflows - checkout before repository scripts", () => {
+  for (const workflowPath of [".github/workflows/deploy.yml", ".github/workflows/deploy-dev.yml"]) {
+    it(`${workflowPath} MUST checkout repository before calling scripts/gen-env-runtime.sh`, () => {
+      const workflow = readRepoFileContent(workflowPath);
+      const checkoutIndex = lineIndex(workflow, "uses: actions/checkout@v4");
+      const genEnvIndex = lineIndex(workflow, "bash scripts/gen-env-runtime.sh");
+
+      expect(checkoutIndex).toBeGreaterThanOrEqual(0);
+      expect(genEnvIndex).toBeGreaterThanOrEqual(0);
+      expect(checkoutIndex).toBeLessThan(genEnvIndex);
+    });
+  }
+});
 
 describe("Dockerfile.api - workspace manifests", () => {
   const dockerfile = readFileContent("infra/Dockerfile.api");

@@ -12,6 +12,11 @@
 
 ## 日期日志
 
+### 2026-04-25（prod 部署链路 checkout 修复）
+- [x] 真实 prod deploy 失败暴露 `.github/workflows/deploy.yml` 在调用 `scripts/gen-env-runtime.sh` 前未 checkout repo，GitHub-hosted runner 因缺少工作区脚本报 `bash: scripts/gen-env-runtime.sh: No such file or directory`。
+- [x] 按 TDD 补 `srs/tests/infra-deployment.test.mts` workflow contract：`deploy.yml` 与 `deploy-dev.yml` 必须在调用 `scripts/gen-env-runtime.sh` 前执行 `actions/checkout@v4`。
+- [x] `.github/workflows/deploy.yml` 与 `.github/workflows/deploy-dev.yml` 已补 checkout；定向 Vitest contract 通过。
+
 ### 2026-04-24（Batch 2 脚本与 CI 编排）
 - [x] `scripts/gen-env-runtime.sh` 增强为本地 + CI 双模式：CI 可用 `VAULT_TOKEN` 与 `OUTPUT_PATH=env.runtime` 生成上传 artifact，本地继续回退 `~/.joya/vault/.env`。
 - [x] 新增 `scripts/docker-cleanup.sh`，统一 Docker image / builder cache cleanup；`--full` 额外清理 container / network。
