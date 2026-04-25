@@ -63,7 +63,7 @@ describe("GitHub deploy workflows - secure Laicai service token rotation", () =>
 
     expect(script).toContain("laicai:prod");
     expect(script).toContain("https://vault.infinex.cn/api");
-    expect(script).toContain("/v4/secrets/{SERVICE_TOKENS_KEY}");
+    expect(script).toContain("/v3/secrets/raw/{SERVICE_TOKENS_KEY}");
     expect(script).toContain("LAICAI_SRS_SERVICE_TOKEN_ROTATION");
     expect(script).toContain("new_token = require_env(ROTATION_ENV_KEY)");
     expect(script).not.toContain("print(new_token");

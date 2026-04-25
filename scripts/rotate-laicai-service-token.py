@@ -154,7 +154,7 @@ def persist_service_tokens_to_vault(
     rotated_service_tokens: str,
 ) -> None:
     payload = {
-        "projectId": project_id,
+        "workspaceId": project_id,
         "environment": env,
         "secretPath": secret_path,
         "secretValue": rotated_service_tokens,
@@ -163,16 +163,17 @@ def persist_service_tokens_to_vault(
         "secretComment": "Rotate laicai:prod SRS service token via GitHub Actions",
     }
 
+    # Self-hosted Vault currently exposes the v3 raw secret API used by gen-env-runtime.sh.
     status, _ = infisical_request(
         "PATCH",
-        f"/v4/secrets/{SERVICE_TOKENS_KEY}",
+        f"/v3/secrets/raw/{SERVICE_TOKENS_KEY}",
         vault_token,
         payload,
     )
     if status == 404:
         status, _ = infisical_request(
             "POST",
-            f"/v4/secrets/{SERVICE_TOKENS_KEY}",
+            f"/v3/secrets/raw/{SERVICE_TOKENS_KEY}",
             vault_token,
             payload,
         )
