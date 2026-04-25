@@ -84,6 +84,13 @@ describe("GitHub deploy workflows - checkout before repository scripts", () => {
     });
   }
 
+  it("production deploy MUST be manual while image-bundle SCP is experimental", () => {
+    const workflow = readRepoFileContent(".github/workflows/deploy.yml");
+
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).not.toContain("branches: [main]");
+  });
+
   it("production deploy MUST NOT require the remote server to connect to GitHub", () => {
     const workflow = readRepoFileContent(".github/workflows/deploy.yml");
 
@@ -104,6 +111,21 @@ describe("GitHub deploy workflows - checkout before repository scripts", () => {
     expect(fetchIndex).toBeGreaterThanOrEqual(0);
     expect(deployScriptIndex).toBeGreaterThanOrEqual(0);
     expect(fetchIndex).toBeLessThan(deployScriptIndex);
+  });
+});
+
+describe("GitHub deploy workflows - restart only", () => {
+  it("production restart workflow MUST refresh env.runtime and restart api/worker without GitHub, image upload, or build", () => {
+    const workflow = readRepoFileContent(".github/workflows/restart-prod.yml");
+
+    expect(workflow).toContain("name: Restart Production SRS");
+    expect(workflow).toContain("bash scripts/gen-env-runtime.sh prod");
+    expect(workflow).toContain("source: \"env.runtime\"");
+    expect(workflow).toContain("target: \"/home/ubuntu/apps/joya-devkit/srs/infra/\"");
+    expect(workflow).toContain("docker compose -f srs/infra/docker-compose.yml up -d --no-deps api worker");
+    expect(workflow).not.toContain("git fetch");
+    expect(workflow).not.toContain("docker build");
+    expect(workflow).not.toContain("srs-images");
   });
 });
 

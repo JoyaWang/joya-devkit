@@ -1,0 +1,65 @@
+name: Restart Production SRS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restart-prod-srs
+  cancel-in-progress: false
+
+jobs:
+  restart-prod:
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch secrets from Vault
+        env:
+          VAULT_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_PROD }}
+          INFISICAL_PROJECT_ID_JOYA_DEVKIT: 3d835c43-59e7-4b4f-bf98-466f5585fe53
+          OUTPUT_PATH: env.runtime
+        run: bash scripts/gen-env-runtime.sh prod
+
+      - name: Upload .env.runtime to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "env.runtime"
+          target: "/home/ubuntu/apps/joya-devkit/srs/infra/"
+          overwrite: true
+
+      - name: Restart SRS api and worker
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/apps/joya-devkit
+            bash scripts/check-runtime-env.sh srs/infra/env.runtime
+            docker compose -f srs/infra/docker-compose.yml up -d --no-deps api worker
+            docker compose -f srs/infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma'
+            docker compose -f srs/infra/docker-compose.yml exec -T api node dist-seed/scripts/seed-projects.js
+            docker compose -f srs/infra/docker-compose.yml restart api
+            sleep 5
+            http_status="$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3010/health || echo "000")"
+            if [ "$http_status" -lt 200 ] || [ "$http_status" -ge 300 ]; then
+              docker compose -f srs/infra/docker-compose.yml logs api --tail 40
+              echo "Health check failed: HTTP $http_status" >&2
+              exit 1
+            fi
+            echo "Health check passed: HTTP $http_status"
+
+      - name: Cleanup local secrets artifact
+        if: always()
+        run: rm -f env.runtime

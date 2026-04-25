@@ -2,8 +2,6 @@ name: Deploy to Production
 
 # main 是 release branch；日常开发默认分支为 dev。
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       rotate_laicai_service_token:
