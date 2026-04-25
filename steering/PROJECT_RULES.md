@@ -1,0 +1,1 @@
+/Users/joya/JoyaProjects/joya-devkit/srs/steering/PROJECT_RULES.md

@@ -1,0 +1,1 @@
+/Users/joya/JoyaProjects/joya-devkit/srs/steering/TECH_STACK.md

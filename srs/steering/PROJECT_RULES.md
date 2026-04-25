@@ -5,7 +5,9 @@
 > Do not repeat shared workflow rules, generic session rules, or generic doc-governance rules here.
 
 ## Project Summary
-`shared-runtime-services` - 面向多个业务项目的共享运行时服务底座。当前核心范围是统一 Object Service、Release Service，并已进入 feedback 收口切片：由 SRS 承接 feedback submission 真相源、GitHub issue 同步执行与 admin control plane 对接后端。
+`joya-devkit` - Joya 统一开发工具库：Flutter SDK + Shared Runtime Services（SRS）。
+- 根目录 `steering/` 为 joya-devkit 总合同；`srs/steering/` 为 SRS 模块级合同。
+- SRS 面向多个业务项目的共享运行时服务底座。当前核心范围是统一 Object Service、Release Service，并已进入 feedback 收口切片：由 SRS 承接 feedback submission 真相源、GitHub issue 同步执行与 admin control plane 对接后端。
 
 ## Scope And Boundaries
 - 本项目负责共享运行时 API、共享真相源、对象治理、版本登记与分发链接治理。
