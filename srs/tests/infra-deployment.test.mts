@@ -58,7 +58,30 @@ describe("GitHub deploy workflows - checkout before repository scripts", () => {
       expect(genEnvIndex).toBeGreaterThanOrEqual(0);
       expect(checkoutIndex).toBeLessThan(genEnvIndex);
     });
+
+    it(`${workflowPath} MUST retry remote git fetch before invoking deploy script`, () => {
+      const workflow = readRepoFileContent(workflowPath);
+      const fetchIndex = lineIndex(workflow, "git fetch origin");
+      const deployScriptIndex = lineIndex(workflow, "bash srs/scripts/deploy-remote-ssh.sh");
+
+      expect(workflow).toContain("retry_remote_git_update");
+      expect(workflow).toContain("for attempt in 1 2 3 4 5");
+      expect(fetchIndex).toBeGreaterThanOrEqual(0);
+      expect(deployScriptIndex).toBeGreaterThanOrEqual(0);
+      expect(fetchIndex).toBeLessThan(deployScriptIndex);
+    });
   }
+});
+
+describe("deploy-remote-ssh.sh - remote git fetch resilience", () => {
+  it("MUST retry git fetch/reset so transient GitHub TLS failures do not fail deploy immediately", () => {
+    const script = readRepoFileContent("srs/scripts/deploy-remote-ssh.sh");
+
+    expect(script).toContain("retry_git_update");
+    expect(script).toContain("for attempt in 1 2 3 4 5");
+    expect(script).toContain("git fetch origin \"$BRANCH\"");
+    expect(script).toContain("git reset --hard \"origin/$BRANCH\"");
+  });
 });
 
 describe("Dockerfile.api - workspace manifests", () => {

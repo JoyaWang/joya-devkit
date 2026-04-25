@@ -66,8 +66,21 @@ jobs:
           script: |
             set -euo pipefail
             cd /home/ubuntu/apps/joya-devkit
-            git fetch origin dev
-            git reset --hard origin/dev
+            retry_remote_git_update() {
+              local branch="$1"
+              for attempt in 1 2 3 4 5; do
+                if git fetch origin "$branch" && git reset --hard "origin/$branch"; then
+                  return 0
+                fi
+                if [ "$attempt" = "5" ]; then
+                  echo "ERROR: remote git update failed after ${attempt} attempts" >&2
+                  return 1
+                fi
+                echo "WARN: remote git update failed (attempt ${attempt}/5); retrying..." >&2
+                sleep $((attempt * 5))
+              done
+            }
+            retry_remote_git_update dev
             bash srs/scripts/deploy-remote-ssh.sh dev --force-no-cache "${{ github.event.inputs.force_no_cache || 'false' }}"
 
       - name: Cleanup local secrets artifact

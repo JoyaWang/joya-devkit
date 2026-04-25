@@ -82,11 +82,23 @@ check_disk_after_cleanup() {
   log "[OK] Free disk after cleanup: $free_kb KB"
 }
 
-pull_latest_code() {
+retry_git_update() {
   cd "$PROJECT_DIR"
-  git fetch origin "$BRANCH"
-  git reset --hard "origin/$BRANCH"
-  log "[OK] Code pulled"
+  for attempt in 1 2 3 4 5; do
+    if git fetch origin "$BRANCH" && git reset --hard "origin/$BRANCH"; then
+      log "[OK] Code pulled"
+      return 0
+    fi
+    if [ "$attempt" = "5" ]; then
+      fail "Code pull failed after ${attempt} attempts"
+    fi
+    log "[WARN] Code pull failed (attempt ${attempt}/5); retrying..."
+    sleep $((attempt * 5))
+  done
+}
+
+pull_latest_code() {
+  retry_git_update
 }
 
 validate_runtime_env() {

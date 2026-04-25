@@ -12,6 +12,12 @@
 
 ## 日期日志
 
+### 2026-04-25（SRS prod 部署远端 Git retry 修复）
+- [x] SRS prod deploy run `24928438596` 连续失败定位为远端服务器执行 `git fetch origin main` 时 GitHub TLS 瞬断：`GnuTLS recv error (-110)`，非应用代码失败。
+- [x] `.github/workflows/deploy.yml` 与 `.github/workflows/deploy-dev.yml` 的 SSH git 更新步骤改为 `retry_remote_git_update`，最多 5 次重试后才失败。
+- [x] `srs/scripts/deploy-remote-ssh.sh` 的 `pull_latest_code` 改为调用 `retry_git_update`，避免 workflow 已更新成功后脚本内部第二次裸 `git fetch` 仍因瞬断失败。
+- [x] 补 `tests/infra-deployment.test.mts` 合同测试覆盖 workflow 与 remote script 的 retry 要求；定向 Vitest 与 shell syntax 验证通过。
+
 ### 2026-04-25（SRS Object API legacy prd token mapping 修复）
 - [x] Laicai prod feedback synthetic 验证暴露 `POST /v1/objects/upload-requests` 返回 401；`/v1/feedback/client-settings` 免 auth 成功不能证明 Object API token 可用。
 - [x] 定位到 SRS `SERVICE_TOKENS` 历史映射可能仍使用 `project:prd`，而 Object binding seed 已使用 `project:prod`，导致 Object route 解析 runtimeEnv 后找不到 prod binding。
