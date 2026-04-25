@@ -12,6 +12,11 @@
 
 ## 日期日志
 
+### 2026-04-25（SRS Object API legacy prd token mapping 修复）
+- [x] Laicai prod feedback synthetic 验证暴露 `POST /v1/objects/upload-requests` 返回 401；`/v1/feedback/client-settings` 免 auth 成功不能证明 Object API token 可用。
+- [x] 定位到 SRS `SERVICE_TOKENS` 历史映射可能仍使用 `project:prd`，而 Object binding seed 已使用 `project:prod`，导致 Object route 解析 runtimeEnv 后找不到 prod binding。
+- [x] 按 TDD 为 `EnvTokenValidator` 增加 legacy `prd -> prod` 归一化：`tests/auth-runtime-env.test.mts` RED 后修复，定向 Vitest 与 SRS typecheck 通过。
+
 ### 2026-04-25（prod 部署链路 checkout 修复）
 - [x] 真实 prod deploy 失败暴露 `.github/workflows/deploy.yml` 在调用 `scripts/gen-env-runtime.sh` 前未 checkout repo，GitHub-hosted runner 因缺少工作区脚本报 `bash: scripts/gen-env-runtime.sh: No such file or directory`。
 - [x] 按 TDD 补 `srs/tests/infra-deployment.test.mts` workflow contract：`deploy.yml` 与 `deploy-dev.yml` 必须在调用 `scripts/gen-env-runtime.sh` 前执行 `actions/checkout@v4`。

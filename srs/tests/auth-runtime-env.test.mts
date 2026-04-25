@@ -18,4 +18,13 @@ describe("EnvTokenValidator runtime env behavior", () => {
 
     expect(result).toEqual({ valid: true, projectKey: "infov", runtimeEnv: "dev" });
   });
+
+  it("normalizes legacy prd runtime mappings to prod", async () => {
+    const validator = new EnvTokenValidator();
+    process.env.SERVICE_TOKENS = "prd-token-laicai=laicai:prd";
+
+    const result = await validator.validate("prd-token-laicai");
+
+    expect(result).toEqual({ valid: true, projectKey: "laicai", runtimeEnv: "prod" });
+  });
 });
