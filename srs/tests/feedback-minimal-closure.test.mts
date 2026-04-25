@@ -271,6 +271,9 @@ describe("feedback minimal closure routes", () => {
           username: "joya",
           attachments: [{ name: "a.png", url: "https://example.com/a.png" }],
           metadata: { route: "/profile" },
+          currentRoute: "/profile",
+          appVersion: "1.0.3",
+          buildNumber: "41",
         },
       },
       reply,
@@ -289,6 +292,9 @@ describe("feedback minimal closure routes", () => {
         githubSyncStatus: "pending",
         userId: "user_001",
         username: "joya",
+        currentRoute: "/profile",
+        appVersion: "1.0.3",
+        buildNumber: "41",
       }),
     });
     expect(mockPrisma.feedbackIssueOutbox.create).toHaveBeenCalledWith({
