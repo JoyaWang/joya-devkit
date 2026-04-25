@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      rotate_laicai_service_token:
+        description: "Rotate Laicai SRS service token from temporary GitHub secret into SRS Vault"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -40,6 +46,16 @@ jobs:
           INFISICAL_PROJECT_ID_JOYA_DEVKIT: 3d835c43-59e7-4b4f-bf98-466f5585fe53
           OUTPUT_PATH: env.runtime
         run: bash scripts/gen-env-runtime.sh prod
+
+      - name: Rotate Laicai SRS service token
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.rotate_laicai_service_token }}
+        env:
+          LAICAI_SRS_SERVICE_TOKEN_ROTATION: ${{ secrets.LAICAI_SRS_SERVICE_TOKEN_ROTATION }}
+          VAULT_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_PROD }}
+          INFISICAL_PROJECT_ID_JOYA_DEVKIT: 3d835c43-59e7-4b4f-bf98-466f5585fe53
+        run: |
+          set -euo pipefail
+          python3 scripts/rotate-laicai-service-token.py --env prod --env-file env.runtime
 
       - name: Upload .env.runtime to server
         uses: appleboy/scp-action@v0.1.7

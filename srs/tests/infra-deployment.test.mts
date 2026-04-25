@@ -47,6 +47,30 @@ function extractRunInstructions(content: string): string[] {
     .map((line) => line.slice(4).trim());
 }
 
+describe("GitHub deploy workflows - secure Laicai service token rotation", () => {
+  it("production workflow MUST rotate Laicai SERVICE_TOKENS from a temporary GitHub secret and persist it to Vault", () => {
+    const workflow = readRepoFileContent(".github/workflows/deploy.yml");
+
+    expect(workflow).toContain("rotate_laicai_service_token");
+    expect(workflow).toContain("LAICAI_SRS_SERVICE_TOKEN_ROTATION");
+    expect(workflow).toContain("scripts/rotate-laicai-service-token.py");
+    expect(workflow).not.toContain("service_tokens_override");
+    expect(workflow).not.toContain("SERVICE_TOKENS_OVERRIDE");
+  });
+
+  it("rotation script MUST target the laicai:prod mapping and Vault SERVICE_TOKENS secret without logging token values", () => {
+    const script = readRepoFileContent("scripts/rotate-laicai-service-token.py");
+
+    expect(script).toContain("laicai:prod");
+    expect(script).toContain("https://vault.infinex.cn/api");
+    expect(script).toContain("/v4/secrets/{SERVICE_TOKENS_KEY}");
+    expect(script).toContain("LAICAI_SRS_SERVICE_TOKEN_ROTATION");
+    expect(script).toContain("new_token = require_env(ROTATION_ENV_KEY)");
+    expect(script).not.toContain("print(new_token");
+    expect(script).not.toContain("print(rotated_service_tokens");
+  });
+});
+
 describe("GitHub deploy workflows - checkout before repository scripts", () => {
   for (const workflowPath of [".github/workflows/deploy.yml", ".github/workflows/deploy-dev.yml"]) {
     it(`${workflowPath} MUST checkout repository before calling scripts/gen-env-runtime.sh`, () => {
