@@ -4,16 +4,18 @@ set -euo pipefail
 TARGET_ENV="${1:-}"
 shift || true
 FORCE_NO_CACHE="false"
+SKIP_CODE_PULL="false"
 PROJECT_DIR="${PROJECT_DIR:-/home/ubuntu/apps/joya-devkit}"
 
 usage() {
   cat <<'USAGE'
-Usage: bash srs/scripts/deploy-remote-ssh.sh dev|prod [--force-no-cache true|false]
+Usage: bash srs/scripts/deploy-remote-ssh.sh dev|prod [--force-no-cache true|false] [--skip-code-pull]
 
 Run joya-devkit SRS deploy on remote server.
 
 Options:
   --force-no-cache true|false  Use --no-cache for Docker build. Defaults to false.
+  --skip-code-pull             Do not run git fetch/reset inside this script; caller already updated code.
   --help                       Show this help.
 USAGE
 }
@@ -28,6 +30,10 @@ while [[ $# -gt 0 ]]; do
     --force-no-cache)
       FORCE_NO_CACHE="${2:-false}"
       shift 2
+      ;;
+    --skip-code-pull)
+      SKIP_CODE_PULL="true"
+      shift
       ;;
     --help|-h)
       usage
@@ -98,6 +104,10 @@ retry_git_update() {
 }
 
 pull_latest_code() {
+  if [ "$SKIP_CODE_PULL" = "true" ]; then
+    log "[OK] Code pull skipped by caller"
+    return 0
+  fi
   retry_git_update
 }
 

@@ -92,7 +92,7 @@ jobs:
               done
             }
             retry_remote_git_update main
-            bash srs/scripts/deploy-remote-ssh.sh prod
+            bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull
 
       - name: Cleanup local secrets artifact
         if: always()

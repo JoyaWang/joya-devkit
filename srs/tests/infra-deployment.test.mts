@@ -106,6 +106,16 @@ describe("deploy-remote-ssh.sh - remote git fetch resilience", () => {
     expect(script).toContain("git fetch origin \"$BRANCH\"");
     expect(script).toContain("git reset --hard \"origin/$BRANCH\"");
   });
+
+  it("MUST allow GitHub Actions to skip the inner code pull after it already reset the remote checkout", () => {
+    const script = readRepoFileContent("srs/scripts/deploy-remote-ssh.sh");
+    const workflow = readRepoFileContent(".github/workflows/deploy.yml");
+
+    expect(script).toContain("--skip-code-pull");
+    expect(script).toContain("SKIP_CODE_PULL=\"true\"");
+    expect(script).toContain("[OK] Code pull skipped by caller");
+    expect(workflow).toContain("bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull");
+  });
 });
 
 describe("Dockerfile.api - workspace manifests", () => {
