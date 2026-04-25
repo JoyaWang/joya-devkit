@@ -82,19 +82,29 @@ describe("GitHub deploy workflows - checkout before repository scripts", () => {
       expect(genEnvIndex).toBeGreaterThanOrEqual(0);
       expect(checkoutIndex).toBeLessThan(genEnvIndex);
     });
-
-    it(`${workflowPath} MUST retry remote git fetch before invoking deploy script`, () => {
-      const workflow = readRepoFileContent(workflowPath);
-      const fetchIndex = lineIndex(workflow, "git fetch origin");
-      const deployScriptIndex = lineIndex(workflow, "bash srs/scripts/deploy-remote-ssh.sh");
-
-      expect(workflow).toContain("retry_remote_git_update");
-      expect(workflow).toContain("for attempt in 1 2 3 4 5");
-      expect(fetchIndex).toBeGreaterThanOrEqual(0);
-      expect(deployScriptIndex).toBeGreaterThanOrEqual(0);
-      expect(fetchIndex).toBeLessThan(deployScriptIndex);
-    });
   }
+
+  it("production deploy MUST NOT require the remote server to connect to GitHub", () => {
+    const workflow = readRepoFileContent(".github/workflows/deploy.yml");
+
+    expect(workflow).not.toContain("git fetch origin");
+    expect(workflow).not.toContain("retry_remote_git_update");
+    expect(workflow).toContain("scripts/build-srs-image-bundle.sh");
+    expect(workflow).toContain("srs-images-${{ github.sha }}.tar.gz");
+    expect(workflow).toContain("--image-bundle incoming/srs-images-${{ github.sha }}.tar.gz");
+  });
+
+  it("dev deploy MAY keep remote git fetch retry until dev is migrated", () => {
+    const workflow = readRepoFileContent(".github/workflows/deploy-dev.yml");
+    const fetchIndex = lineIndex(workflow, "git fetch origin");
+    const deployScriptIndex = lineIndex(workflow, "bash srs/scripts/deploy-remote-ssh.sh");
+
+    expect(workflow).toContain("retry_remote_git_update");
+    expect(workflow).toContain("for attempt in 1 2 3 4 5");
+    expect(fetchIndex).toBeGreaterThanOrEqual(0);
+    expect(deployScriptIndex).toBeGreaterThanOrEqual(0);
+    expect(fetchIndex).toBeLessThan(deployScriptIndex);
+  });
 });
 
 describe("deploy-remote-ssh.sh - remote git fetch resilience", () => {
@@ -107,14 +117,17 @@ describe("deploy-remote-ssh.sh - remote git fetch resilience", () => {
     expect(script).toContain("git reset --hard \"origin/$BRANCH\"");
   });
 
-  it("MUST allow GitHub Actions to skip the inner code pull after it already reset the remote checkout", () => {
+  it("MUST deploy production from a prebuilt image bundle without git fetch or docker build", () => {
     const script = readRepoFileContent("srs/scripts/deploy-remote-ssh.sh");
     const workflow = readRepoFileContent(".github/workflows/deploy.yml");
 
-    expect(script).toContain("--skip-code-pull");
-    expect(script).toContain("SKIP_CODE_PULL=\"true\"");
-    expect(script).toContain("[OK] Code pull skipped by caller");
-    expect(workflow).toContain("bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull");
+    expect(script).toContain("--image-bundle");
+    expect(script).toContain("docker load -i");
+    expect(script).toContain("SRS_IMAGE_TAG");
+    expect(script).toContain("up -d --no-deps api worker");
+    expect(script).toContain("Docker build skipped; using prebuilt image bundle");
+    expect(script).toContain("cp \"$incoming_runtime_env\" \"$runtime_env\"");
+    expect(workflow).toContain("bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull --image-bundle incoming/srs-images-${{ github.sha }}.tar.gz --image-tag ${{ github.sha }}");
   });
 });
 

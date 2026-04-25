@@ -5,17 +5,21 @@ TARGET_ENV="${1:-}"
 shift || true
 FORCE_NO_CACHE="false"
 SKIP_CODE_PULL="false"
+IMAGE_BUNDLE=""
+SRS_IMAGE_TAG=""
 PROJECT_DIR="${PROJECT_DIR:-/home/ubuntu/apps/joya-devkit}"
 
 usage() {
   cat <<'USAGE'
-Usage: bash srs/scripts/deploy-remote-ssh.sh dev|prod [--force-no-cache true|false] [--skip-code-pull]
+Usage: bash srs/scripts/deploy-remote-ssh.sh dev|prod [--force-no-cache true|false] [--skip-code-pull] [--image-bundle <path>] [--image-tag <sha>]
 
 Run joya-devkit SRS deploy on remote server.
 
 Options:
   --force-no-cache true|false  Use --no-cache for Docker build. Defaults to false.
   --skip-code-pull             Do not run git fetch/reset inside this script; caller already updated code.
+  --image-bundle <path>        Load prebuilt api/worker Docker images from a gzip docker save bundle.
+  --image-tag <sha>            SRS api/worker Docker image tag to run.
   --help                       Show this help.
 USAGE
 }
@@ -34,6 +38,14 @@ while [[ $# -gt 0 ]]; do
     --skip-code-pull)
       SKIP_CODE_PULL="true"
       shift
+      ;;
+    --image-bundle)
+      IMAGE_BUNDLE="${2:-}"
+      shift 2
+      ;;
+    --image-tag)
+      SRS_IMAGE_TAG="${2:-}"
+      shift 2
       ;;
     --help|-h)
       usage
@@ -78,6 +90,10 @@ elif [ "$FORCE_NO_CACHE" != "false" ]; then
   fail "--force-no-cache must be true or false"
 fi
 
+if [ -n "$IMAGE_BUNDLE" ] && [ -z "$SRS_IMAGE_TAG" ]; then
+  fail "--image-tag is required when --image-bundle is set"
+fi
+
 check_disk_after_cleanup() {
   [ "$TARGET_ENV" = "dev" ] || return 0
   local free_kb
@@ -113,19 +129,47 @@ pull_latest_code() {
 
 validate_runtime_env() {
   local runtime_env="$PROJECT_DIR/srs/infra/env.runtime"
+  local incoming_runtime_env="$PROJECT_DIR/incoming/srs/infra/env.runtime"
+  if [ -f "$incoming_runtime_env" ]; then
+    mkdir -p "$(dirname "$runtime_env")"
+    cp "$incoming_runtime_env" "$runtime_env"
+    log "[OK] Runtime env refreshed from incoming artifact"
+  fi
   if [ ! -f "$runtime_env" ]; then
     fail "Missing env.runtime — Vault secrets not deployed"
   fi
   bash scripts/check-runtime-env.sh "$runtime_env" 2>&1 | tee -a "$LOG_FILE"
 }
 
+load_image_bundle() {
+  [ -n "$IMAGE_BUNDLE" ] || return 0
+  local bundle_path="$PROJECT_DIR/$IMAGE_BUNDLE"
+  if [ ! -f "$bundle_path" ]; then
+    fail "Missing image bundle: $bundle_path"
+  fi
+  local image_tar
+  image_tar="$(mktemp /tmp/srs-images.XXXXXX.tar)"
+  gzip -dc "$bundle_path" > "$image_tar"
+  docker load -i "$image_tar" 2>&1 | tee -a "$LOG_FILE"
+  rm -f "$image_tar"
+  log "[OK] Docker image bundle loaded: $IMAGE_BUNDLE"
+}
+
 build_images() {
+  if [ -n "$IMAGE_BUNDLE" ]; then
+    log "[OK] Docker build skipped; using prebuilt image bundle"
+    return 0
+  fi
   docker compose -f srs/infra/docker-compose.yml build $BUILD_FLAGS api worker 2>&1 | tee -a "$LOG_FILE"
   log "[OK] Build complete (flags: ${BUILD_FLAGS:-none})"
 }
 
 restart_services() {
-  docker compose -f srs/infra/docker-compose.yml up -d --no-deps --build api worker 2>&1 | tee -a "$LOG_FILE"
+  if [ -n "$SRS_IMAGE_TAG" ]; then
+    SRS_IMAGE_TAG="$SRS_IMAGE_TAG" docker compose -f srs/infra/docker-compose.yml up -d --no-deps api worker 2>&1 | tee -a "$LOG_FILE"
+  else
+    docker compose -f srs/infra/docker-compose.yml up -d --no-deps --build api worker 2>&1 | tee -a "$LOG_FILE"
+  fi
   log "[OK] Services restarted"
 }
 
@@ -165,6 +209,7 @@ main() {
   check_disk_after_cleanup
   pull_latest_code
   validate_runtime_env
+  load_image_bundle
   build_images
   restart_services
   run_migrations_and_seed

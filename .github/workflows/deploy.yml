@@ -57,14 +57,23 @@ jobs:
           set -euo pipefail
           python3 scripts/rotate-laicai-service-token.py --env prod --env-file env.runtime
 
-      - name: Upload .env.runtime to server
+      - name: Build SRS Docker image bundle
+        run: bash scripts/build-srs-image-bundle.sh --image-tag "${{ github.sha }}" --output-dir incoming
+
+      - name: Prepare runtime artifact
+        run: |
+          set -euo pipefail
+          mkdir -p incoming/srs/infra
+          cp env.runtime incoming/srs/infra/env.runtime
+
+      - name: Upload deploy artifacts to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "env.runtime"
-          target: "/home/ubuntu/apps/joya-devkit/srs/infra/"
+          source: "incoming/srs-images-${{ github.sha }}.tar.gz,incoming/srs/infra/env.runtime"
+          target: "/home/ubuntu/apps/joya-devkit/"
           overwrite: true
 
       - name: Deploy via SSH
@@ -77,23 +86,8 @@ jobs:
           script: |
             set -euo pipefail
             cd /home/ubuntu/apps/joya-devkit
-            retry_remote_git_update() {
-              local branch="$1"
-              for attempt in 1 2 3 4 5; do
-                if git fetch origin "$branch" && git reset --hard "origin/$branch"; then
-                  return 0
-                fi
-                if [ "$attempt" = "5" ]; then
-                  echo "ERROR: remote git update failed after ${attempt} attempts" >&2
-                  return 1
-                fi
-                echo "WARN: remote git update failed (attempt ${attempt}/5); retrying..." >&2
-                sleep $((attempt * 5))
-              done
-            }
-            retry_remote_git_update main
-            bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull
+            bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull --image-bundle incoming/srs-images-${{ github.sha }}.tar.gz --image-tag ${{ github.sha }}
 
       - name: Cleanup local secrets artifact
         if: always()
-        run: rm -f env.runtime
+        run: rm -f env.runtime incoming/srs-images-${{ github.sha }}.tar.gz

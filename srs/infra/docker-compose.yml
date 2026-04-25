@@ -1,5 +1,6 @@
 services:
   api:
+    image: joya-devkit-srs-api:${SRS_IMAGE_TAG:-prod-latest}
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
@@ -18,6 +19,7 @@ services:
     restart: unless-stopped
 
   worker:
+    image: joya-devkit-srs-worker:${SRS_IMAGE_TAG:-prod-latest}
     build:
       context: ..
       dockerfile: infra/Dockerfile.worker
