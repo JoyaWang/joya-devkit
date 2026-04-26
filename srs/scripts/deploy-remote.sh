@@ -1,15 +1,17 @@
 #!/bin/bash
 # SRS 本地触发远程部署
 # 用法:
-#   ./scripts/deploy-remote.sh          # 自动: 有未提交改动则 commit+push, 否则只 push 触发
+#   ./scripts/deploy-remote.sh          # 在 clean tree 下推送或触发部署
 #   ./scripts/deploy-remote.sh --force  # 强制触发, 不管有没有改动
+#
+# 约束：不再自动 git add / git commit。只允许在 clean tree 下 push 或 gh workflow run。
 
 set -euo pipefail
 
-BRANCH="main"
-REPO="JoyaWang/shared-runtime-services"
+BRANCH="dev"
+REPO="JoyaWang/joya-devkit"
 
-# 确保在 main 分支
+# 确保在 dev 分支
 CURRENT_BRANCH=$(git branch --show-current)
 if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
   echo "❌ 当前分支: $CURRENT_BRANCH, 请先切到 $BRANCH"
@@ -18,9 +20,10 @@ fi
 
 # 检查是否有未提交改动
 if [ -n "$(git status --porcelain)" ]; then
-  echo "📦 检测到未提交改动，先提交..."
-  git add -A
-  git commit -m "chore: deploy $(date '+%Y-%m-%d %H:%M')"
+  echo "❌ 存在未提交改动，请先手动提交或暂存后再部署"
+  echo "   改动列表："
+  git status --short
+  exit 1
 fi
 
 # 检查是否有未推送的 commit
@@ -30,7 +33,7 @@ REMOTE=$(git rev-parse origin/$BRANCH 2>/dev/null || echo "")
 if [ "$LOCAL" = "$REMOTE" ] && [ "${1:-}" != "--force" ]; then
   echo "⏩ 代码已最新，用 --force 强制触发部署"
   echo "🔄 触发远程部署（无新 commit）..."
-  gh workflow run deploy.yml --ref $BRANCH
+  gh workflow run deploy-dev.yml --ref $BRANCH
 else
   echo "🚀 推送代码并触发部署..."
   git push origin $BRANCH

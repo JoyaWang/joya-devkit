@@ -10,6 +10,62 @@
 - Slice 1–8：已交付 provider migration 骨架（dual-write metadata / read fallback / backfill runner）。
 - **当前 Slice**：`shared-cos-config-closure` — 将 shared object storage runtime 配置收口为 Infisical 环境隔离下的单一 `SHARED_COS_*` 合同。
 
+## CNB 云原生构建部署迁移（2026-04-26）
+
+### 目标
+将 SRS dev/prod 部署执行平台从 GitHub-hosted runner 迁移到腾讯云 CNB，解决 GitHub Actions 向腾讯云 TCR 推送镜像过慢的问题。TCR、Infisical Vault、Docker Compose 与远端部署脚本继续沿用，GitHub Actions 暂保留为 fallback。
+
+### 脚本合同
+- `.cnb.yml`：CNB workflow 主入口；`dev: push:` 自动部署 dev，`web_trigger_*` 支持手动 dev/prod。
+- `.cnb/web_trigger.yml`：CNB 页面手动按钮；prod 仅在 `main` / `release*` 分支显示并限制权限。
+- `scripts/cnb/common.sh`：CNB helper 共用函数，负责 Vault `/providers`、`/servers` 拉取、TCR login、SSH key 写入等。
+- `scripts/cnb/build-push-srs.sh`：构建、inspect、推送 `srs-api` 与 `srs-worker` 镜像，保留 build / inspect / push 分段日志。
+- `scripts/cnb/deploy-srs.sh`：生成 `env.runtime`、上传到服务器，并调用远端 `srs/scripts/deploy-remote-ssh.sh` 完成 pull / restart / migration / seed / health。
+
+### 镜像与环境合同
+- TCR registry：`ccr.ccs.tencentyun.com/joyawang`。
+- dev tag：`dev-${CNB_COMMIT}` + `dev-latest`。
+- prod tag：`prod-${CNB_COMMIT}` + `prod-latest`。
+- 先使用完整 `CNB_COMMIT`，避免服务器 `SRS_IMAGE_TAG` 与镜像 tag 不一致。
+- `env.runtime` 仍由 `scripts/gen-env-runtime.sh dev|prod` 从 Infisical Vault 生成。
+
+### 验收标准
+- [ ] CNB CLI 可用，并能通过 Vault 注入的 `CNB_TOKEN` 访问 CNB API。
+- [ ] `.cnb.yml` / `.cnb/web_trigger.yml` YAML 语法有效。
+- [ ] `scripts/cnb/*.sh` 通过 `bash -n`。
+- [ ] CNB dev workflow 能构建并推送 `srs-api`、`srs-worker` 到 TCR。
+- [ ] dev server 能 pull 对应 tag 并完成健康检查。
+- [ ] GitHub Actions deploy workflow 仍保留为 fallback。
+
+## 脚本与 CI 编排 Batch 2（2026-04-24）
+
+### 目标
+按 `project-scripts-orchestration` 标准收口 SRS deploy / maintenance workflows：GitHub Actions 只做编排，Vault env 生成、远端部署、Docker cleanup 进入项目脚本，避免 workflow 继续维护大段 inline Python / SSH shell。
+
+### 脚本合同
+- `scripts/gen-env-runtime.sh`：作为 Vault -> `env.runtime` 的唯一脚本入口，支持本地 `~/.joya/vault/.env` 与 CI `VAULT_TOKEN` 两种模式，并支持 `OUTPUT_PATH` 覆盖输出位置。
+- `srs/scripts/deploy-remote-ssh.sh`：作为远端 dev / prod 部署编排入口，保持 `dev -> dev`、`prod -> main` 分支语义，执行 runtime env 校验、Docker build/up、migration、canonical seed、API restart、health check 与 worker status 检查。
+- `scripts/docker-cleanup.sh`：作为 Docker cache cleanup 入口，默认清理 image / builder cache，`--full` 额外清理 container / network。
+
+### Workflow 收口
+- `.github/workflows/deploy-dev.yml`：Vault fetch 与 SSH deploy 改为调用项目脚本。
+- `.github/workflows/deploy.yml`：Vault fetch 与 SSH deploy 改为调用项目脚本，保留 `main` release branch trigger。
+- `.github/workflows/dev-maintenance.yml`：不再定时 SSH 登录服务器；定时 Docker cleanup 改由服务器本机 cron 调用 `/opt/joya-governance/bin/joya-devkit-docker-cleanup.sh`，workflow 仅保留手动信息页。
+
+### 非范围
+- 不真实 deploy / build / test。
+- 不修改业务 env key 合同。
+- 不改变 prod release branch 语义。
+
+### 验收标准
+- [x] deploy workflows 不再维护 inline Python Vault reader。
+- [x] deploy workflows 不再维护大段 inline SSH deploy 逻辑。
+- [x] maintenance workflow 不再维护 inline Docker cleanup 逻辑。
+- [x] maintenance schedule 不再经 GitHub-hosted runner SSH 登录服务器，改为服务器本机 cron。
+- [x] 新增 / 修改脚本通过 `bash -n`。
+- [x] workflow YAML 可解析。
+- [x] `git diff --check` 通过。
+
 ## Shared COS 配置收口（2026-04-24）
 
 ### 目标
@@ -454,12 +510,14 @@
 - [x] 新增 admin 接口：`GET /v1/admin/feedback/submissions`、`GET /v1/admin/feedback/submissions/:id`、`POST /v1/admin/feedback/submissions/:id/retry-github-sync`、`POST /v1/admin/feedback/process-pending`、`PUT /v1/admin/feedback/project-config/:projectKey`
 - [x] 补齐 final-state contract：`GET /v1/feedback/submissions`、`POST /v1/feedback/verify-fix`、`POST /v1/admin/feedback/mark-fixed`，以及 `FeedbackSubmission.fixed*/verification/statusHistoryJson` 字段
 - [x] 在 worker 中新增 feedback outbox loop，统一执行 GitHub issue create / retry / backoff
-- [x] 补最小测试：schema/migration、manual submit、admin list/detail、retry/process-pending、worker success/failure
+- [x] 补 manual feedback 排障元信息合同：`deviceInfo/currentRoute/appVersion/buildNumber/attachments/metadata` 入库、list 回显，并在 GitHub issue body `## Metadata` 输出 parsed `deviceInfo`
+- [x] 补最小测试：schema/migration、manual submit、admin list/detail、retry/process-pending、worker success/failure、manual deviceInfo persistence、GitHub issue metadata deviceInfo
 - [x] 补控制面 live 验证与 legacy 对账/迁移收尾（2026-04-21：admin-platform `ops_feedback_center` 6 条 action live 验证全部 200；Laicai 4 条 legacy manual feedback 已迁移，CloudBase `feedback` 退化为 compat proxy，`process-pending-feedback.js` 已退役）
 
 验收标准：
 - [x] SRS 成为 feedback submission 真相源
 - [x] GitHub issue 由 SRS worker 统一执行，不再散落在业务后端或 admin 假状态流转中
+- [x] manual feedback 的 `deviceInfo/currentRoute/appVersion/buildNumber/attachments/metadata` 作为 submission / GitHub issue metadata 排障证据链保留，手机型号、平台、系统版本不得丢失
 - [x] admin-platform 能通过代理读取 submission 列表/详情、触发 retry/process-pending、更新项目 feedback config
 - [x] fix/verify final-state contract 与 live 联调证据补齐
 - [x] Laicai legacy 链路完成迁移收尾，不再依赖 CloudBase `feedback` 或 admin 本地 `feedback` 表承载新控制面语义（admin-platform 本地 `feedback` 表 count=0，待 drop；CloudBase `feedback` 集合仅剩已标记 `migrated_to_srs` 的历史记录）
@@ -496,7 +554,7 @@
 1. [ ] 为 dev deploy 增加 preflight guard：输出 `df -h`、`docker system df`、执行可控清理，再次输出剩余空间。
 2. [ ] 增加磁盘阈值判断；如果清理后可用空间仍低于阈值，则直接 fail，阻止半程部署。
 3. [ ] 去掉 dev 常态化 `--no-cache`；仅在显式强制 rebuild 时才走无缓存构建，避免每次部署都堆新 layer。
-4. [ ] 新增 maintenance workflow（定时任务），周期性清理 Docker image / builder cache，并留下清理前后空间证据。
+4. [ ] 新增服务器本机 cron 维护任务，周期性清理 Docker image / builder cache，并留下清理前后空间证据；GitHub `dev-maintenance.yml` 不再承担定时 SSH 登录。
 5. [ ] 收口 migration 语义：将当前 `warn-or-skip` 模糊输出改为明确成功/失败，避免 deploy 假绿。
 6. [ ] 对已确认”无保留数据”的 dev / prod 环境执行数据库重置，清空旧 schema 后按当前 Prisma migration 从零重建，正式消除 `P3005` 历史债务。
 
@@ -504,7 +562,7 @@
 - [ ] dev deploy 前会打印磁盘与 Docker 占用，并执行前置清理
 - [ ] 清理后空间不足时，workflow 会在构建前明确失败，而不是等写日志或构建中途炸掉
 - [ ] dev 默认部署不再强制 `--no-cache`
-- [ ] maintenance workflow 已建立并可独立执行
+- [ ] 服务器本机 maintenance cron 已建立并可独立执行，GitHub workflow 不再定时 SSH 登录
 - [ ] dev / prod 删库重建后，`prisma migrate deploy` 不再报 `P3005`
 - [ ] 文档中已明确此机制的触发条件、阈值与证据输出
 

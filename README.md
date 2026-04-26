@@ -29,6 +29,16 @@ joya-devkit/
 └── docs/          # 跨栈公共文档
 ```
 
+## 文档合同
+
+- 根目录 `steering/` 为 joya-devkit 总合同。
+- `srs/steering/` 为 SRS 模块级合同。
+
+## 分支约定
+
+- `dev`：日常开发默认分支。
+- `main`：release branch，仅供发布与生产部署触发；消费者 git dependency 仍应 pin `main`。
+
 ## 开发
 
 ```bash
@@ -62,12 +72,14 @@ dependencies:
       path: sdks/packages/joya_auth
 ```
 
+> 注意：`ref: main` 指向 release branch，用于稳定消费；日常开发在 `dev` 分支进行。
+
 ### SRS 服务
 
 部署地址不变，消费方按现有 `SRS_API_BASE_URL` 调用即可。
 
 ## CI
 
-- `ci-sdks.yml`：sdks/** 变动时触发 Flutter 测试
-- `ci-srs.yml`：srs/** 变动时触发 Node.js 测试
-- `release.yml`：统一发布（SDK tag + 服务部署）
+- `deploy-dev.yml`：dev 环境部署（触发分支 `dev`）
+- `deploy.yml`：prod 环境部署（触发分支 `main`，即 release branch）
+- `dev-maintenance.yml`：仅保留手动信息页；dev 服务器定期 Docker 清理由服务器本机 cron 执行 `/opt/joya-governance/bin/joya-devkit-docker-cleanup.sh`

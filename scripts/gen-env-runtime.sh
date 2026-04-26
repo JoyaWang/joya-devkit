@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 # gen-env-runtime.sh — 从 Vault 拉取 runtime secrets 并写入 srs/infra/env.runtime
@@ -6,47 +6,59 @@ set -euo pipefail
 # 继续从 Vault / 与 /BE/runtime 拉取并合并输出 env.runtime。
 # 用法: bash scripts/gen-env-runtime.sh [dev|prod]
 # 默认: dev
+# CI: 预置 VAULT_TOKEN，并可用 OUTPUT_PATH 覆盖输出位置。
 
 ENV="${1:-dev}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-OUTPUT="$PROJECT_DIR/srs/infra/env.runtime"
-
-# 从 ~/.joya/vault/.env 读取 token
+OUTPUT="${OUTPUT_PATH:-$PROJECT_DIR/srs/infra/env.runtime}"
 VAULT_ENV="$HOME/.joya/vault/.env"
-if [ ! -f "$VAULT_ENV" ]; then
-  echo "❌ Missing $VAULT_ENV" >&2
-  exit 1
-fi
+PID="${INFISICAL_PROJECT_ID_JOYA_DEVKIT:-}"
+TOKEN="${VAULT_TOKEN:-}"
 
-PID=$(grep '^INFISICAL_PROJECT_ID_JOYA_DEVKIT=' "$VAULT_ENV" | cut -d'=' -f2-)
 case "$ENV" in
   dev)
-    TOKEN=$(grep '^INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_DEV=' "$VAULT_ENV" | cut -d'=' -f2-)
+    TOKEN_KEY="INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_DEV"
     ;;
   prod|prd)
-    TOKEN=$(grep '^INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_PROD=' "$VAULT_ENV" | cut -d'=' -f2-)
     ENV="prod"
+    TOKEN_KEY="INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_PROD"
     ;;
   *) echo "❌ Unsupported env: $ENV (use dev or prod)" >&2; exit 1 ;;
 esac
 
 if [ -z "$PID" ] || [ -z "$TOKEN" ]; then
-  echo "❌ Missing PID or TOKEN in $VAULT_ENV for env=$ENV" >&2
+  if [ ! -f "$VAULT_ENV" ]; then
+    echo "❌ Missing $VAULT_ENV and INFISICAL_PROJECT_ID_JOYA_DEVKIT / VAULT_TOKEN env vars" >&2
+    exit 1
+  fi
+
+  PID="${PID:-$(grep '^INFISICAL_PROJECT_ID_JOYA_DEVKIT=' "$VAULT_ENV" | cut -d'=' -f2-)}"
+  if [ -z "$TOKEN" ]; then
+    TOKEN="$(grep "^${TOKEN_KEY}=" "$VAULT_ENV" | cut -d'=' -f2-)"
+  fi
+fi
+
+if [ -z "$PID" ] || [ -z "$TOKEN" ]; then
+  echo "❌ Missing PID or TOKEN for env=$ENV" >&2
   exit 1
 fi
 
-echo "Pulling secrets from Vault (env=$ENV, pid=$PID)..."
+mkdir -p "$(dirname "$OUTPUT")"
+echo "Pulling secrets from Vault (env=$ENV, output=$OUTPUT)..."
 
 python3 - "$PID" "$ENV" "$TOKEN" "$OUTPUT" <<'PYEOF'
-import json, sys, urllib.request
+import json, sys, urllib.error, urllib.request
 
 pid, env, token, output = sys.argv[1:5]
 url = "https://vault.infinex.cn/api"
-paths = ["/", "/BE/runtime"]
+paths = [
+    ("/", False),
+    ("/BE/runtime", True),
+]
 
 secrets_map = {}
-for secret_path in paths:
+for secret_path, required in paths:
     api = f"{url}/v3/secrets/raw?workspaceId={pid}&environment={env}&secretPath={secret_path}"
     req = urllib.request.Request(api, headers={"Authorization": f"Bearer {token}"})
     try:
@@ -57,8 +69,15 @@ for secret_path in paths:
                 value = item.get("secretValue") or item.get("value")
                 if key is not None:
                     secrets_map[key] = str(value)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 404) and not required:
+            print(f"WARN: optional Vault path {secret_path} returned {exc.code}, skipping")
+            continue
+        print(f"Error: failed to fetch {secret_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
     except Exception as exc:
-        print(f"Warning: failed to fetch {secret_path}: {exc}", file=sys.stderr)
+        print(f"Error: failed to fetch {secret_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 lines = []
 for key, value in secrets_map.items():

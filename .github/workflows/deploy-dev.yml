@@ -1,5 +1,6 @@
 name: Deploy to Dev
 
+# CNB is now the primary deploy path; GitHub Actions remains manual fallback only.
 on:
   workflow_dispatch:
     inputs:
@@ -8,67 +9,133 @@ on:
         required: false
         default: false
         type: boolean
-  push:
-    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+env:
+  TCR_REGISTRY: ccr.ccs.tencentyun.com
+  TCR_NAMESPACE: joyawang
 
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    environment: dev
+    timeout-minutes: 360
 
     steps:
-      - name: Record runner info
+      - uses: actions/checkout@v4
+
+      - name: Fetch TCR credentials from Vault
+        env:
+          INFISICAL_TOKEN_INFRA: ${{ secrets.INFISICAL_SERVICE_TOKEN_INFRA_PROD }}
         run: |
-          echo "=== Runner Info ==="
-          echo "Runner IP: $(curl -s https://api.ipify.org)"
-          echo "Runner name: $RUNNER_NAME"
-          echo "Runner OS: $RUNNER_OS"
-          echo "Runner arch: $RUNNER_ARCH"
-          echo "GitHub SHA: $GITHUB_SHA"
-          echo "GitHub ref: $GITHUB_REF"
-          echo "Workflow run ID: $GITHUB_RUN_ID"
-          echo "==================="
+          python3 -c "
+          import json, os, urllib.request
+          token = os.environ['INFISICAL_TOKEN_INFRA']
+          url = 'https://vault.infinex.cn/api/v3/secrets/raw?workspaceId=57fa9556-edcd-4254-8065-2fd0e18bd816&environment=prod&secretPath=/providers'
+          req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+          with urllib.request.urlopen(req) as resp:
+              data = json.loads(resp.read().decode())
+          secrets_map = {s['secretKey']: s['secretValue'] for s in data.get('secrets', [])}
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              for key in ['TENCENT_TCR_USER', 'TENCENT_TCR_PASS']:
+                  if key in secrets_map:
+                      print(f'::add-mask::{secrets_map[key]}')
+                      f.write(f'{key}={secrets_map[key]}\n')
+          print(f'TCR credentials injected')
+          "
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to TCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.TCR_REGISTRY }}
+          username: ${{ env.TENCENT_TCR_USER }}
+          password: ${{ env.TENCENT_TCR_PASS }}
+
+      - name: Build srs-api image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./srs
+          file: ./srs/infra/Dockerfile.api
+          push: false
+          load: true
+          tags: |
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:dev-${{ github.sha }}
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:dev-latest
+          cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache
+          no-cache: ${{ github.event.inputs.force_no_cache == 'true' }}
+
+      - name: Inspect srs-api image
+        run: |
+          set -euo pipefail
+          image="${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api"
+          echo "::group::Built srs-api image"
+          docker image inspect "${image}:dev-${{ github.sha }}" --format 'id={{.Id}} size={{.Size}} created={{.Created}}'
+          docker images "${image}" --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}'
+          echo "::endgroup::"
+
+      - name: Push srs-api image
+        run: |
+          set -euo pipefail
+          image="${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api"
+          echo "::group::Push ${image}:dev-${{ github.sha }}"
+          date -u '+push-start=%Y-%m-%dT%H:%M:%SZ'
+          docker push "${image}:dev-${{ github.sha }}"
+          date -u '+push-end=%Y-%m-%dT%H:%M:%SZ'
+          echo "::endgroup::"
+          echo "::group::Push ${image}:dev-latest"
+          docker push "${image}:dev-latest"
+          echo "::endgroup::"
+
+      - name: Build srs-worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./srs
+          file: ./srs/infra/Dockerfile.worker
+          push: false
+          load: true
+          tags: |
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:dev-${{ github.sha }}
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:dev-latest
+          cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache
+          no-cache: ${{ github.event.inputs.force_no_cache == 'true' }}
+
+      - name: Inspect srs-worker image
+        run: |
+          set -euo pipefail
+          image="${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker"
+          echo "::group::Built srs-worker image"
+          docker image inspect "${image}:dev-${{ github.sha }}" --format 'id={{.Id}} size={{.Size}} created={{.Created}}'
+          docker images "${image}" --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}'
+          echo "::endgroup::"
+
+      - name: Push srs-worker image
+        run: |
+          set -euo pipefail
+          image="${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker"
+          echo "::group::Push ${image}:dev-${{ github.sha }}"
+          date -u '+push-start=%Y-%m-%dT%H:%M:%SZ'
+          docker push "${image}:dev-${{ github.sha }}"
+          date -u '+push-end=%Y-%m-%dT%H:%M:%SZ'
+          echo "::endgroup::"
+          echo "::group::Push ${image}:dev-latest"
+          docker push "${image}:dev-latest"
+          echo "::endgroup::"
 
       - name: Fetch secrets from Vault
         env:
           VAULT_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_DEV }}
-        run: |
-          python3 - <<'PYEOF'
-          import json, os, urllib.request
-
-          token = os.environ["VAULT_TOKEN"]
-          pid = "3d835c43-59e7-4b4f-bf98-466f5585fe53"
-          url = "https://vault.infinex.cn/api"
-          env = "dev"
-          paths = ["/", "/BE/runtime"]
-
-          secrets_map = {}
-          for secret_path in paths:
-              api = f"{url}/v3/secrets/raw?workspaceId={pid}&environment={env}&secretPath={secret_path}"
-              req = urllib.request.Request(api, headers={"Authorization": f"Bearer {token}"})
-              try:
-                  with urllib.request.urlopen(req) as resp:
-                      data = json.loads(resp.read())
-                      for item in data.get("secrets", []):
-                          key = item.get("secretKey") or item.get("key")
-                          value = item.get("secretValue") or item.get("value")
-                          if key is not None:
-                              secrets_map[key] = str(value)
-              except Exception as exc:
-                  print(f"Warning: failed to fetch {secret_path}: {exc}")
-
-          lines = []
-          for key, value in secrets_map.items():
-              if "\n" in value:
-                  lines.append(f'{key}="{value}"')
-              else:
-                  lines.append(f"{key}={value}")
-
-          with open("env.runtime", "w") as f:
-              f.write("\n".join(lines) + "\n")
-
-          print(f"Wrote {len(secrets_map)} secrets to env.runtime")
-          PYEOF
+          INFISICAL_PROJECT_ID_JOYA_DEVKIT: 3d835c43-59e7-4b4f-bf98-466f5585fe53
+          OUTPUT_PATH: env.runtime
+        run: bash scripts/gen-env-runtime.sh dev
 
       - name: Upload .env.runtime to server
         uses: appleboy/scp-action@v0.1.7
@@ -82,98 +149,37 @@ jobs:
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          SHORT_SHA: dev-${{ github.sha }}
+          TENCENT_TCR_USER: ${{ env.TENCENT_TCR_USER }}
+          TENCENT_TCR_PASS: ${{ env.TENCENT_TCR_PASS }}
         with:
           host: ${{ secrets.DEV_SERVER_HOST }}
           username: ${{ secrets.DEV_SERVER_USER }}
           key: ${{ secrets.DEV_SERVER_SSH_KEY }}
           command_timeout: 20m
+          envs: SHORT_SHA,TENCENT_TCR_USER,TENCENT_TCR_PASS
           script: |
             set -euo pipefail
-
-            PROJECT_DIR="/home/ubuntu/apps/joya-devkit"
-            BRANCH="main"
-            LOG_FILE="$PROJECT_DIR/deploy.log"
-            MIN_FREE_KB=$((5 * 1024 * 1024))
-            FORCE_NO_CACHE="${{ github.event.inputs.force_no_cache || 'false' }}"
-            BUILD_FLAGS=""
-            if [ "$FORCE_NO_CACHE" = "true" ]; then
-              BUILD_FLAGS="--no-cache"
-            fi
-            mkdir -p /tmp >/dev/null 2>&1 || true
-            : >> "$LOG_FILE" 2>/dev/null || LOG_FILE="/tmp/shared-runtime-services-deploy.log"
-
-            echo "=== Dev deploy started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
-            echo "[INFO] Disk usage before cleanup" | tee -a $LOG_FILE
-            df -h / | tee -a $LOG_FILE
-            echo "[INFO] Docker usage before cleanup" | tee -a $LOG_FILE
-            docker system df 2>&1 | tee -a $LOG_FILE || true
-            echo "[INFO] Running docker cleanup" | tee -a $LOG_FILE
-            docker image prune -af 2>&1 | tee -a $LOG_FILE || true
-            docker builder prune -af 2>&1 | tee -a $LOG_FILE || true
-            echo "[INFO] Disk usage after cleanup" | tee -a $LOG_FILE
-            df -h / | tee -a $LOG_FILE
-            echo "[INFO] Docker usage after cleanup" | tee -a $LOG_FILE
-            docker system df 2>&1 | tee -a $LOG_FILE || true
-            FREE_KB=$(df -Pk / | awk 'NR==2 {print $4}')
-            if [ -z "$FREE_KB" ] || [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
-              echo "[FAIL] Free disk below threshold after cleanup: ${FREE_KB:-unknown} KB (< $MIN_FREE_KB KB)" | tee -a $LOG_FILE
-              exit 1
-            fi
-            echo "[OK] Free disk after cleanup: $FREE_KB KB" | tee -a $LOG_FILE
-
-            # 1. Pull latest code
-            cd $PROJECT_DIR
-            git fetch origin $BRANCH
-            git reset --hard origin/$BRANCH
-            echo "[OK] Code pulled" | tee -a $LOG_FILE
-
-            # 2. Validate runtime env (uploaded by previous SCP step)
-            RUNTIME_ENV="$PROJECT_DIR/srs/infra/env.runtime"
-            if [ ! -f "$RUNTIME_ENV" ]; then
-              echo "[FAIL] Missing env.runtime — Vault secrets not deployed" | tee -a $LOG_FILE
-              exit 1
-            fi
-            bash scripts/check-runtime-env.sh "$RUNTIME_ENV" 2>&1 | tee -a $LOG_FILE
-
-            # 3. Build images (default uses cache; set workflow input force_no_cache=true when needed)
-            docker compose -f srs/infra/docker-compose.yml build $BUILD_FLAGS api worker 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Build complete (flags: ${BUILD_FLAGS:-none})" | tee -a $LOG_FILE
-
-            # 4. Restart api and worker (postgres/redis stay running)
-            docker compose -f srs/infra/docker-compose.yml up -d --no-deps --build api worker 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Services restarted" | tee -a $LOG_FILE
-
-            # 5. Run database migrations inside api container
-            docker compose -f srs/infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma' 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Migrations applied" | tee -a $LOG_FILE
-
-            # 5b. Seed project manifests and bindings via canonical seed entry
-            docker compose -f srs/infra/docker-compose.yml exec -T api node dist-seed/scripts/seed-projects.js 2>&1 | tee -a $LOG_FILE
-            echo "[OK] Seed done" | tee -a $LOG_FILE
-
-            # 5c. Restart API after binding seed because ObjectStorageAdapterFactory caches adapters in-process
-            docker compose -f srs/infra/docker-compose.yml restart api 2>&1 | tee -a $LOG_FILE
-            echo "[OK] API restarted after seed" | tee -a $LOG_FILE
-
-            # 6. Health check
-            sleep 5
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3010/health || echo "000")
-            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-              echo "[OK] Health check passed (HTTP $HTTP_STATUS)" | tee -a $LOG_FILE
-            else
-              echo "[FAIL] Health check returned HTTP $HTTP_STATUS" | tee -a $LOG_FILE
-              docker compose -f srs/infra/docker-compose.yml logs api --tail 20 2>&1 | tee -a $LOG_FILE
-              exit 1
-            fi
-
-            # 7. Verify worker is running
-            WORKER_STATUS=$(docker compose -f srs/infra/docker-compose.yml ps worker --format json 2>/dev/null | grep -o '"Health":"[^"]*"' | head -1 || echo "unknown")
-            echo "[INFO] Worker status: $WORKER_STATUS" | tee -a $LOG_FILE
-
-            # 8. Clean up old images
-            docker image prune -f 2>&1 | tee -a $LOG_FILE
-
-            echo "=== Dev deploy finished at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
+            cd /home/ubuntu/apps/joya-devkit
+            retry_remote_git_update() {
+              local branch="$1"
+              for attempt in 1 2 3 4 5; do
+                if git fetch origin "$branch" && git reset --hard "origin/$branch"; then
+                  return 0
+                fi
+                if [ "$attempt" = "5" ]; then
+                  echo "ERROR: remote git update failed after ${attempt} attempts" >&2
+                  return 1
+                fi
+                echo "WARN: remote git update failed (attempt ${attempt}/5); retrying..." >&2
+                sleep $((attempt * 5))
+              done
+            }
+            retry_remote_git_update dev
+            echo "$TENCENT_TCR_PASS" | docker login ccr.ccs.tencentyun.com -u "$TENCENT_TCR_USER" --password-stdin
+            SRS_IMAGE_TAG=dev-${{ github.sha }} docker compose -f srs/infra/docker-compose.yml pull api worker
+            bash srs/scripts/deploy-remote-ssh.sh dev --skip-code-pull --skip-build --image-tag dev-${{ github.sha }}
 
       - name: Cleanup local secrets artifact
         if: always()

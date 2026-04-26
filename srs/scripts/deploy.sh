@@ -1,13 +1,13 @@
 #!/bin/bash
 # SRS 手动部署脚本
 # 用法: ./scripts/deploy.sh [branch]
-# 默认分支: main
+# 默认分支: dev
 
 set -euo pipefail
 
-PROJECT_DIR="/home/ubuntu/apps/shared-runtime-services"
-BRANCH="${1:-main}"
-LOG_FILE="/var/log/srs-deploy.log"
+PROJECT_DIR="/home/ubuntu/apps/joya-devkit"
+BRANCH="${1:-dev}"
+LOG_FILE="/var/log/joya-devkit-deploy.log"
 
 echo "=== Manual deploy started at $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a $LOG_FILE
 

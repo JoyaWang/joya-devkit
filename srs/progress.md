@@ -137,7 +137,7 @@
   - `https://srs.infinex.cn/health` 已验证返回 `{"status":"ok"}`
 
 ## 进行中
-- feedback/version runtime 真相源已完成第一阶段收口：`ops_release_register -> SRS POST /v1/releases` 已落地并通过 focused verification + request-level 验证；下一步继续 feedback live 联调与 legacy bridge 收尾
+- feedback/version runtime 真相源已完成第一阶段收口：`ops_release_register -> SRS POST /v1/releases` 已落地并通过 focused verification + request-level 验证；feedback manual metadata 链路已补齐 `deviceInfo/currentRoute/appVersion/buildNumber/attachments/metadata` 入库、user-facing list 回显与 GitHub issue body `## Metadata` 输出 parsed `deviceInfo`（`feedback-minimal-closure.test.mts` 36/36，`pnpm typecheck` 通过）；下一步继续 feedback live 联调与 legacy bridge 收尾
 - admin-platform 退回 control plane / proxy，逐步去 Supabase 化（保留 Supabase 仅作控制面辅助层）
 - dev 部署 guardrails 与长期磁盘卫生机制（磁盘阈值检查、前置清理、maintenance workflow、migration fail-fast）
 - provider 迁移机制实现（真相源骨架 + multi-candidate read fallback + dual-write 元数据落点已完成；下一步进入 backfill 执行层）
@@ -170,6 +170,13 @@
 - Release Service 仅部分协议化；当前建议延后到真正引入外部分发资源配置时再接入项目协议层
 
 ## 日期日志
+
+### 2026-04-25（Feedback manual metadata / GitHub issue 排障证据补齐）
+- SRS `FeedbackSubmissionRecord` / worker metadata contract 已补 `deviceInfo`。
+- GitHub issue body `## Metadata` 现在包含 parsed `deviceInfo`，并继续包含 `userId`、`username`、`currentRoute`、`appVersion`、`buildNumber`、`attachments`、`metadata`。
+- `feedback-minimal-closure.test.mts` 新增覆盖：有 `deviceInfo` 时平台/型号/系统版本完整出现在 GitHub issue metadata；无 `deviceInfo` 时显式为 `null`，不伪造默认设备信息。
+- 验证：`cd /Users/joya/JoyaProjects/joya-devkit/srs && pnpm vitest run tests/feedback-minimal-closure.test.mts` → 36/36 passed；`pnpm typecheck` → all scoped packages passed。
+- 生产生效仍需部署 SRS worker / API，并配合 Laicai feedback 真机或 synthetic submission 做 live metadata 抽检。
 
 ### 2026-04-24（shared COS 配置链收口）
 - 文档合同先收口到单一 `SHARED_COS_BUCKET / SHARED_COS_REGION / SHARED_COS_SECRET_ID / SHARED_COS_SECRET_KEY / SHARED_COS_DOWNLOAD_DOMAIN`。

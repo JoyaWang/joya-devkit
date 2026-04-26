@@ -137,9 +137,11 @@ shared-runtime-services/
 
 ### Feedback Runtime contract（当前已进入正式范围）
 - intake route：至少支持 `submit-manual`、`submit-errors`、`submit-crash`
+- manual feedback metadata：`deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`、`attachmentsJson`、`metadataJson` 必须作为 submission 真相源持久化；`deviceInfo` 保留调用方传入的 parsed JSON 语义，不得丢弃手机型号、平台、系统版本等排障字段
+- user-facing list：`GET /v1/feedback/submissions` 必须回显 route/version/build 与附件/metadata 摘要，供业务 App 的反馈中心读取
 - admin route：至少支持 `submissions list/detail`、`retry-github-sync`、`process-pending`、`project-config update`
 - final-state route：支持 `verify-fix`、`mark-fixed` 与用户可见 submission 状态聚合
-- worker contract：统一执行 GitHub issue create / retry / backoff，并将执行结果回写 submission / outbox 真相源
+- worker contract：统一执行 GitHub issue create / retry / backoff，并将执行结果回写 submission / outbox 真相源；GitHub issue body 的 `## Metadata` 必须包含 parsed `deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`、`attachments`、`metadata`
 - control-plane contract：admin-platform 只做代理与 viewer，不本地承接 feedback 真相源
 
 ### provider capability matrix（Phase 1）

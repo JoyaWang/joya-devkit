@@ -378,6 +378,9 @@ function toClientSubmissionItem(submission: any) {
       attachments.find((item) => normalizeString(item.kind) === "log")?.url,
     )
     ?? null;
+  const currentRoute = normalizeString(submission.currentRoute) ?? normalizeString(metadata.currentRoute) ?? null;
+  const appVersion = normalizeString(submission.appVersion) ?? normalizeString(metadata.appVersion) ?? null;
+  const buildNumber = normalizeString(submission.buildNumber) ?? normalizeString(metadata.buildNumber) ?? null;
 
   return {
     id: submission.id,
@@ -392,6 +395,11 @@ function toClientSubmissionItem(submission: any) {
     screenshotUrls: mergedScreenshotUrls,
     logUrl,
     deviceInfo: parseDeviceInfo(submission.deviceInfo),
+    currentRoute,
+    appVersion,
+    buildNumber,
+    attachments,
+    metadata,
     feedbackType: mapFeedbackType(submission),
     status: mapSubmissionStatus(submission.status),
     githubIssueNumber: submission.githubIssueNumber ?? null,
@@ -879,6 +887,10 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
           description: (body.description as string) ?? null,
           userId: (body.userId as string) ?? null,
           username: resolveSubmittedUserName(body),
+          deviceInfo: toJsonOrNull(asRecord(body.deviceInfo)),
+          currentRoute: normalizeString(body.currentRoute),
+          appVersion: normalizeString(body.appVersion),
+          buildNumber: normalizeString(body.buildNumber),
           attachmentsJson: toJsonOrNull(attachments),
           metadataJson: toJsonOrNull(metadata),
         },

@@ -24,6 +24,14 @@ export interface TokenValidator {
  * Example:
  *   SERVICE_TOKENS=dev-token-infov=infov:dev,prd-token-laicai=laicai:prod
  */
+function normalizeRuntimeEnv(value: string): string {
+  const normalized = value.trim();
+  if (normalized === "prd") {
+    return "prod";
+  }
+  return normalized;
+}
+
 export class EnvTokenValidator implements TokenValidator {
   private readTokenMap(): Map<string, { projectKey: string; runtimeEnv: string }> {
     const tokenMap = new Map<string, { projectKey: string; runtimeEnv: string }>();
@@ -46,7 +54,7 @@ export class EnvTokenValidator implements TokenValidator {
       }
 
       const projectKey = mapping.slice(0, separatorIndex).trim();
-      const runtimeEnv = mapping.slice(separatorIndex + 1).trim();
+      const runtimeEnv = normalizeRuntimeEnv(mapping.slice(separatorIndex + 1));
       if (token && projectKey && runtimeEnv) {
         tokenMap.set(token, { projectKey, runtimeEnv });
       }

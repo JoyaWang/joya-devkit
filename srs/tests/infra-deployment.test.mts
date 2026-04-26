@@ -18,6 +18,15 @@ function readFileContent(relativePath: string): string {
   return readFileSync(fullPath, "utf-8");
 }
 
+function readRepoFileContent(relativePath: string): string {
+  const fullPath = resolve(ROOT_DIR, "..", relativePath);
+  return readFileSync(fullPath, "utf-8");
+}
+
+function lineIndex(content: string, needle: string): number {
+  return content.split("\n").findIndex((line) => line.includes(needle));
+}
+
 /**
  * Parse Dockerfile into array of instructions
  */
@@ -37,6 +46,122 @@ function extractRunInstructions(content: string): string[] {
     .filter((line) => line.startsWith("RUN "))
     .map((line) => line.slice(4).trim());
 }
+
+describe("GitHub deploy workflows - secure Laicai service token rotation", () => {
+  it("production workflow MUST rotate Laicai SERVICE_TOKENS from a temporary GitHub secret and persist it to Vault", () => {
+    const workflow = readRepoFileContent(".github/workflows/deploy.yml");
+
+    expect(workflow).toContain("rotate_laicai_service_token");
+    expect(workflow).toContain("LAICAI_SRS_SERVICE_TOKEN_ROTATION");
+    expect(workflow).toContain("scripts/rotate-laicai-service-token.py");
+    expect(workflow).not.toContain("service_tokens_override");
+    expect(workflow).not.toContain("SERVICE_TOKENS_OVERRIDE");
+  });
+
+  it("rotation script MUST target the laicai:prod mapping and Vault SERVICE_TOKENS secret without logging token values", () => {
+    const script = readRepoFileContent("scripts/rotate-laicai-service-token.py");
+
+    expect(script).toContain("laicai:prod");
+    expect(script).toContain("https://vault.infinex.cn/api");
+    expect(script).toContain("/v3/secrets/raw/{SERVICE_TOKENS_KEY}");
+    expect(script).toContain("LAICAI_SRS_SERVICE_TOKEN_ROTATION");
+    expect(script).toContain("new_token = require_env(ROTATION_ENV_KEY)");
+    expect(script).not.toContain("print(new_token");
+    expect(script).not.toContain("print(rotated_service_tokens");
+  });
+});
+
+describe("GitHub deploy workflows - checkout before repository scripts", () => {
+  for (const workflowPath of [".github/workflows/deploy.yml", ".github/workflows/deploy-dev.yml"]) {
+    it(`${workflowPath} MUST checkout repository before calling scripts/gen-env-runtime.sh`, () => {
+      const workflow = readRepoFileContent(workflowPath);
+      const checkoutIndex = lineIndex(workflow, "uses: actions/checkout@v4");
+      const genEnvIndex = lineIndex(workflow, "bash scripts/gen-env-runtime.sh");
+
+      expect(checkoutIndex).toBeGreaterThanOrEqual(0);
+      expect(genEnvIndex).toBeGreaterThanOrEqual(0);
+      expect(checkoutIndex).toBeLessThan(genEnvIndex);
+    });
+  }
+
+  it("production deploy MUST be manual while image-bundle SCP is experimental", () => {
+    const workflow = readRepoFileContent(".github/workflows/deploy.yml");
+
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).not.toContain("branches: [main]");
+  });
+
+  it("production deploy MUST NOT require the remote server to connect to GitHub", () => {
+    const workflow = readRepoFileContent(".github/workflows/deploy.yml");
+
+    expect(workflow).not.toContain("git fetch origin");
+    expect(workflow).not.toContain("retry_remote_git_update");
+    expect(workflow).toContain("scripts/build-srs-image-bundle.sh");
+    expect(workflow).toContain("srs-images-${{ github.sha }}.tar.gz");
+    expect(workflow).toContain("--image-bundle incoming/srs-images-${{ github.sha }}.tar.gz");
+  });
+
+  it("dev deploy MAY keep remote git fetch retry until dev is migrated", () => {
+    const workflow = readRepoFileContent(".github/workflows/deploy-dev.yml");
+    const fetchIndex = lineIndex(workflow, "git fetch origin");
+    const deployScriptIndex = lineIndex(workflow, "bash srs/scripts/deploy-remote-ssh.sh");
+
+    expect(workflow).toContain("retry_remote_git_update");
+    expect(workflow).toContain("for attempt in 1 2 3 4 5");
+    expect(fetchIndex).toBeGreaterThanOrEqual(0);
+    expect(deployScriptIndex).toBeGreaterThanOrEqual(0);
+    expect(fetchIndex).toBeLessThan(deployScriptIndex);
+  });
+});
+
+describe("gen-env-runtime.sh - Vault path compatibility", () => {
+  it("MUST treat root Vault path as optional because joya-devkit env may only use /BE/runtime", () => {
+    const script = readRepoFileContent("scripts/gen-env-runtime.sh");
+
+    expect(script).toContain('(\"/\", False)');
+    expect(script).toContain('(\"/BE/runtime\", True)');
+    expect(script).toContain("optional Vault path {secret_path} returned");
+  });
+});
+
+describe("GitHub deploy workflows - restart only", () => {
+  it("production restart workflow MUST refresh env.runtime and restart api/worker without GitHub, image upload, or build", () => {
+    const workflow = readRepoFileContent(".github/workflows/restart-prod.yml");
+
+    expect(workflow).toContain("name: Restart Production SRS");
+    expect(workflow).toContain("bash scripts/gen-env-runtime.sh prod");
+    expect(workflow).toContain("source: \"env.runtime\"");
+    expect(workflow).toContain("target: \"/home/ubuntu/apps/joya-devkit/srs/infra/\"");
+    expect(workflow).toContain("docker compose -f srs/infra/docker-compose.yml up -d --no-deps api worker");
+    expect(workflow).not.toContain("git fetch");
+    expect(workflow).not.toContain("docker build");
+    expect(workflow).not.toContain("srs-images");
+  });
+});
+
+describe("deploy-remote-ssh.sh - remote git fetch resilience", () => {
+  it("MUST retry git fetch/reset so transient GitHub TLS failures do not fail deploy immediately", () => {
+    const script = readRepoFileContent("srs/scripts/deploy-remote-ssh.sh");
+
+    expect(script).toContain("retry_git_update");
+    expect(script).toContain("for attempt in 1 2 3 4 5");
+    expect(script).toContain("git fetch origin \"$BRANCH\"");
+    expect(script).toContain("git reset --hard \"origin/$BRANCH\"");
+  });
+
+  it("MUST deploy production from a prebuilt image bundle without git fetch or docker build", () => {
+    const script = readRepoFileContent("srs/scripts/deploy-remote-ssh.sh");
+    const workflow = readRepoFileContent(".github/workflows/deploy.yml");
+
+    expect(script).toContain("--image-bundle");
+    expect(script).toContain("docker load -i");
+    expect(script).toContain("SRS_IMAGE_TAG");
+    expect(script).toContain("up -d --no-deps api worker");
+    expect(script).toContain("Docker build skipped; using prebuilt image bundle");
+    expect(script).toContain("cp \"$incoming_runtime_env\" \"$runtime_env\"");
+    expect(workflow).toContain("bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull --image-bundle incoming/srs-images-${{ github.sha }}.tar.gz --image-tag ${{ github.sha }}");
+  });
+});
 
 describe("Dockerfile.api - workspace manifests", () => {
   const dockerfile = readFileContent("infra/Dockerfile.api");
