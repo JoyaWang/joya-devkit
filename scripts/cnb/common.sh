@@ -59,17 +59,20 @@ PYEOF
 
 write_exports_from_kv() {
   local env_file="$1"
-  python3 - "$env_file" <<'PYEOF'
-import os, shlex, sys
-path = sys.argv[1]
-with open(path, "w") as out:
-    for line in sys.stdin:
-        line = line.rstrip("\n")
-        if not line or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        out.write(f"export {key}={shlex.quote(value)}\n")
-PYEOF
+  local line key value quoted
+  : > "$env_file"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    case "$line" in
+      *=*) ;;
+      *) continue ;;
+    esac
+    key="${line%%=*}"
+    value="${line#*=}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    printf -v quoted '%q' "$value"
+    printf 'export %s=%s\n' "$key" "$quoted" >> "$env_file"
+  done
 }
 
 fetch_tcr_credentials() {
