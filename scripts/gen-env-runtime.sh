@@ -48,14 +48,17 @@ mkdir -p "$(dirname "$OUTPUT")"
 echo "Pulling secrets from Vault (env=$ENV, output=$OUTPUT)..."
 
 python3 - "$PID" "$ENV" "$TOKEN" "$OUTPUT" <<'PYEOF'
-import json, sys, urllib.request
+import json, sys, urllib.error, urllib.request
 
 pid, env, token, output = sys.argv[1:5]
 url = "https://vault.infinex.cn/api"
-paths = ["/", "/BE/runtime"]
+paths = [
+    ("/", False),
+    ("/BE/runtime", True),
+]
 
 secrets_map = {}
-for secret_path in paths:
+for secret_path, required in paths:
     api = f"{url}/v3/secrets/raw?workspaceId={pid}&environment={env}&secretPath={secret_path}"
     req = urllib.request.Request(api, headers={"Authorization": f"Bearer {token}"})
     try:
@@ -66,6 +69,12 @@ for secret_path in paths:
                 value = item.get("secretValue") or item.get("value")
                 if key is not None:
                     secrets_map[key] = str(value)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 404) and not required:
+            print(f"WARN: optional Vault path {secret_path} returned {exc.code}, skipping")
+            continue
+        print(f"Error: failed to fetch {secret_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
     except Exception as exc:
         print(f"Error: failed to fetch {secret_path}: {exc}", file=sys.stderr)
         sys.exit(1)

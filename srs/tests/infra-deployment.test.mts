@@ -114,6 +114,16 @@ describe("GitHub deploy workflows - checkout before repository scripts", () => {
   });
 });
 
+describe("gen-env-runtime.sh - Vault path compatibility", () => {
+  it("MUST treat root Vault path as optional because joya-devkit env may only use /BE/runtime", () => {
+    const script = readRepoFileContent("scripts/gen-env-runtime.sh");
+
+    expect(script).toContain('(\"/\", False)');
+    expect(script).toContain('(\"/BE/runtime\", True)');
+    expect(script).toContain("optional Vault path {secret_path} returned");
+  });
+});
+
 describe("GitHub deploy workflows - restart only", () => {
   it("production restart workflow MUST refresh env.runtime and restart api/worker without GitHub, image upload, or build", () => {
     const workflow = readRepoFileContent(".github/workflows/restart-prod.yml");
