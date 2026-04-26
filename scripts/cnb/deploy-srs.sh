@@ -61,6 +61,20 @@ esac
 JOYA_DEVKIT_VAULT_TOKEN="${VAULT_TOKEN:-$JOYA_DEVKIT_VAULT_TOKEN}"
 [ -n "$JOYA_DEVKIT_VAULT_TOKEN" ] || fail "Missing Vault token for joya-devkit ${DEPLOY_ENV}"
 
+log "Prepare remote directories"
+run_remote "$SERVER_PORT_VALUE" "$SERVER_USER_VALUE@$SERVER_HOST" \
+  "mkdir -p /home/ubuntu/apps/joya-devkit/srs/infra /home/ubuntu/apps/joya-devkit/srs/scripts /home/ubuntu/apps/joya-devkit/scripts"
+
+log "Upload deploy support files to server"
+copy_to_remote "$SERVER_PORT_VALUE" "$SERVER_USER_VALUE@$SERVER_HOST:/home/ubuntu/apps/joya-devkit/srs/infra/docker-compose.yml" \
+  "$PROJECT_ROOT/srs/infra/docker-compose.yml"
+copy_to_remote "$SERVER_PORT_VALUE" "$SERVER_USER_VALUE@$SERVER_HOST:/home/ubuntu/apps/joya-devkit/srs/scripts/deploy-remote-ssh.sh" \
+  "$PROJECT_ROOT/srs/scripts/deploy-remote-ssh.sh"
+copy_to_remote "$SERVER_PORT_VALUE" "$SERVER_USER_VALUE@$SERVER_HOST:/home/ubuntu/apps/joya-devkit/scripts/check-runtime-env.sh" \
+  "$PROJECT_ROOT/scripts/check-runtime-env.sh"
+copy_to_remote "$SERVER_PORT_VALUE" "$SERVER_USER_VALUE@$SERVER_HOST:/home/ubuntu/apps/joya-devkit/scripts/docker-cleanup.sh" \
+  "$PROJECT_ROOT/scripts/docker-cleanup.sh"
+
 log "Generate env.runtime from Vault"
 (
   cd "$PROJECT_ROOT"
@@ -78,6 +92,7 @@ log "Deploy SRS on server"
 REMOTE_SCRIPT=$(cat <<'EOS'
 set -euo pipefail
 cd /home/ubuntu/apps/joya-devkit
+chmod +x srs/scripts/deploy-remote-ssh.sh scripts/check-runtime-env.sh scripts/docker-cleanup.sh
 echo "$TENCENT_TCR_PASS" | docker login ccr.ccs.tencentyun.com -u "$TENCENT_TCR_USER" --password-stdin
 SRS_IMAGE_TAG="$IMAGE_TAG" docker compose -f srs/infra/docker-compose.yml pull api worker
 bash srs/scripts/deploy-remote-ssh.sh "$DEPLOY_ENV" --skip-code-pull --skip-build --image-tag "$IMAGE_TAG"
