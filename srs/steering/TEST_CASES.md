@@ -248,6 +248,32 @@
 - 返回 releaseNotes
 - 返回 forceUpdate / minSupportedVersion（即使默认值为空也要结构正确）
 
+### F-01: 提交 manual feedback 并持久化排障元信息
+**优先级**: P0 | **阶段**: 1
+
+**前置条件**:
+- 提供合法 project token / projectKey
+- 请求体包含 `deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`、`attachments`、`metadata`
+
+**断言（必须全部通过）**:
+- `FeedbackSubmission` 写入 `deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`，不得只把这些字段塞进 opaque metadata
+- `deviceInfo` 保留调用方传入的手机型号、平台、系统版本、物理设备标识等 JSON 字段
+- user-facing `GET /v1/feedback/submissions` 回显 route/version/build，供业务 App 反馈中心读取
+- 缺失或非法 JSON 不得被默认值伪造；无法解析的字段按明确 null/错误语义处理
+
+### F-02: feedback outbox 创建 GitHub issue 时输出完整 Metadata
+**优先级**: P0 | **阶段**: 1
+
+**前置条件**:
+- 已存在 pending outbox job 与对应 manual `FeedbackSubmission`
+- submission 含 `deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`、`attachmentsJson`、`metadataJson`
+
+**断言（必须全部通过）**:
+- GitHub issue body 的 `## Metadata` JSON 包含 parsed `deviceInfo`
+- `deviceInfo` 中的平台、型号、系统版本等字段不丢失
+- `currentRoute`、`appVersion`、`buildNumber`、`attachments`、`metadata` 同时保留
+- submission 无 `deviceInfo` 时 metadata 中显式为 `null`，不得伪造默认设备信息
+
 ### A-01: project token 校验
 **优先级**: P0 | **阶段**: 1
 

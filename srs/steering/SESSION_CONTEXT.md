@@ -53,8 +53,9 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 ## Next Default Action
 1. 将 dev shared server 的 `dl-dev.infinex.cn` vhost 与 CDN 回源设置沉淀到 infra baseline / 操作手册，避免手工配置再次漂移
 2. 以本次 dev deploy 成功结果为基线，补一次 prod deploy / 抽检，确认 `SHARED_COS_*` canonical seed 闭环双环境一致
-3. 根据稳定结果再决定是否清理 Vault 旧 `COS_* / INFOV_* / LAICAI_*` 遗留键
-4. 若 `Deploy via SSH` 再次偶发失败，再回捞远端 `deploy.log` 与 Actions step raw log 做根因固化
+3. 部署 SRS 最新 feedback worker / API 后，用 Laicai manual feedback live 样本抽检 GitHub issue `## Metadata`：`deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`、`attachments`、`metadata` 必须完整，其中 `deviceInfo` 保留平台、型号、系统版本
+4. 根据稳定结果再决定是否清理 Vault 旧 `COS_* / INFOV_* / LAICAI_*` 遗留键
+5. 若 `Deploy via SSH` 再次偶发失败，再回捞远端 `deploy.log` 与 Actions step raw log 做根因固化
 
 ## Blockers / Watchouts
 - 旧 blocker `24868683261 / Deploy via SSH` 已由重跑 `24873253269` 成功暂时解除；当前未复现固定脚本故障，更像一次性环境 / 远端状态波动，后续仍需观察是否偶发。

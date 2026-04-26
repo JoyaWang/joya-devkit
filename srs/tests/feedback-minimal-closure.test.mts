@@ -271,6 +271,13 @@ describe("feedback minimal closure routes", () => {
           username: "joya",
           attachments: [{ name: "a.png", url: "https://example.com/a.png" }],
           metadata: { route: "/profile" },
+          deviceInfo: {
+            platform: "iOS",
+            os: "iOS",
+            osVersion: "17.5",
+            model: "iPhone 15 Pro",
+            isPhysicalDevice: true,
+          },
           currentRoute: "/profile",
           appVersion: "1.0.3",
           buildNumber: "41",
@@ -289,6 +296,13 @@ describe("feedback minimal closure routes", () => {
         description: "点击保存后没有反应",
         attachmentsJson: JSON.stringify([{ url: "https://example.com/a.png", name: "a.png" }]),
         metadataJson: JSON.stringify({ route: "/profile" }),
+        deviceInfo: JSON.stringify({
+          platform: "iOS",
+          os: "iOS",
+          osVersion: "17.5",
+          model: "iPhone 15 Pro",
+          isPhysicalDevice: true,
+        }),
         githubSyncStatus: "pending",
         userId: "user_001",
         username: "joya",
@@ -562,7 +576,10 @@ describe("feedback minimal closure routes", () => {
         updatedAt: new Date("2026-04-20T11:00:00Z"),
         userId: "user_001",
         username: "joya",
-        deviceInfo: null,
+        deviceInfo: JSON.stringify({ model: "iPhone", osVersion: "17.5" }),
+        currentRoute: "/feedback/create",
+        appVersion: "1.0.3",
+        buildNumber: "41",
         attachmentsJson: null,
         metadataJson: JSON.stringify({ feedbackType: "bug" }),
         githubIssueNumber: 42,
@@ -597,7 +614,10 @@ describe("feedback minimal closure routes", () => {
           feedbackType: "bug",
           status: "fixed",
           screenshotUrls: [],
-          deviceInfo: {},
+          deviceInfo: { model: "iPhone", osVersion: "17.5" },
+          currentRoute: "/feedback/create",
+          appVersion: "1.0.3",
+          buildNumber: "41",
           githubIssueNumber: 42,
           githubIssueUrl: "https://github.com/joya/laicai/issues/42",
           fixVersion: "1.2.3",
@@ -1234,6 +1254,7 @@ describe("feedback outbox worker loop", () => {
           currentRoute: "/profile",
           appVersion: "1.0.0",
           buildNumber: "10",
+          deviceInfo: JSON.stringify({ platform: "iOS", model: "iPhone 15 Pro", os: "iOS", osVersion: "17.5", isPhysicalDevice: true }),
           attachmentsJson: JSON.stringify([{ name: "a.png" }]),
           metadataJson: JSON.stringify({ route: "/profile" }),
           githubSyncStatus: "pending",
@@ -1351,6 +1372,7 @@ describe("feedback outbox worker loop", () => {
           currentRoute: "/profile",
           appVersion: "1.0.0",
           buildNumber: "10",
+          deviceInfo: null,
           attachmentsJson: null,
           metadataJson: null,
           githubSyncStatus: "pending",
@@ -1445,6 +1467,7 @@ describe("feedback outbox worker loop", () => {
           currentRoute: "/profile",
           appVersion: "1.0.0",
           buildNumber: "10",
+          deviceInfo: null,
           attachmentsJson: null,
           metadataJson: null,
           githubSyncStatus: "synced",
@@ -1529,6 +1552,7 @@ describe("feedback outbox worker loop", () => {
           currentRoute: "/home",
           appVersion: "1.0.0",
           buildNumber: "10",
+          deviceInfo: null,
           attachmentsJson: null,
           metadataJson: null,
           githubSyncStatus: "pending",
@@ -1588,5 +1612,202 @@ describe("feedback outbox worker loop", () => {
         status: "reported",
       }),
     });
+  });
+
+  it("includes deviceInfo in github issue body metadata", async () => {
+    const prisma = {
+      feedbackIssueOutbox: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_001",
+              submissionId: "fb_001",
+              projectKey: "laicai",
+              status: "pending",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_001",
+              submissionId: "fb_001",
+              projectKey: "laicai",
+              status: "processing",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ]),
+        update: vi.fn().mockResolvedValue(undefined),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      feedbackSubmission: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "fb_001",
+          projectKey: "laicai",
+          type: "manual",
+          channel: "manual",
+          title: "app crash",
+          description: "crashed on launch",
+          errorMessage: null,
+          errorType: null,
+          stackTrace: null,
+          userId: "user_001",
+          username: "joya",
+          currentRoute: "/home",
+          appVersion: "1.0.3",
+          buildNumber: "41",
+          deviceInfo: JSON.stringify({
+            platform: "android",
+            model: "Pixel 8 Pro",
+            os: "Android",
+            osVersion: "14",
+            isPhysicalDevice: true,
+          }),
+          attachmentsJson: null,
+          metadataJson: null,
+          githubSyncStatus: "pending",
+          githubIssueNumber: null,
+          githubIssueUrl: null,
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      feedbackProjectConfig: {
+        findUnique: vi.fn().mockResolvedValue({
+          projectKey: "laicai",
+          githubRepoOwner: "joya",
+          githubRepoName: "laicai",
+          githubToken: "ghs_test_token",
+          githubIssueSyncEnabled: true,
+        }),
+      },
+      feedbackIssueGroup: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ number: 99, html_url: "https://github.com/joya/laicai/issues/99" }),
+    });
+
+    await runFeedbackOutbox({
+      prisma,
+      now: () => new Date("2026-04-19T10:00:00Z"),
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const fetchCall = fetchImpl.mock.calls[0];
+    const body = JSON.parse(fetchCall[1].body);
+
+    // Verify the issue body contains Metadata section with deviceInfo
+    const metadataMatch = body.body.match(/## Metadata\n```json\n([\s\S]*?)\n```/);
+    expect(metadataMatch).not.toBeNull();
+    const metadata = JSON.parse(metadataMatch![1]);
+
+    expect(metadata.deviceInfo).toEqual({
+      platform: "android",
+      model: "Pixel 8 Pro",
+      os: "Android",
+      osVersion: "14",
+      isPhysicalDevice: true,
+    });
+
+    // Existing fields must remain intact
+    expect(metadata.userId).toBe("user_001");
+    expect(metadata.username).toBe("joya");
+    expect(metadata.currentRoute).toBe("/home");
+    expect(metadata.appVersion).toBe("1.0.3");
+    expect(metadata.buildNumber).toBe("41");
+  });
+
+  it("sets deviceInfo to null in github issue body when submission has no deviceInfo", async () => {
+    const prisma = {
+      feedbackIssueOutbox: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_001",
+              submissionId: "fb_001",
+              projectKey: "laicai",
+              status: "pending",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_001",
+              submissionId: "fb_001",
+              projectKey: "laicai",
+              status: "processing",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ]),
+        update: vi.fn().mockResolvedValue(undefined),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      feedbackSubmission: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "fb_001",
+          projectKey: "laicai",
+          type: "manual",
+          channel: "manual",
+          title: "no device info",
+          description: "old submission without device",
+          errorMessage: null,
+          errorType: null,
+          stackTrace: null,
+          userId: "user_001",
+          username: "joya",
+          currentRoute: "/profile",
+          appVersion: "1.0.0",
+          buildNumber: "10",
+          deviceInfo: null,
+          attachmentsJson: null,
+          metadataJson: null,
+          githubSyncStatus: "pending",
+          githubIssueNumber: null,
+          githubIssueUrl: null,
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      feedbackProjectConfig: {
+        findUnique: vi.fn().mockResolvedValue({
+          projectKey: "laicai",
+          githubRepoOwner: "joya",
+          githubRepoName: "laicai",
+          githubToken: "ghs_test_token",
+          githubIssueSyncEnabled: true,
+        }),
+      },
+      feedbackIssueGroup: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ number: 100, html_url: "https://github.com/joya/laicai/issues/100" }),
+    });
+
+    await runFeedbackOutbox({
+      prisma,
+      now: () => new Date("2026-04-19T10:00:00Z"),
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    const fetchCall = fetchImpl.mock.calls[0];
+    const issueBody = JSON.parse(fetchCall[1].body);
+    const metadataMatch = issueBody.body.match(/## Metadata\n```json\n([\s\S]*?)\n```/);
+    const metadata = JSON.parse(metadataMatch![1]);
+
+    expect(metadata.deviceInfo).toBeNull();
+    // No fake default value
+    expect(metadata.userId).toBe("user_001");
   });
 });

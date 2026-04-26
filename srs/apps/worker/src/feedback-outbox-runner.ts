@@ -80,6 +80,7 @@ interface FeedbackSubmissionRecord {
   currentRoute: string | null;
   appVersion: string | null;
   buildNumber: string | null;
+  deviceInfo: string | null;
   attachmentsJson: string | null;
   metadataJson: string | null;
   githubSyncStatus?: string | null;
@@ -202,6 +203,7 @@ function buildIssueBody(submission: FeedbackSubmissionRecord): string {
     currentRoute: submission.currentRoute,
     appVersion: submission.appVersion,
     buildNumber: submission.buildNumber,
+    deviceInfo: parseJsonField(submission.deviceInfo),
     attachments: parseJsonField(submission.attachmentsJson),
     metadata: parseJsonField(submission.metadataJson),
   };

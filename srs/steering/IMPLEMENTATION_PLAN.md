@@ -483,12 +483,14 @@
 - [x] 新增 admin 接口：`GET /v1/admin/feedback/submissions`、`GET /v1/admin/feedback/submissions/:id`、`POST /v1/admin/feedback/submissions/:id/retry-github-sync`、`POST /v1/admin/feedback/process-pending`、`PUT /v1/admin/feedback/project-config/:projectKey`
 - [x] 补齐 final-state contract：`GET /v1/feedback/submissions`、`POST /v1/feedback/verify-fix`、`POST /v1/admin/feedback/mark-fixed`，以及 `FeedbackSubmission.fixed*/verification/statusHistoryJson` 字段
 - [x] 在 worker 中新增 feedback outbox loop，统一执行 GitHub issue create / retry / backoff
-- [x] 补最小测试：schema/migration、manual submit、admin list/detail、retry/process-pending、worker success/failure
+- [x] 补 manual feedback 排障元信息合同：`deviceInfo/currentRoute/appVersion/buildNumber/attachments/metadata` 入库、list 回显，并在 GitHub issue body `## Metadata` 输出 parsed `deviceInfo`
+- [x] 补最小测试：schema/migration、manual submit、admin list/detail、retry/process-pending、worker success/failure、manual deviceInfo persistence、GitHub issue metadata deviceInfo
 - [x] 补控制面 live 验证与 legacy 对账/迁移收尾（2026-04-21：admin-platform `ops_feedback_center` 6 条 action live 验证全部 200；Laicai 4 条 legacy manual feedback 已迁移，CloudBase `feedback` 退化为 compat proxy，`process-pending-feedback.js` 已退役）
 
 验收标准：
 - [x] SRS 成为 feedback submission 真相源
 - [x] GitHub issue 由 SRS worker 统一执行，不再散落在业务后端或 admin 假状态流转中
+- [x] manual feedback 的 `deviceInfo/currentRoute/appVersion/buildNumber/attachments/metadata` 作为 submission / GitHub issue metadata 排障证据链保留，手机型号、平台、系统版本不得丢失
 - [x] admin-platform 能通过代理读取 submission 列表/详情、触发 retry/process-pending、更新项目 feedback config
 - [x] fix/verify final-state contract 与 live 联调证据补齐
 - [x] Laicai legacy 链路完成迁移收尾，不再依赖 CloudBase `feedback` 或 admin 本地 `feedback` 表承载新控制面语义（admin-platform 本地 `feedback` 表 count=0，待 drop；CloudBase `feedback` 集合仅剩已标记 `migrated_to_srs` 的历史记录）
