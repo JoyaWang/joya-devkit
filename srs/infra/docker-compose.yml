@@ -1,6 +1,6 @@
 services:
   api:
-    image: joya-devkit-srs-api:${SRS_IMAGE_TAG:-prod-latest}
+    image: ccr.ccs.tencentyun.com/joyawang/srs-api:${SRS_IMAGE_TAG:-dev-latest}
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: joya-devkit-srs-worker:${SRS_IMAGE_TAG:-prod-latest}
+    image: ccr.ccs.tencentyun.com/joyawang/srs-worker:${SRS_IMAGE_TAG:-dev-latest}
     build:
       context: ..
       dockerfile: infra/Dockerfile.worker

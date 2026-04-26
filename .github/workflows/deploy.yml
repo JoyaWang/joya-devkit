@@ -17,6 +17,10 @@ concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
+env:
+  TCR_REGISTRY: ccr.ccs.tencentyun.com
+  TCR_NAMESPACE: joyawang
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -26,17 +30,59 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Record runner info
+      - name: Fetch TCR credentials from Vault
+        env:
+          INFISICAL_TOKEN_INFRA: ${{ secrets.INFISICAL_SERVICE_TOKEN_INFRA_PROD }}
         run: |
-          echo "=== Runner Info ==="
-          echo "Runner IP: $(curl -s https://api.ipify.org)"
-          echo "Runner name: $RUNNER_NAME"
-          echo "Runner OS: $RUNNER_OS"
-          echo "Runner arch: $RUNNER_ARCH"
-          echo "GitHub SHA: $GITHUB_SHA"
-          echo "GitHub ref: $GITHUB_REF"
-          echo "Workflow run ID: $GITHUB_RUN_ID"
-          echo "==================="
+          python3 -c "
+          import json, os, urllib.request
+          token = os.environ['INFISICAL_TOKEN_INFRA']
+          url = 'https://vault.infinex.cn/api/v3/secrets/raw?workspaceId=57fa9556-edcd-4254-8065-2fd0e18bd816&environment=prod&secretPath=/providers'
+          req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+          with urllib.request.urlopen(req) as resp:
+              data = json.loads(resp.read().decode())
+          secrets_map = {s['secretKey']: s['secretValue'] for s in data.get('secrets', [])}
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              for key in ['TENCENT_TCR_USER', 'TENCENT_TCR_PASS']:
+                  if key in secrets_map:
+                      print(f'::add-mask::{secrets_map[key]}')
+                      f.write(f'{key}={secrets_map[key]}\n')
+          print(f'TCR credentials injected')
+          "
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to TCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.TCR_REGISTRY }}
+          username: ${{ env.TENCENT_TCR_USER }}
+          password: ${{ env.TENCENT_TCR_PASS }}
+
+      - name: Build & push srs-api image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./srs
+          file: ./srs/infra/Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:prod-${{ github.sha }}
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:prod-latest
+          cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache
+          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache,mode=max
+
+      - name: Build & push srs-worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./srs
+          file: ./srs/infra/Dockerfile.worker
+          push: true
+          tags: |
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:prod-${{ github.sha }}
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:prod-latest
+          cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache
+          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache,mode=max
 
       - name: Fetch secrets from Vault
         env:
@@ -55,37 +101,34 @@ jobs:
           set -euo pipefail
           python3 scripts/rotate-laicai-service-token.py --env prod --env-file env.runtime
 
-      - name: Build SRS Docker image bundle
-        run: bash scripts/build-srs-image-bundle.sh --image-tag "${{ github.sha }}" --output-dir incoming
-
-      - name: Prepare runtime artifact
-        run: |
-          set -euo pipefail
-          mkdir -p incoming/srs/infra
-          cp env.runtime incoming/srs/infra/env.runtime
-
-      - name: Upload deploy artifacts to server
+      - name: Upload .env.runtime to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "incoming/srs-images-${{ github.sha }}.tar.gz,incoming/srs/infra/env.runtime"
-          target: "/home/ubuntu/apps/joya-devkit/"
+          source: "env.runtime"
+          target: "/home/ubuntu/apps/joya-devkit/srs/infra/"
           overwrite: true
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          TENCENT_TCR_USER: ${{ env.TENCENT_TCR_USER }}
+          TENCENT_TCR_PASS: ${{ env.TENCENT_TCR_PASS }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           command_timeout: 20m
+          envs: TENCENT_TCR_USER,TENCENT_TCR_PASS
           script: |
             set -euo pipefail
             cd /home/ubuntu/apps/joya-devkit
-            bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull --image-bundle incoming/srs-images-${{ github.sha }}.tar.gz --image-tag ${{ github.sha }}
+            echo "$TENCENT_TCR_PASS" | docker login ccr.ccs.tencentyun.com -u "$TENCENT_TCR_USER" --password-stdin
+            SRS_IMAGE_TAG=prod-${{ github.sha }} docker compose -f srs/infra/docker-compose.yml pull api worker
+            bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull --skip-build --image-tag prod-${{ github.sha }}
 
       - name: Cleanup local secrets artifact
         if: always()
-        run: rm -f env.runtime incoming/srs-images-${{ github.sha }}.tar.gz
+        run: rm -f env.runtime

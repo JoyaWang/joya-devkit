@@ -18,6 +18,10 @@ concurrency:
   group: deploy-dev
   cancel-in-progress: false
 
+env:
+  TCR_REGISTRY: ccr.ccs.tencentyun.com
+  TCR_NAMESPACE: joyawang
+
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
@@ -27,17 +31,61 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Record runner info
+      - name: Fetch TCR credentials from Vault
+        env:
+          INFISICAL_TOKEN_INFRA: ${{ secrets.INFISICAL_SERVICE_TOKEN_INFRA_PROD }}
         run: |
-          echo "=== Runner Info ==="
-          echo "Runner IP: $(curl -s https://api.ipify.org)"
-          echo "Runner name: $RUNNER_NAME"
-          echo "Runner OS: $RUNNER_OS"
-          echo "Runner arch: $RUNNER_ARCH"
-          echo "GitHub SHA: $GITHUB_SHA"
-          echo "GitHub ref: $GITHUB_REF"
-          echo "Workflow run ID: $GITHUB_RUN_ID"
-          echo "==================="
+          python3 -c "
+          import json, os, urllib.request
+          token = os.environ['INFISICAL_TOKEN_INFRA']
+          url = 'https://vault.infinex.cn/api/v3/secrets/raw?workspaceId=57fa9556-edcd-4254-8065-2fd0e18bd816&environment=prod&secretPath=/providers'
+          req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+          with urllib.request.urlopen(req) as resp:
+              data = json.loads(resp.read().decode())
+          secrets_map = {s['secretKey']: s['secretValue'] for s in data.get('secrets', [])}
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              for key in ['TENCENT_TCR_USER', 'TENCENT_TCR_PASS']:
+                  if key in secrets_map:
+                      print(f'::add-mask::{secrets_map[key]}')
+                      f.write(f'{key}={secrets_map[key]}\n')
+          print(f'TCR credentials injected')
+          "
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to TCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.TCR_REGISTRY }}
+          username: ${{ env.TENCENT_TCR_USER }}
+          password: ${{ env.TENCENT_TCR_PASS }}
+
+      - name: Build & push srs-api image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./srs
+          file: ./srs/infra/Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:dev-${{ github.sha }}
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:dev-latest
+          cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache
+          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache,mode=max
+          no-cache: ${{ github.event.inputs.force_no_cache == 'true' }}
+
+      - name: Build & push srs-worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./srs
+          file: ./srs/infra/Dockerfile.worker
+          push: true
+          tags: |
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:dev-${{ github.sha }}
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:dev-latest
+          cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache
+          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache,mode=max
+          no-cache: ${{ github.event.inputs.force_no_cache == 'true' }}
 
       - name: Fetch secrets from Vault
         env:
@@ -58,11 +106,16 @@ jobs:
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          SHORT_SHA: dev-${{ github.sha }}
+          TENCENT_TCR_USER: ${{ env.TENCENT_TCR_USER }}
+          TENCENT_TCR_PASS: ${{ env.TENCENT_TCR_PASS }}
         with:
           host: ${{ secrets.DEV_SERVER_HOST }}
           username: ${{ secrets.DEV_SERVER_USER }}
           key: ${{ secrets.DEV_SERVER_SSH_KEY }}
           command_timeout: 20m
+          envs: SHORT_SHA,TENCENT_TCR_USER,TENCENT_TCR_PASS
           script: |
             set -euo pipefail
             cd /home/ubuntu/apps/joya-devkit
@@ -81,7 +134,9 @@ jobs:
               done
             }
             retry_remote_git_update dev
-            bash srs/scripts/deploy-remote-ssh.sh dev --force-no-cache "${{ github.event.inputs.force_no_cache || 'false' }}"
+            echo "$TENCENT_TCR_PASS" | docker login ccr.ccs.tencentyun.com -u "$TENCENT_TCR_USER" --password-stdin
+            SRS_IMAGE_TAG=dev-${{ github.sha }} docker compose -f srs/infra/docker-compose.yml pull api worker
+            bash srs/scripts/deploy-remote-ssh.sh dev --skip-code-pull --skip-build --image-tag dev-${{ github.sha }}
 
       - name: Cleanup local secrets artifact
         if: always()

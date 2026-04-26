@@ -5,19 +5,21 @@ TARGET_ENV="${1:-}"
 shift || true
 FORCE_NO_CACHE="false"
 SKIP_CODE_PULL="false"
+SKIP_BUILD="false"
 IMAGE_BUNDLE=""
 SRS_IMAGE_TAG=""
 PROJECT_DIR="${PROJECT_DIR:-/home/ubuntu/apps/joya-devkit}"
 
 usage() {
   cat <<'USAGE'
-Usage: bash srs/scripts/deploy-remote-ssh.sh dev|prod [--force-no-cache true|false] [--skip-code-pull] [--image-bundle <path>] [--image-tag <sha>]
+Usage: bash srs/scripts/deploy-remote-ssh.sh dev|prod [--force-no-cache true|false] [--skip-code-pull] [--skip-build] [--image-bundle <path>] [--image-tag <sha>]
 
 Run joya-devkit SRS deploy on remote server.
 
 Options:
   --force-no-cache true|false  Use --no-cache for Docker build. Defaults to false.
   --skip-code-pull             Do not run git fetch/reset inside this script; caller already updated code.
+  --skip-build                 Skip Docker build; images are pulled from TCR or loaded from bundle.
   --image-bundle <path>        Load prebuilt api/worker Docker images from a gzip docker save bundle.
   --image-tag <sha>            SRS api/worker Docker image tag to run.
   --help                       Show this help.
@@ -37,6 +39,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-code-pull)
       SKIP_CODE_PULL="true"
+      shift
+      ;;
+    --skip-build)
+      SKIP_BUILD="true"
       shift
       ;;
     --image-bundle)
@@ -155,7 +161,26 @@ load_image_bundle() {
   log "[OK] Docker image bundle loaded: $IMAGE_BUNDLE"
 }
 
+tcr_login() {
+  if [ -n "${TENCENT_TCR_USER:-}" ] && [ -n "${TENCENT_TCR_PASS:-}" ]; then
+    echo "$TENCENT_TCR_PASS" | docker login ccr.ccs.tencentyun.com -u "$TENCENT_TCR_USER" --password-stdin
+    log "[OK] Logged in to TCR"
+  fi
+}
+
+tcr_pull() {
+  if [ "$SKIP_BUILD" = "true" ] && [ -n "$SRS_IMAGE_TAG" ]; then
+    tcr_login
+    SRS_IMAGE_TAG="$SRS_IMAGE_TAG" docker compose -f srs/infra/docker-compose.yml pull api worker 2>&1 | tee -a "$LOG_FILE"
+    log "[OK] Pulled images from TCR (tag: $SRS_IMAGE_TAG)"
+  fi
+}
+
 build_images() {
+  if [ "$SKIP_BUILD" = "true" ]; then
+    log "[OK] Docker build skipped (--skip-build)"
+    return 0
+  fi
   if [ -n "$IMAGE_BUNDLE" ]; then
     log "[OK] Docker build skipped; using prebuilt image bundle"
     return 0
@@ -210,6 +235,7 @@ main() {
   pull_latest_code
   validate_runtime_env
   load_image_bundle
+  tcr_pull
   build_images
   restart_services
   run_migrations_and_seed

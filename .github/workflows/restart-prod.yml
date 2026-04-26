@@ -19,6 +19,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fetch TCR credentials from Vault
+        env:
+          INFISICAL_TOKEN_INFRA: ${{ secrets.INFISICAL_SERVICE_TOKEN_INFRA_PROD }}
+        run: |
+          python3 -c "
+          import json, os, urllib.request
+          token = os.environ['INFISICAL_TOKEN_INFRA']
+          url = 'https://vault.infinex.cn/api/v3/secrets/raw?workspaceId=57fa9556-edcd-4254-8065-2fd0e18bd816&environment=prod&secretPath=/providers'
+          req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+          with urllib.request.urlopen(req) as resp:
+              data = json.loads(resp.read().decode())
+          secrets_map = {s['secretKey']: s['secretValue'] for s in data.get('secrets', [])}
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              for key in ['TENCENT_TCR_USER', 'TENCENT_TCR_PASS']:
+                  if key in secrets_map:
+                      print(f'::add-mask::{secrets_map[key]}')
+                      f.write(f'{key}={secrets_map[key]}\n')
+          print(f'TCR credentials injected')
+          "
+
       - name: Fetch secrets from Vault
         env:
           VAULT_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_PROD }}
@@ -38,15 +58,21 @@ jobs:
 
       - name: Restart SRS api and worker
         uses: appleboy/ssh-action@v1
+        env:
+          TENCENT_TCR_USER: ${{ env.TENCENT_TCR_USER }}
+          TENCENT_TCR_PASS: ${{ env.TENCENT_TCR_PASS }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           command_timeout: 5m
+          envs: TENCENT_TCR_USER,TENCENT_TCR_PASS
           script: |
             set -euo pipefail
             cd /home/ubuntu/apps/joya-devkit
             bash scripts/check-runtime-env.sh srs/infra/env.runtime
+            echo "$TENCENT_TCR_PASS" | docker login ccr.ccs.tencentyun.com -u "$TENCENT_TCR_USER" --password-stdin
+            SRS_IMAGE_TAG=prod-latest docker compose -f srs/infra/docker-compose.yml pull api worker
             docker compose -f srs/infra/docker-compose.yml up -d --no-deps api worker
             docker compose -f srs/infra/docker-compose.yml exec -T api sh -lc 'printenv DATABASE_URL >/dev/null && npx prisma migrate deploy --schema ./prisma/schema.prisma'
             docker compose -f srs/infra/docker-compose.yml exec -T api node dist-seed/scripts/seed-projects.js
