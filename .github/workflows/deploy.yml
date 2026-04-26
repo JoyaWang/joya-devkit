@@ -60,28 +60,73 @@ jobs:
           username: ${{ env.TENCENT_TCR_USER }}
           password: ${{ env.TENCENT_TCR_PASS }}
 
-      - name: Build & push srs-api image
+      - name: Build srs-api image
         uses: docker/build-push-action@v6
         with:
           context: ./srs
           file: ./srs/infra/Dockerfile.api
-          push: true
+          push: false
+          load: true
           tags: |
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:prod-${{ github.sha }}
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:prod-latest
           cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache
 
-      - name: Build & push srs-worker image
+      - name: Inspect srs-api image
+        run: |
+          set -euo pipefail
+          image="${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api"
+          echo "::group::Built srs-api image"
+          docker image inspect "${image}:prod-${{ github.sha }}" --format 'id={{.Id}} size={{.Size}} created={{.Created}}'
+          docker images "${image}" --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}'
+          echo "::endgroup::"
+
+      - name: Push srs-api image
+        run: |
+          set -euo pipefail
+          image="${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api"
+          echo "::group::Push ${image}:prod-${{ github.sha }}"
+          date -u '+push-start=%Y-%m-%dT%H:%M:%SZ'
+          docker push "${image}:prod-${{ github.sha }}"
+          date -u '+push-end=%Y-%m-%dT%H:%M:%SZ'
+          echo "::endgroup::"
+          echo "::group::Push ${image}:prod-latest"
+          docker push "${image}:prod-latest"
+          echo "::endgroup::"
+
+      - name: Build srs-worker image
         uses: docker/build-push-action@v6
         with:
           context: ./srs
           file: ./srs/infra/Dockerfile.worker
-          push: true
+          push: false
+          load: true
           tags: |
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:prod-${{ github.sha }}
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:prod-latest
           cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache
-          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache,mode=min
+
+      - name: Inspect srs-worker image
+        run: |
+          set -euo pipefail
+          image="${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker"
+          echo "::group::Built srs-worker image"
+          docker image inspect "${image}:prod-${{ github.sha }}" --format 'id={{.Id}} size={{.Size}} created={{.Created}}'
+          docker images "${image}" --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}'
+          echo "::endgroup::"
+
+      - name: Push srs-worker image
+        run: |
+          set -euo pipefail
+          image="${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker"
+          echo "::group::Push ${image}:prod-${{ github.sha }}"
+          date -u '+push-start=%Y-%m-%dT%H:%M:%SZ'
+          docker push "${image}:prod-${{ github.sha }}"
+          date -u '+push-end=%Y-%m-%dT%H:%M:%SZ'
+          echo "::endgroup::"
+          echo "::group::Push ${image}:prod-latest"
+          docker push "${image}:prod-latest"
+          echo "::endgroup::"
 
       - name: Fetch secrets from Vault
         env:
