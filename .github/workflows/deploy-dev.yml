@@ -26,7 +26,7 @@ jobs:
   deploy-dev:
     runs-on: ubuntu-latest
     environment: dev
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
@@ -71,7 +71,7 @@ jobs:
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:dev-${{ github.sha }}
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:dev-latest
           cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache
-          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache,mode=max
+          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache,mode=min
           no-cache: ${{ github.event.inputs.force_no_cache == 'true' }}
 
       - name: Build & push srs-worker image
@@ -84,7 +84,7 @@ jobs:
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:dev-${{ github.sha }}
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:dev-latest
           cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache
-          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache,mode=max
+          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-worker:buildcache,mode=min
           no-cache: ${{ github.event.inputs.force_no_cache == 'true' }}
 
       - name: Fetch secrets from Vault
