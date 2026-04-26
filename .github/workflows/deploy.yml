@@ -25,7 +25,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: prod
-    timeout-minutes: 90
+    timeout-minutes: 360
 
     steps:
       - uses: actions/checkout@v4
