@@ -61,6 +61,26 @@ $:
           script: |
             set -euo pipefail
             DEPLOY_ENV=dev bash scripts/cnb/deploy-srs.sh
+  api_trigger_deploy_prod:
+    - name: deploy-prod-srs-api
+      services:
+        - docker
+      docker:
+        image: alpine:3.20
+      stages:
+        - name: prepare tools
+          script: |
+            set -euo pipefail
+            apk add --no-cache bash curl python3 openssh-client sshpass git docker-cli
+            chmod +x scripts/cnb/*.sh scripts/gen-env-runtime.sh srs/scripts/deploy-remote-ssh.sh
+        - name: build inspect push srs prod images
+          script: |
+            set -euo pipefail
+            DEPLOY_ENV=prod FORCE_NO_CACHE=${force_no_cache:-false} bash scripts/cnb/build-push-srs.sh
+        - name: deploy srs prod
+          script: |
+            set -euo pipefail
+            DEPLOY_ENV=prod bash scripts/cnb/deploy-srs.sh
   web_trigger_deploy_prod:
     - name: deploy-prod-srs-web
       services:
