@@ -1,5 +1,6 @@
 name: Deploy to Dev
 
+# CNB is now the primary deploy path; GitHub Actions remains manual fallback only.
 on:
   workflow_dispatch:
     inputs:
@@ -8,8 +9,6 @@ on:
         required: false
         default: false
         type: boolean
-  push:
-    branches: [dev]
 
 permissions:
   contents: read

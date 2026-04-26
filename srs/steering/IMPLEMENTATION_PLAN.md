@@ -10,6 +10,33 @@
 - Slice 1–8：已交付 provider migration 骨架（dual-write metadata / read fallback / backfill runner）。
 - **当前 Slice**：`shared-cos-config-closure` — 将 shared object storage runtime 配置收口为 Infisical 环境隔离下的单一 `SHARED_COS_*` 合同。
 
+## CNB 云原生构建部署迁移（2026-04-26）
+
+### 目标
+将 SRS dev/prod 部署执行平台从 GitHub-hosted runner 迁移到腾讯云 CNB，解决 GitHub Actions 向腾讯云 TCR 推送镜像过慢的问题。TCR、Infisical Vault、Docker Compose 与远端部署脚本继续沿用，GitHub Actions 暂保留为 fallback。
+
+### 脚本合同
+- `.cnb.yml`：CNB workflow 主入口；`dev: push:` 自动部署 dev，`web_trigger_*` 支持手动 dev/prod。
+- `.cnb/web_trigger.yml`：CNB 页面手动按钮；prod 仅在 `main` / `release*` 分支显示并限制权限。
+- `scripts/cnb/common.sh`：CNB helper 共用函数，负责 Vault `/providers`、`/servers` 拉取、TCR login、SSH key 写入等。
+- `scripts/cnb/build-push-srs.sh`：构建、inspect、推送 `srs-api` 与 `srs-worker` 镜像，保留 build / inspect / push 分段日志。
+- `scripts/cnb/deploy-srs.sh`：生成 `env.runtime`、上传到服务器，并调用远端 `srs/scripts/deploy-remote-ssh.sh` 完成 pull / restart / migration / seed / health。
+
+### 镜像与环境合同
+- TCR registry：`ccr.ccs.tencentyun.com/joyawang`。
+- dev tag：`dev-${CNB_COMMIT}` + `dev-latest`。
+- prod tag：`prod-${CNB_COMMIT}` + `prod-latest`。
+- 先使用完整 `CNB_COMMIT`，避免服务器 `SRS_IMAGE_TAG` 与镜像 tag 不一致。
+- `env.runtime` 仍由 `scripts/gen-env-runtime.sh dev|prod` 从 Infisical Vault 生成。
+
+### 验收标准
+- [ ] CNB CLI 可用，并能通过 Vault 注入的 `CNB_TOKEN` 访问 CNB API。
+- [ ] `.cnb.yml` / `.cnb/web_trigger.yml` YAML 语法有效。
+- [ ] `scripts/cnb/*.sh` 通过 `bash -n`。
+- [ ] CNB dev workflow 能构建并推送 `srs-api`、`srs-worker` 到 TCR。
+- [ ] dev server 能 pull 对应 tag 并完成健康检查。
+- [ ] GitHub Actions deploy workflow 仍保留为 fallback。
+
 ## 脚本与 CI 编排 Batch 2（2026-04-24）
 
 ### 目标

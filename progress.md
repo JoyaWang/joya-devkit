@@ -12,6 +12,15 @@
 
 ## 日期日志
 
+### 2026-04-26（SRS CNB 部署迁移启动）
+- [x] 用户决定不再等待 GitHub Actions → TCR 慢速 push，已取消三条 5 分钟跟踪定时任务：`c0fcbad6`、`6f7614a4`、`0296f13f`。
+- [x] CNB CLI 已通过 `npm install -g @cnbcool/cnb-cli` 安装，`cnb --help` 可用；本机用 Vault 注入 `CNB_TOKEN` 后能访问 `https://api.cnb.cool`。
+- [x] 新增 CNB workflow 初版：`.cnb.yml`、`.cnb/web_trigger.yml`，dev push 与手动 dev/prod 均指向 CNB 构建 + TCR push + 服务器 pull 部署链路。
+- [x] 新增 `scripts/cnb/common.sh`、`build-push-srs.sh`、`deploy-srs.sh`、`deploy-dev.sh`，复用现有 `scripts/gen-env-runtime.sh` 与 `srs/scripts/deploy-remote-ssh.sh`。
+- [x] CNB YAML / shell 静态校验通过；补齐 `deploy-srs.sh` dev/prod Vault token 选择，并兼容 `/servers` 中 `SHARED_SERVER_*` / password 或 SSH key 凭据。
+- [x] 已用 CNB CLI/API 创建私有组织/仓库：`joyawang/joya-devkit`，并将本地 `dev` 分支推送到 CNB remote。
+- [!] 首次 API trigger 返回 `CI configuration file is empty`，原因是 `.cnb.yml` 与 `scripts/cnb/*` 仍是本地未提交变更，尚未进入已推送的 dev commit；需确认提交 CNB 相关改动后再推送并重触发。
+
 ### 2026-04-25（SRS prod 部署远端 Git retry 修复）
 - [x] SRS prod deploy run `24928438596` 连续失败定位为远端服务器执行 `git fetch origin main` 时 GitHub TLS 瞬断：`GnuTLS recv error (-110)`，非应用代码失败。
 - [x] `.github/workflows/deploy.yml` 与 `.github/workflows/deploy-dev.yml` 的 SSH git 更新步骤改为 `retry_remote_git_update`，最多 5 次重试后才失败。
