@@ -24,10 +24,9 @@ require_env() {
 }
 
 mask_secret() {
-  local value="${1:-}"
-  if [ -n "$value" ]; then
-    printf '::add-mask::%s\n' "$value" || true
-  fi
+  # CNB does not support GitHub Actions ::add-mask:: semantics.
+  # Never print secret values; keep this helper as a no-op for shared call sites.
+  :
 }
 
 resolve_commit() {
@@ -91,7 +90,11 @@ fetch_tcr_credentials() {
 fetch_server_credentials() {
   require_env INFISICAL_SERVICE_TOKEN_INFRA_PROD
   local env_file="$1"
-  fetch_infisical_path "$INFRA_PROJECT_ID" prod /servers "$INFISICAL_SERVICE_TOKEN_INFRA_PROD" | write_exports_from_kv "$env_file"
+  local tmp
+  tmp="$(mktemp)"
+  fetch_infisical_path "$INFRA_PROJECT_ID" prod /servers "$INFISICAL_SERVICE_TOKEN_INFRA_PROD" > "$tmp"
+  write_exports_from_kv "$env_file" < "$tmp"
+  rm -f "$tmp"
   log "Server credentials export file generated"
 }
 
