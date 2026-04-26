@@ -71,7 +71,6 @@ jobs:
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:dev-${{ github.sha }}
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:dev-latest
           cache-from: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache
-          cache-to: type=registry,ref=${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/srs-api:buildcache,mode=min
           no-cache: ${{ github.event.inputs.force_no_cache == 'true' }}
 
       - name: Build & push srs-worker image
