@@ -101,7 +101,7 @@ fetch_server_credentials() {
   require_env "$token_var"
   local tmp
   tmp="$(mktemp)"
-  fetch_infisical_path "$INFRA_PROJECT_ID" prod /servers "${!token_var}" > "$tmp"
+  fetch_infisical_path "$INFRA_PROJECT_ID" "$deploy_env" /servers "${!token_var}" > "$tmp"
   write_exports_from_kv "$env_file" < "$tmp"
   rm -f "$tmp"
   log "Server credentials loaded from Vault (infra token env: $deploy_env)"
