@@ -90,15 +90,21 @@ fetch_tcr_credentials() {
   log "TCR credentials loaded from Vault"
 }
 
+# Usage: fetch_server_credentials <output_file> [deploy_env]
+# Server credentials live in infra /servers.
+# dev deploy → use INFISICAL_SERVICE_TOKEN_INFRA_DEV → resolves to dev server
+# prod deploy → use INFISICAL_SERVICE_TOKEN_INFRA_PROD → resolves to prod server
 fetch_server_credentials() {
-  require_env INFISICAL_SERVICE_TOKEN_INFRA_PROD
   local env_file="$1"
+  local deploy_env="${2:-${DEPLOY_ENV:-prod}}"
+  local token_var="INFISICAL_SERVICE_TOKEN_INFRA_${deploy_env^^}"
+  require_env "$token_var"
   local tmp
   tmp="$(mktemp)"
-  fetch_infisical_path "$INFRA_PROJECT_ID" prod /servers "$INFISICAL_SERVICE_TOKEN_INFRA_PROD" > "$tmp"
+  fetch_infisical_path "$INFRA_PROJECT_ID" prod /servers "${!token_var}" > "$tmp"
   write_exports_from_kv "$env_file" < "$tmp"
   rm -f "$tmp"
-  log "Server credentials export file generated"
+  log "Server credentials loaded from Vault (infra token env: $deploy_env)"
 }
 
 docker_login_tcr() {
