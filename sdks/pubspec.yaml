@@ -10,6 +10,7 @@ workspace:
   - packages/joya_logger
   - packages/joya_device
   - packages/joya_feedback_kit
+  - packages/joya_signin_kit
 
 environment:
   sdk: '>=3.6.0 <4.0.0'
