@@ -21,9 +21,6 @@ branch:
       - name: Deploy joya-devkit prod
         description: Build SRS api/worker on CNB, push TCR, deploy prod server
         event: web_trigger_deploy_prod
-        permissions:
-          roles:
-            - master
         inputs:
           force_no_cache:
             name: Force no cache
