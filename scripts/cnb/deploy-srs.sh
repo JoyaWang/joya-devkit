@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-DEPLOY_ENV="${DEPLOY_ENV:-dev}"
+[ -n "${DEPLOY_ENV:-}" ] || fail "DEPLOY_ENV required (dev|prod)"
 resolve_commit
 IMAGE_TAG="${IMAGE_TAG:-${DEPLOY_ENV}-${CNB_COMMIT}}"
 SERVER_EXPORTS="$(mktemp)"
@@ -44,8 +44,7 @@ case "$DEPLOY_ENV" in
     JOYA_DEVKIT_VAULT_TOKEN="${INFISICAL_SERVICE_TOKEN_JOYA_DEVKIT_PROD:-}"
     ;;
 esac
-JOYA_DEVKIT_VAULT_TOKEN="${VAULT_TOKEN:-$JOYA_DEVKIT_VAULT_TOKEN}"
-[ -n "$JOYA_DEVKIT_VAULT_TOKEN" ] || fail "Missing Vault token for joya-devkit ${DEPLOY_ENV}"
+[ -n "${JOYA_DEVKIT_VAULT_TOKEN:-}" ] || fail "Missing Vault token for joya-devkit ${DEPLOY_ENV}"
 
 log "Prepare remote directories"
 run_remote "$SERVER_PORT_VALUE" "$SERVER_USER_VALUE@$SERVER_HOST" \
@@ -65,7 +64,7 @@ log "Generate env.runtime from Vault"
 (
   cd "$PROJECT_ROOT"
   VAULT_TOKEN="$JOYA_DEVKIT_VAULT_TOKEN" \
-  INFISICAL_PROJECT_ID_JOYA_DEVKIT="${INFISICAL_PROJECT_ID_JOYA_DEVKIT:-3d835c43-59e7-4b4f-bf98-466f5585fe53}" \
+  INFISICAL_PROJECT_ID_JOYA_DEVKIT="${INFISICAL_PROJECT_ID_JOYA_DEVKIT}" \
   OUTPUT_PATH=env.runtime \
   bash scripts/gen-env-runtime.sh "$DEPLOY_ENV"
 )

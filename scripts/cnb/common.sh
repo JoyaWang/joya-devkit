@@ -96,7 +96,8 @@ fetch_tcr_credentials() {
 # prod deploy → use INFISICAL_SERVICE_TOKEN_INFRA_PROD → resolves to prod server
 fetch_server_credentials() {
   local env_file="$1"
-  local deploy_env="${2:-${DEPLOY_ENV:-prod}}"
+  local deploy_env="${2:-${DEPLOY_ENV}}"
+  [ -n "$deploy_env" ] || fail "fetch_server_credentials: deploy_env not set via arg or DEPLOY_ENV"
   local token_var="INFISICAL_SERVICE_TOKEN_INFRA_${deploy_env^^}"
   require_env "$token_var"
   local tmp

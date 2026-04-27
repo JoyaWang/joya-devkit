@@ -4,15 +4,14 @@ set -euo pipefail
 # gen-env-runtime.sh — 从 Vault 拉取 runtime secrets 并写入 srs/infra/env.runtime
 # Object storage 正式合同为 SHARED_COS_*；dev/prod 差异由 Infisical environment 区分。
 # 继续从 Vault / 与 /BE/runtime 拉取并合并输出 env.runtime。
-# 用法: bash scripts/gen-env-runtime.sh [dev|prod]
-# 默认: dev
-# CI: 预置 VAULT_TOKEN，并可用 OUTPUT_PATH 覆盖输出位置。
+# 用法: bash scripts/gen-env-runtime.sh <dev|prod>
+# CI: 预置 VAULT_TOKEN + INFISICAL_PROJECT_ID_JOYA_DEVKIT，并可用 OUTPUT_PATH 覆盖输出位置。
 
-ENV="${1:-dev}"
+ENV="${1:-}"
+[ -n "$ENV" ] || { echo "Usage: $0 <dev|prod>" >&2; exit 1; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 OUTPUT="${OUTPUT_PATH:-$PROJECT_DIR/srs/infra/env.runtime}"
-VAULT_ENV="$HOME/.joya/vault/.env"
 PID="${INFISICAL_PROJECT_ID_JOYA_DEVKIT:-}"
 TOKEN="${VAULT_TOKEN:-}"
 
@@ -27,20 +26,12 @@ case "$ENV" in
   *) echo "❌ Unsupported env: $ENV (use dev or prod)" >&2; exit 1 ;;
 esac
 
-if [ -z "$PID" ] || [ -z "$TOKEN" ]; then
-  if [ ! -f "$VAULT_ENV" ]; then
-    echo "❌ Missing $VAULT_ENV and INFISICAL_PROJECT_ID_JOYA_DEVKIT / VAULT_TOKEN env vars" >&2
-    exit 1
-  fi
-
-  PID="${PID:-$(grep '^INFISICAL_PROJECT_ID_JOYA_DEVKIT=' "$VAULT_ENV" | cut -d'=' -f2-)}"
-  if [ -z "$TOKEN" ]; then
-    TOKEN="$(grep "^${TOKEN_KEY}=" "$VAULT_ENV" | cut -d'=' -f2-)"
-  fi
+if [ -z "$PID" ]; then
+  echo "❌ INFISICAL_PROJECT_ID_JOYA_DEVKIT not set" >&2
+  exit 1
 fi
-
-if [ -z "$PID" ] || [ -z "$TOKEN" ]; then
-  echo "❌ Missing PID or TOKEN for env=$ENV" >&2
+if [ -z "$TOKEN" ]; then
+  echo "❌ VAULT_TOKEN not set (use ${TOKEN_KEY})" >&2
   exit 1
 fi
 

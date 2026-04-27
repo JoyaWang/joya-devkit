@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-DEPLOY_ENV="${DEPLOY_ENV:-dev}"
+[ -n "${DEPLOY_ENV:-}" ] || fail "DEPLOY_ENV required (dev|prod)"
 FORCE_NO_CACHE="${FORCE_NO_CACHE:-false}"
 
 resolve_commit
