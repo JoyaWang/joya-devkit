@@ -15,6 +15,7 @@ import { ProjectContextError } from "@srs/project-context";
 import type { ObjectStorageAdapterFactory } from "@srs/object-service";
 import { DeliveryPolicyResolver } from "@srs/delivery-policy";
 import { getPrisma } from "../db.js";
+import { normalizeRuntimeEnv } from "@srs/auth";
 import { resolveReadableDownloadFromBindings } from "./read-binding-download.js";
 import { resolveCandidateReadBindings } from "./read-location-candidates.js";
 
@@ -52,7 +53,8 @@ export async function registerDownloadRequestsRoute(
         return reply.status(400).send({ error: formatResult.error });
       }
 
-      const [, objectEnv] = body.objectKey.split("/");
+      const [, rawObjectEnv] = body.objectKey.split("/");
+      const objectEnv = normalizeRuntimeEnv(rawObjectEnv);
       if (objectEnv !== runtimeEnv) {
         return reply.status(403).send({
           error: "env_mismatch",

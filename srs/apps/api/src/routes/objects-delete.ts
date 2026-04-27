@@ -10,6 +10,7 @@ import type { ProjectContextResolver } from "@srs/project-context";
 import { ProjectContextError } from "@srs/project-context";
 import type { ObjectStorageAdapterFactory } from "@srs/object-service";
 import { getPrisma } from "../db.js";
+import { normalizeRuntimeEnv } from "@srs/auth";
 
 interface DeleteRequestBody {
   objectKey: string;
@@ -44,7 +45,8 @@ export async function registerObjectsDeleteRoute(
         return reply.status(400).send({ error: formatResult.error });
       }
 
-      const [, objectEnv] = body.objectKey.split("/");
+      const [, rawObjectEnv] = body.objectKey.split("/");
+      const objectEnv = normalizeRuntimeEnv(rawObjectEnv);
       if (objectEnv !== runtimeEnv) {
         return reply.status(403).send({
           error: "env_mismatch",

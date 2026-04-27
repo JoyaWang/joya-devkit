@@ -24,7 +24,7 @@ export interface TokenValidator {
  * Example:
  *   SERVICE_TOKENS=dev-token-infov=infov:dev,prd-token-laicai=laicai:prod
  */
-function normalizeRuntimeEnv(value: string): string {
+export function normalizeRuntimeEnv(value: string): string {
   const normalized = value.trim();
   if (normalized === "prd") {
     return "prod";
