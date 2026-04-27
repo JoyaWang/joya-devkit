@@ -1,6 +1,8 @@
 dev:
   push:
     - name: deploy-dev-srs
+      imports:
+        - https://cnb.cool/joyawang/secrets/-/blob/main/pipeline-envs.yml
       services:
         - docker
       docker:
@@ -23,6 +25,8 @@ dev:
 $:
   api_trigger_deploy_dev:
     - name: deploy-dev-srs-manual
+      imports:
+        - https://cnb.cool/joyawang/secrets/-/blob/main/pipeline-envs.yml
       services:
         - docker
       docker:
@@ -43,6 +47,8 @@ $:
             DEPLOY_ENV=dev bash scripts/cnb/deploy-srs.sh
   web_trigger_deploy_dev:
     - name: deploy-dev-srs-web
+      imports:
+        - https://cnb.cool/joyawang/secrets/-/blob/main/pipeline-envs.yml
       services:
         - docker
       docker:
@@ -63,6 +69,8 @@ $:
             DEPLOY_ENV=dev bash scripts/cnb/deploy-srs.sh
   api_trigger_deploy_prod:
     - name: deploy-prod-srs-api
+      imports:
+        - https://cnb.cool/joyawang/secrets/-/blob/main/pipeline-envs.yml
       services:
         - docker
       docker:
@@ -83,6 +91,8 @@ $:
             DEPLOY_ENV=prod bash scripts/cnb/deploy-srs.sh
   web_trigger_deploy_prod:
     - name: deploy-prod-srs-web
+      imports:
+        - https://cnb.cool/joyawang/secrets/-/blob/main/pipeline-envs.yml
       services:
         - docker
       docker:
