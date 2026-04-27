@@ -243,3 +243,59 @@ model FeedbackIssueGroup {
   @@index([projectKey, status])
   @@map("feedback_issue_groups")
 }
+
+model AuthUser {
+  id             String   @id @default(cuid())
+  projectKey     String   @map("project_key")
+  phone          String
+  passwordHash   String   @map("password_hash")
+  status         String   @default("ACTIVE")
+  appVersion     String?  @map("app_version")
+  devicePlatform String?  @map("device_platform")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  refreshTokens  AuthRefreshToken[]
+
+  @@unique([projectKey, phone])
+  @@map("auth_users")
+}
+
+model AuthVerificationCode {
+  id         String   @id @default(cuid())
+  projectKey String   @map("project_key")
+  phone      String
+  code       String
+  expiresAt  DateTime @map("expires_at")
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([projectKey, phone])
+  @@map("auth_verification_codes")
+}
+
+model AuthRefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_refresh_tokens")
+}
+
+model LegalDocument {
+  id           String   @id @default(cuid())
+  projectKey   String   @map("project_key")
+  documentType String   @map("document_type")
+  title        String
+  contentHtml  String   @map("content_html")
+  version      String
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([projectKey, documentType])
+  @@map("legal_documents")
+}

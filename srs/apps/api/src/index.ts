@@ -14,6 +14,8 @@ import { registerReleasesRoutes } from "./routes/releases.js";
 import { registerAuditLogsRoute } from "./routes/audit-logs.js";
 import { registerPublicDeliveryRoute } from "./routes/public-delivery.js";
 import { registerFeedbackRoutes } from "./routes/feedback.js";
+import { registerAuthRoutes } from "./routes/auth.js";
+import { registerLegalRoutes } from "./routes/legal.js";
 import { ProjectContextResolver } from "@srs/project-context";
 import { ObjectStorageAdapterFactory } from "@srs/object-service";
 import { DeliveryPolicyResolver } from "@srs/delivery-policy";
@@ -37,14 +39,34 @@ const deliveryResolver = new DeliveryPolicyResolver({
   },
 });
 
-// Auth preHandler — runs on all routes except /health
+// Paths that skip admin token auth (public APIs)
+const skipAuthPaths = new Set([
+  "/v1/auth/send-code",
+  "/v1/auth/register",
+  "/v1/auth/login",
+  "/v1/auth/reset-password",
+  "/v1/auth/refresh",
+  "/v1/auth/me",        // uses internal user JWT verification
+  "/v1/auth/account",   // uses internal user JWT verification
+  "/v1/feedback/client-settings",
+]);
+
+function shouldSkipAuth(url: string, method: string): boolean {
+  if (url === "/health" && method === "GET") return true;
+  // Strip /api prefix if present (reverse proxy adds it)
+  const path = url.startsWith("/api/") ? url.slice(4) : url;
+  if (skipAuthPaths.has(path)) return true;
+  // legal docs: /v1/legal/:documentType
+  if (path.startsWith("/v1/legal/")) return true;
+  // public delivery
+  if (path.startsWith("/v1/delivery/")) return true;
+  return false;
+}
+
+// Auth preHandler — runs on all routes except health + public APIs
 app.addHook("preHandler", async (request, reply) => {
-  const routeConfig = (request.routeOptions?.config || {}) as { skipAuth?: boolean };
-  if (
-    (request.url === "/health" && request.method === "GET") ||
-    routeConfig.skipAuth === true
-  ) {
-    return; // skip auth for health / public delivery routes
+  if (shouldSkipAuth(request.url, request.method)) {
+    return;
   }
   await authPreHandler(request, reply);
 });
@@ -94,6 +116,12 @@ await registerAuditLogsRoute(app);
 
 // Register Feedback Service routes
 await registerFeedbackRoutes(app);
+
+// Register Auth Service routes
+await registerAuthRoutes(app);
+
+// Register Legal Document routes
+await registerLegalRoutes(app);
 
 // Start
 const start = async () => {
