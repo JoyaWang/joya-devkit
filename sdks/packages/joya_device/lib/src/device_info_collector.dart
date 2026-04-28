@@ -38,6 +38,7 @@ class DeviceInfoCollector {
       deviceInfo.addAll({
         'platform': 'iOS',
         'model': iosInfo.model,
+        'machineModel': iosInfo.utsname.machine,
         'os': 'iOS',
         'osVersion': iosInfo.systemVersion,
         'name': iosInfo.name,
