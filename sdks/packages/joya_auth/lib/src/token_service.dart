@@ -96,7 +96,10 @@ class TokenService {
       } else {
         await _storage.write(key: key, value: value);
       }
-    } catch (_) {}
+    } catch (e) {
+      // ignore: avoid_print
+      print('[TokenService] _safeWrite failed for $key: $e');
+    }
   }
 
   Future<String?> getAccessToken() async {
@@ -139,6 +142,8 @@ class TokenService {
 
   /// Cache cloud account password for system key sync (wrap/unwrap).
   Future<void> cacheCloudPassword(String password) async {
+    // ignore: avoid_print
+    print('[TokenService] Caching cloud password (key=$_cloudPasswordKey)');
     await _safeWrite(_cloudPasswordKey, password);
   }
 
