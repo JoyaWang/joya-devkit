@@ -105,6 +105,11 @@ class AuthViewModel extends StateNotifier<AuthState> {
           userId: result.user?.id ?? '',
           phone: result.user?.phone,
         );
+        // Cache password for system key sync (wrapping/unwrapping cloud key).
+        final password = state.password;
+        if (password != null && password.isNotEmpty) {
+          await _tokenService.cacheCloudPassword(password);
+        }
       }
       state = state.copyWith(
         isLoading: false,

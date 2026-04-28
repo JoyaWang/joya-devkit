@@ -11,6 +11,7 @@ class TokenService {
   static const String _keyRefreshToken = 'auth_refresh_token';
   static const String _keyUserId = 'auth_user_id';
   static const String _keyUserPhone = 'auth_user_phone';
+  static const String _keyCloudPassword = 'auth_cloud_password';
   static const String _keyUserNickname = 'auth_user_nickname';
   static const String _keyUserAvatar = 'auth_user_avatar';
   static const String _keyUserRealNameVerified = 'auth_user_real_name_verified';
@@ -38,6 +39,7 @@ class TokenService {
   String get _refreshTokenKey => '${keyPrefix}$_keyRefreshToken';
   String get _userIdKey => '${keyPrefix}$_keyUserId';
   String get _phoneKey => '${keyPrefix}$_keyUserPhone';
+  String get _cloudPasswordKey => '${keyPrefix}$_keyCloudPassword';
   String get _nicknameKey => '${keyPrefix}$_keyUserNickname';
   String get _avatarKey => '${keyPrefix}$_keyUserAvatar';
   String get _realNameVerifiedKey => '${keyPrefix}$_keyUserRealNameVerified';
@@ -135,6 +137,16 @@ class TokenService {
     return userId;
   }
 
+  /// Cache cloud account password for system key sync (wrap/unwrap).
+  Future<void> cacheCloudPassword(String password) async {
+    await _safeWrite(_cloudPasswordKey, password);
+  }
+
+  /// Get cached cloud account password.
+  Future<String?> getCachedCloudPassword() async {
+    return _storage.read(key: _cloudPasswordKey);
+  }
+
   Future<void> saveUserProfileSnapshot({
     String? nickname,
     String? avatar,
@@ -201,6 +213,7 @@ class TokenService {
       _safeDelete(_refreshTokenKey),
       _safeDelete(_userIdKey),
       _safeDelete(_phoneKey),
+      _safeDelete(_cloudPasswordKey),
       _safeDelete(_nicknameKey),
       _safeDelete(_avatarKey),
       _safeDelete(_realNameVerifiedKey),
