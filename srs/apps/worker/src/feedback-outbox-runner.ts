@@ -386,6 +386,15 @@ export async function runFeedbackOutbox(
           nextRetryAt: null,
         },
       });
+      if (submission.githubSyncStatus !== "synced") {
+        await input.prisma.feedbackSubmission.update({
+          where: { id: submission.id },
+          data: {
+            githubSyncStatus: "synced",
+            githubSyncError: null,
+          },
+        });
+      }
       continue;
     }
 

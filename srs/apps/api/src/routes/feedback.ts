@@ -1071,6 +1071,19 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
         return reply.status(404).send({ error: "feedback_submission_not_found" });
       }
 
+      if (submission.githubIssueNumber || submission.githubIssueUrl) {
+        if (submission.githubSyncStatus !== "synced") {
+          await prisma.feedbackSubmission.update({
+            where: { id: params.id },
+            data: {
+              githubSyncStatus: "synced",
+              githubSyncError: null,
+            },
+          });
+        }
+        return reply.status(200).send({ alreadySynced: true, submissionId: submission.id });
+      }
+
       const config = await prisma.feedbackProjectConfig.findUnique({
         where: { projectKey: authProjectKey },
       });
