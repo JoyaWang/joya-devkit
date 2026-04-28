@@ -120,6 +120,12 @@ function validatePhone(phone: unknown): string | null {
   return phone.trim();
 }
 
+function validateEmail(email: unknown): string | null {
+  if (typeof email !== "string" || email.trim().length === 0) return null;
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email.trim()) ? email.trim() : null;
+}
+
 function validatePassword(password: unknown): string | null {
   if (typeof password !== "string") return null;
   if (password.length < 6 || password.length > 32) return null;
@@ -313,6 +319,140 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         success: true,
         data: {
           user: { id: user.id, phone: user.phone, createdAt: user.createdAt.toISOString() },
+          tokens: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
+        },
+      });
+    },
+  );
+
+  // -----------------------------------------------------------------------
+  // POST /v1/auth/email/register
+  // -----------------------------------------------------------------------
+  app.post(
+    "/v1/auth/email/register",
+    skipAuthConfig,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const projectKey = resolveProjectKey(request);
+      if (!projectKey) {
+        return reply.status(400).send({ error: "X-Project-Key header or projectKey query parameter is required" });
+      }
+
+      const body = request.body as Record<string, unknown> | undefined;
+      if (!body) {
+        return reply.status(400).send({ error: "request body is required" });
+      }
+
+      const email = validateEmail(body.email);
+      if (!email) {
+        return reply.status(400).send({ error: "field \"email\" is required and must be a valid email" });
+      }
+
+      const password = validatePassword(body.password);
+      if (!password) {
+        return reply.status(400).send({ error: "field \"password\" is required (6-32 characters)" });
+      }
+
+      const prisma = getPrisma();
+
+      // Check if email already registered
+      const existingUser = await prisma.authUser.findUnique({
+        where: { projectKey_email: { projectKey, email } },
+      });
+      if (existingUser) {
+        return reply.status(409).send({ error: "Email already registered" });
+      }
+
+      // Hash password and create user
+      const passwordHash = await bcrypt.hash(password, 10);
+      const user = await prisma.authUser.create({
+        data: {
+          projectKey,
+          email,
+          passwordHash,
+          appVersion: typeof body.appVersion === "string" ? body.appVersion : null,
+          devicePlatform: typeof body.devicePlatform === "string" ? body.devicePlatform : null,
+        },
+      });
+
+      // Generate token pair
+      const tokens = await generateTokenPair(user.id);
+
+      return reply.status(201).send({
+        success: true,
+        data: {
+          user: { id: user.id, email: user.email, createdAt: user.createdAt.toISOString() },
+          tokens: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
+        },
+      });
+    },
+  );
+
+  // -----------------------------------------------------------------------
+  // POST /v1/auth/email/login
+  // -----------------------------------------------------------------------
+  app.post(
+    "/v1/auth/email/login",
+    skipAuthConfig,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const projectKey = resolveProjectKey(request);
+      if (!projectKey) {
+        return reply.status(400).send({ error: "X-Project-Key header or projectKey query parameter is required" });
+      }
+
+      const body = request.body as Record<string, unknown> | undefined;
+      if (!body) {
+        return reply.status(400).send({ error: "request body is required" });
+      }
+
+      const email = validateEmail(body.email);
+      if (!email) {
+        return reply.status(400).send({ error: "field \"email\" is required and must be a valid email" });
+      }
+
+      const password = validatePassword(body.password);
+      if (!password) {
+        return reply.status(400).send({ error: "field \"password\" is required" });
+      }
+
+      const prisma = getPrisma();
+
+      // Find user
+      const user = await prisma.authUser.findUnique({
+        where: { projectKey_email: { projectKey, email } },
+      });
+      if (!user) {
+        return reply.status(401).send({ error: "Invalid email or password" });
+      }
+
+      // Compare password
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        return reply.status(401).send({ error: "Invalid email or password" });
+      }
+
+      // Check user status
+      if (user.status !== "ACTIVE") {
+        return reply.status(403).send({ error: "Account is disabled" });
+      }
+
+      // Update device info if provided
+      if (body.appVersion || body.devicePlatform) {
+        await prisma.authUser.update({
+          where: { id: user.id },
+          data: {
+            ...(typeof body.appVersion === "string" ? { appVersion: body.appVersion } : {}),
+            ...(typeof body.devicePlatform === "string" ? { devicePlatform: body.devicePlatform } : {}),
+          },
+        });
+      }
+
+      // Generate token pair
+      const tokens = await generateTokenPair(user.id);
+
+      return reply.status(200).send({
+        success: true,
+        data: {
+          user: { id: user.id, email: user.email, createdAt: user.createdAt.toISOString() },
           tokens: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
         },
       });

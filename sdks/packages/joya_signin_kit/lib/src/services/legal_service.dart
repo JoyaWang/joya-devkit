@@ -13,9 +13,9 @@ class LegalService {
 
   /// Full URL to the user agreement page (WebView-ready).
   String get userAgreementUrl =>
-      '$srsBaseUrl/api/v1/legal/user-agreement?projectKey=$projectKey';
+      '$srsBaseUrl/v1/legal/user-agreement?projectKey=$projectKey';
 
   /// Full URL to the privacy policy page (WebView-ready).
   String get privacyPolicyUrl =>
-      '$srsBaseUrl/api/v1/legal/privacy-policy?projectKey=$projectKey';
+      '$srsBaseUrl/v1/legal/privacy-policy?projectKey=$projectKey';
 }

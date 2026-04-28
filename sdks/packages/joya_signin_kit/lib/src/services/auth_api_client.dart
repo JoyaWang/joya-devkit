@@ -14,7 +14,7 @@ class AuthApiClient {
     required this.projectKey,
     Duration timeout = const Duration(seconds: 10),
   }) : _dio = Dio(BaseOptions(
-          baseUrl: '$srsBaseUrl/api',
+          baseUrl: srsBaseUrl,
           connectTimeout: timeout,
           receiveTimeout: timeout,
           sendTimeout: timeout,
@@ -137,8 +137,8 @@ class AuthApiClient {
   String _translateDioError(DioException e) {
     if (e.response?.data is Map) {
       final data = e.response!.data as Map;
-      final msg = data['message'] as String?;
-      if (msg != null) return msg;
+      final msg = (data['message'] ?? data['error']) as String?;
+      if (msg != null && msg.isNotEmpty) return msg;
     }
     switch (e.type) {
       case DioExceptionType.connectionTimeout:

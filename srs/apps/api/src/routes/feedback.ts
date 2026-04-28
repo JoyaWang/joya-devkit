@@ -309,13 +309,21 @@ function ensureScopedProjectKeyMatch(
   return null;
 }
 
-function canQueueGitHubSync(config: {
+function canQueueIssueSync(config: {
+  issueTracker?: string | null;
   githubIssueSyncEnabled?: boolean;
   githubRepoOwner?: string | null;
   githubRepoName?: string | null;
   githubToken?: string | null;
+  cnbRepoNamespace?: string | null;
+  cnbRepoName?: string | null;
+  cnbToken?: string | null;
 } | null | undefined) {
-  return Boolean(config?.githubIssueSyncEnabled && config?.githubRepoOwner && config?.githubRepoName && config?.githubToken);
+  if (!config?.githubIssueSyncEnabled) return false;
+  if (config?.issueTracker === "cnb") {
+    return Boolean(config?.cnbRepoNamespace && config?.cnbRepoName && config?.cnbToken);
+  }
+  return Boolean(config?.githubRepoOwner && config?.githubRepoName && config?.githubToken);
 }
 
 function parseStatusHistory(value: string | null | undefined) {
@@ -458,7 +466,7 @@ async function createFeedbackSubmission(
     data: Record<string, unknown>;
   },
 ) {
-  const githubSyncQueued = input.queueGitHubSync ?? canQueueGitHubSync(input.config);
+  const githubSyncQueued = input.queueGitHubSync ?? canQueueIssueSync(input.config);
   const requestedAt = githubSyncQueued ? new Date() : null;
   const submission = await prisma.feedbackSubmission.create({
     data: {
@@ -616,7 +624,7 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
         groupId = newGroup.id;
       }
 
-      const shouldQueueGitHub = canQueueGitHubSync(config);
+      const shouldQueueGitHub = canQueueIssueSync(config);
       const effectiveSyncStatus = groupIssueNumber ? "synced" : (shouldQueueGitHub ? "pending" : "skipped");
 
       const { submission, githubSyncQueued } = await createFeedbackSubmission(prisma, {
@@ -792,7 +800,7 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
         }
 
         // Create submission linked to group
-        const shouldQueueGitHub = canQueueGitHubSync(config);
+        const shouldQueueGitHub = canQueueIssueSync(config);
         const syncStatus = shouldQueueGitHub ? "pending" : "skipped";
 
         // If group already has an issue, propagate to submission immediately
@@ -1066,7 +1074,7 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
       const config = await prisma.feedbackProjectConfig.findUnique({
         where: { projectKey: authProjectKey },
       });
-      if (!canQueueGitHubSync(config)) {
+      if (!canQueueIssueSync(config)) {
         return reply.status(409).send({ error: "github_sync_not_configured" });
       }
 
@@ -1100,7 +1108,7 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
       const config = await prisma.feedbackProjectConfig.findUnique({
         where: { projectKey: targetProjectKey },
       });
-      if (!canQueueGitHubSync(config)) {
+      if (!canQueueIssueSync(config)) {
         return reply.status(409).send({ error: "github_sync_not_configured" });
       }
 
@@ -1201,6 +1209,7 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
 
       return reply.status(200).send({
         projectKey: scopedProjectKey,
+        issueTracker: config?.issueTracker ?? "github",
         githubRepoOwner: config?.githubRepoOwner ?? null,
         githubRepoName: config?.githubRepoName ?? null,
         githubIssueSyncEnabled: config?.githubIssueSyncEnabled ?? false,
@@ -1208,6 +1217,9 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
         errorReportingEnabled: config?.errorReportingEnabled ?? true,
         crashReportingEnabled: config?.crashReportingEnabled ?? true,
         hasGithubToken: Boolean(config?.githubToken),
+        cnbRepoNamespace: config?.cnbRepoNamespace ?? null,
+        cnbRepoName: config?.cnbRepoName ?? null,
+        hasCnbToken: Boolean(config?.cnbToken),
       });
     },
   );
@@ -1230,9 +1242,13 @@ export async function registerFeedbackRoutes(app: FastifyInstance): Promise<void
       const scopedProjectKey = authProjectKey;
       const prisma = getPrisma() as any;
       const payload = {
+        issueTracker: (body.issueTracker as string) || "github",
         githubRepoOwner: (body.githubRepoOwner as string) ?? null,
         githubRepoName: (body.githubRepoName as string) ?? null,
         githubToken: (body.githubToken as string) ?? null,
+        cnbRepoNamespace: (body.cnbRepoNamespace as string) ?? null,
+        cnbRepoName: (body.cnbRepoName as string) ?? null,
+        cnbToken: (body.cnbToken as string) ?? null,
         githubIssueSyncEnabled: Boolean(body.githubIssueSyncEnabled),
         manualFeedbackEnabled: body.manualFeedbackEnabled === undefined ? true : Boolean(body.manualFeedbackEnabled),
         errorReportingEnabled: body.errorReportingEnabled === undefined ? true : Boolean(body.errorReportingEnabled),
