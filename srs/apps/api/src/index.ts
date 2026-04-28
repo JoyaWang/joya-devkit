@@ -48,6 +48,8 @@ const skipAuthPaths = new Set([
   "/v1/auth/refresh",
   "/v1/auth/me",        // uses internal user JWT verification
   "/v1/auth/account",   // uses internal user JWT verification
+  "/v1/auth/email/register",
+  "/v1/auth/email/login",
   "/v1/feedback/client-settings",
 ]);
 

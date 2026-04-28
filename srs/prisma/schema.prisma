@@ -195,9 +195,20 @@ model FeedbackSubmission {
 model FeedbackProjectConfig {
   id                     String   @id @default(cuid())
   projectKey             String   @unique @map("project_key")
+
+  // Issue tracker platform selection
+  issueTracker           String   @default("github") @map("issue_tracker")
+
+  // GitHub configuration
   githubRepoOwner        String?  @map("github_repo_owner")
   githubRepoName         String?  @map("github_repo_name")
   githubToken            String?  @map("github_token")
+
+  // CNB (Cloud Native Build) configuration
+  cnbRepoNamespace       String?  @map("cnb_repo_namespace")
+  cnbRepoName            String?  @map("cnb_repo_name")
+  cnbToken               String?  @map("cnb_token")
+
   githubIssueSyncEnabled Boolean  @default(false) @map("github_issue_sync_enabled")
   manualFeedbackEnabled  Boolean  @default(true) @map("manual_feedback_enabled")
   errorReportingEnabled  Boolean  @default(true) @map("error_reporting_enabled")
@@ -247,7 +258,8 @@ model FeedbackIssueGroup {
 model AuthUser {
   id             String   @id @default(cuid())
   projectKey     String   @map("project_key")
-  phone          String
+  phone          String?
+  email          String?
   passwordHash   String   @map("password_hash")
   status         String   @default("ACTIVE")
   appVersion     String?  @map("app_version")
@@ -258,6 +270,7 @@ model AuthUser {
   refreshTokens  AuthRefreshToken[]
 
   @@unique([projectKey, phone])
+  @@unique([projectKey, email])
   @@map("auth_users")
 }
 
