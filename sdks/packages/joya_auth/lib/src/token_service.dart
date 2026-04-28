@@ -42,6 +42,7 @@ class TokenService {
   String? get cachedAccessToken => _cachedAccessToken;
   String? get cachedRefreshToken => _cachedRefreshToken;
   String? get cachedUserId => _cachedUserId;
+  String? get cachedPhone => _cachedPhone;
   String? get cachedNickname => _cachedNickname;
   String? get cachedAvatar => _cachedAvatar;
   bool? get cachedIsRealNameVerified => _cachedIsRealNameVerified;
