@@ -180,16 +180,25 @@ interface IssueTrackerConfig {
   parseResponse: (json: unknown) => { number: number | null; html_url: string | null };
 }
 
+function parseIssueNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number.parseInt(value, 10);
+  return null;
+}
+
 function buildIssueTracker(config: FeedbackProjectConfigRecord): IssueTrackerConfig {
   if (config.issueTracker === "cnb") {
     return {
       createIssueUrl: `https://api.cnb.cool/${config.cnbRepoNamespace}/${config.cnbRepoName}/-/issues`,
       authHeader: `Bearer ${config.cnbToken}`,
       extraHeaders: { Accept: "application/vnd.cnb.api+json" },
-      parseResponse: (json: any) => ({
-        number: json.number ?? null,
-        html_url: json.html_url ?? null,
-      }),
+      parseResponse: (json: any) => {
+        const number = parseIssueNumber(json.number);
+        return {
+          number,
+          html_url: json.html_url ?? (number ? `https://cnb.cool/${config.cnbRepoNamespace}/${config.cnbRepoName}/-/issues/${number}` : null),
+        };
+      },
     };
   }
   // Default: GitHub
@@ -198,7 +207,7 @@ function buildIssueTracker(config: FeedbackProjectConfigRecord): IssueTrackerCon
     authHeader: `Bearer ${config.githubToken}`,
     extraHeaders: { Accept: "application/vnd.github+json" },
     parseResponse: (json: any) => ({
-      number: json.number ?? null,
+      number: parseIssueNumber(json.number),
       html_url: json.html_url ?? null,
     }),
   };

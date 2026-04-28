@@ -1333,6 +1333,116 @@ describe("feedback outbox worker loop", () => {
     });
   });
 
+  it("creates cnb issue with string issue number and fallback url", async () => {
+    const prisma = {
+      feedbackIssueOutbox: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_cnb_001",
+              submissionId: "fb_cnb_001",
+              projectKey: "laicai",
+              status: "pending",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ])
+          .mockResolvedValueOnce([
+            {
+              id: "outbox_cnb_001",
+              submissionId: "fb_cnb_001",
+              projectKey: "laicai",
+              status: "processing",
+              attemptCount: 0,
+              nextRetryAt: null,
+            },
+          ]),
+        update: vi.fn().mockResolvedValue(undefined),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      feedbackSubmission: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "fb_cnb_001",
+          projectKey: "laicai",
+          type: "manual",
+          channel: "manual",
+          title: "CNB smoke",
+          description: "CNB sync smoke",
+          errorMessage: null,
+          errorType: null,
+          stackTrace: null,
+          userId: "user_001",
+          username: "joya",
+          currentRoute: "/profile",
+          appVersion: "1.0.0",
+          buildNumber: "10",
+          deviceInfo: null,
+          attachmentsJson: null,
+          metadataJson: null,
+          githubSyncStatus: "pending",
+          githubIssueNumber: null,
+          githubIssueUrl: null,
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      feedbackProjectConfig: {
+        findUnique: vi.fn().mockResolvedValue({
+          projectKey: "laicai",
+          issueTracker: "cnb",
+          githubRepoOwner: "JoyaWang",
+          githubRepoName: "Laicai",
+          githubToken: "ghs_test_token",
+          cnbRepoNamespace: "joyawang",
+          cnbRepoName: "Laicai",
+          cnbToken: "cnb_test_token",
+          githubIssueSyncEnabled: true,
+        }),
+      },
+      feedbackIssueGroup: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ number: "1" }),
+    });
+
+    const result = await runFeedbackOutbox({
+      prisma,
+      now: () => new Date("2026-04-28T09:11:54Z"),
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    expect(result).toEqual({
+      scanned: 1,
+      processed: 1,
+      succeeded: 1,
+      failed: 0,
+      skipped: 0,
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.cnb.cool/joyawang/Laicai/-/issues",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Accept: "application/vnd.cnb.api+json",
+          Authorization: "Bearer cnb_test_token",
+        }),
+      }),
+    );
+    expect(prisma.feedbackSubmission.update).toHaveBeenCalledWith({
+      where: { id: "fb_cnb_001" },
+      data: expect.objectContaining({
+        githubIssueNumber: 1,
+        githubIssueUrl: "https://cnb.cool/joyawang/Laicai/-/issues/1",
+        githubSyncStatus: "synced",
+        status: "reported",
+      }),
+    });
+  });
+
   it("retries github issue sync with backoff when github api fails", async () => {
     const prisma = {
       feedbackIssueOutbox: {
