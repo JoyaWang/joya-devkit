@@ -203,7 +203,10 @@ run_migrations_and_seed() {
   log "[OK] Migrations applied"
 
   docker compose -f srs/infra/docker-compose.yml exec -T api node dist-seed/scripts/seed-projects.js 2>&1 | tee -a "$LOG_FILE"
-  log "[OK] Seed done"
+  log "[OK] Project seed done"
+
+  docker compose -f srs/infra/docker-compose.yml exec -T api node dist-seed/scripts/seed-legal-docs.js 2>&1 | tee -a "$LOG_FILE"
+  log "[OK] Legal seed done"
 
   docker compose -f srs/infra/docker-compose.yml restart api 2>&1 | tee -a "$LOG_FILE"
   log "[OK] API restarted after seed"

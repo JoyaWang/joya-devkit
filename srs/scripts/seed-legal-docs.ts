@@ -1,9 +1,9 @@
 /**
  * Seed script: populate LegalDocument for laicai and infov projects.
  *
- * Reads user-agreement.html and privacy-policy.html from infinex-site
- * as the Laicai template, then creates InfoV variants with appropriate
- * product name, description, and SDK list changes.
+ * Reads user-agreement.html and privacy-policy.html from the in-repo
+ * scripts/legal-docs/laicai snapshot as the Laicai template, then creates
+ * InfoV variants with appropriate product name, description, and SDK list changes.
  *
  * Local usage: npx tsx scripts/seed-legal-docs.ts
  * Runtime container usage: node dist-seed/scripts/seed-legal-docs.js
@@ -23,16 +23,35 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 // ---------------------------------------------------------------------------
-// Laicai content: read from infinex-site HTML files
+// Laicai content: read from in-repo legal HTML snapshots
 // ---------------------------------------------------------------------------
 
-const INFINEX_SITE_BASE = path.resolve(
-  process.env.JOYA_ROOT || "/Users/joya/JoyaProjects",
-  "infinex-site",
-);
+const LAICAI_LEGAL_DOCUMENT_FILENAMES = ["user-agreement.html", "privacy-policy.html"] as const;
+
+function legalDocsBaseHasRequiredFiles(basePath: string): boolean {
+  return LAICAI_LEGAL_DOCUMENT_FILENAMES.every((filename) => fs.existsSync(path.join(basePath, filename)));
+}
+
+function resolveLaicaiLegalDocsBase(): string {
+  if (process.env.LAICAI_LEGAL_DOCS_DIR) {
+    return path.resolve(process.env.LAICAI_LEGAL_DOCS_DIR);
+  }
+
+  const candidates = [
+    // Runtime container executes from /app and keeps snapshots at /app/scripts/legal-docs/laicai.
+    path.resolve(process.cwd(), "scripts/legal-docs/laicai"),
+    // Local tsx execution from this source file directory.
+    path.resolve(import.meta.dirname, "legal-docs/laicai"),
+    // Compiled dist-seed execution from /app/dist-seed/scripts.
+    path.resolve(import.meta.dirname, "../../scripts/legal-docs/laicai"),
+  ];
+  return candidates.find(legalDocsBaseHasRequiredFiles) ?? candidates[0];
+}
+
+const LAICAI_LEGAL_DOCS_BASE = resolveLaicaiLegalDocsBase();
 
 function readLaicaiDocument(filename: string): string {
-  const filePath = path.join(INFINEX_SITE_BASE, filename);
+  const filePath = path.join(LAICAI_LEGAL_DOCS_BASE, filename);
   if (!fs.existsSync(filePath)) {
     throw new Error(`Laicai document not found: ${filePath}`);
   }

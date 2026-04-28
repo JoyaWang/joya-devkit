@@ -7,6 +7,14 @@
 
 ## 已完成
 
+### 2026-04-28 legal docs seed / deploy contract 修复
+- [x] 根因确认：prod `/v1/legal/user-agreement|privacy-policy?projectKey=infov|laicai` 返回 `Document not found`，route 可达且参数合同正确，真实缺口为 prod DB 未播种 `legal_documents`。
+- [x] 修复 deploy contract：`deploy-remote-ssh.sh` 在 `seed-projects.js` 后继续执行 `seed-legal-docs.js`，保证 legal docs 随 SRS deploy 幂等播种。
+- [x] 修复 runtime seed 产物：`tsconfig.seed.json` 编译 `seed-legal-docs.ts`，`package.json` 暴露 `seed:legal`，API image 携带 `scripts/legal-docs/laicai/*.html` 快照。
+- [x] 修复 seed runtime 依赖：`seed-legal-docs.ts` 默认读取仓库内 legal HTML 快照，不再依赖开发机绝对路径；`LAICAI_LEGAL_DOCS_DIR` 仅作为显式覆盖入口。
+- [x] 验证通过：`pnpm run build:seed`、`pnpm run typecheck`、`pnpm run build`、`pnpm exec vitest run tests/infra-deployment.test.mts -t "SRS legal document seed deployment contract"`。
+- [~] 待线上关闭项：需将本补丁部署到 SRS prod 并执行 legal seed，随后 curl InfoV / Laicai legal URLs 不应再返回 404。
+
 ### 2026-04-28 public auth / VersionCheck 401 修复
 - [x] 根因确认：SRS 全局 `preHandler` 未读取 route-level `config.skipAuth`，且旧 public allowlist 缺少 `/v1/releases/check` / `/v1/releases/latest`，同时 raw `request.url` 带 query string 时 exact match 失败，导致 InfoV prod iOS `/v1/releases/check?...` 被误拦截为 `401 missing token`
 - [x] 新增 `apps/api/src/public-auth.ts`：集中处理 `normalizeAuthPath`、`hasRouteSkipAuth`、`shouldSkipAuth`，以 route-level skipAuth 作为 primary public contract，并保留 defensive allowlist
@@ -15,8 +23,9 @@
 - [x] 修复 release route 单测 capture helper，使其支持 Fastify `(path, opts, handler)` 签名，并补 `x-project-key` header
 - [x] 验证通过：`pnpm exec vitest run tests/public-auth.test.mts tests/releases-channel-control.test.mts tests/feedback-minimal-closure.test.mts` → 3 files / 46 tests passed
 - [x] 验证通过：`pnpm --filter @srs/api run typecheck`、`pnpm --filter @srs/api run build`
-- [~] 待线上部署后复验：curl `https://srs.infinex.cn/v1/releases/check?...` 不应再返回 `missing token` 401；随后回到 InfoV prod iOS local-run 验证 `[VersionCheck] 401` 消失
-- [x] 证据报告：`test-reports/2026-04-28_20-06_public-auth-versioncheck-401.md`
+- [x] 线上部署与复验通过：CNB prod deploy `cnb-j0o-1jna0hio6` 成功；curl `https://srs.infinex.cn/v1/releases/check?...` + `X-Project-Key: infov` 已从 `401 missing token` 变为 HTTP 200 `reason: "no_active_release"`；InfoV prod iOS local-run 未再出现 `[VersionCheck] Error ... 401`
+- [x] SRS 证据报告：`test-reports/2026-04-28_20-06_public-auth-versioncheck-401.md`
+- [x] InfoV 证据报告：`InfoV/test-reports/2026-04-28_20-48_versioncheck-401-prod-ios.md`
 
 ### 2026-04-19 统一 release 控制面收口
 - [x] `AppRelease` 新增 `channel` 字段，并补 Prisma migration `20260419_add_release_channel_to_app_releases`

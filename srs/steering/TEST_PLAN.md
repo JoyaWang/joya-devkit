@@ -45,6 +45,7 @@
 - `tests/seed-projects-config.test.mts` 锁定 seed resolver 只读取 `SHARED_COS_*`。
 - 测试必须覆盖：单一路径成功、旧 key 不再被接受、dev/prod 通过不同 env object 注入不同 shared config。
 - deploy/workflow 的 seed 行为不允许再通过 inline Node resolver 或 raw SQL reader 测试；应通过 canonical seed 入口与静态 workflow 检查确认。
+- `tests/infra-deployment.test.mts` 必须静态锁定：API image 构建 `dist-seed` 时包含 `seed-legal-docs.ts`，runner image 包含 legal HTML 快照，远端 deploy 在 `seed-projects.js` 后执行 `seed-legal-docs.js`。
 
 ### 常用测试命令
 

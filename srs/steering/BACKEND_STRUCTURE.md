@@ -212,6 +212,8 @@ shared-runtime-services/
 - dev / prod 差异只由 Infisical dev / prod environment 区分；key 名不再携带 `DEV` / `PROD`。
 - `SHARED_DEV_*`、`SHARED_PROD_*`、`INFOV_*`、`LAICAI_*` 与 legacy `COS_*` 不再是 object storage binding seed 的正式输入源。
 - deploy workflow 不得内联 COS env reader 或 raw SQL seed；部署时必须在 API 容器中调用 canonical seed 入口，让 env -> DB binding 只经过 `scripts/seed-projects.ts` / `scripts/seed-projects-config.ts` 一套逻辑。
+- 法律文档 seed 的 canonical 入口是 `scripts/seed-legal-docs.ts`，由 `build:seed` 编译为 `dist-seed/scripts/seed-legal-docs.js`，远端部署在 project seed 后继续于 API 容器内执行；脚本必须幂等 upsert `laicai` / `infov` 的 `user_agreement` 与 `privacy_policy`。
+- 法律文档 seed 不得依赖开发机绝对路径；运行时默认读取仓库内 `scripts/legal-docs/laicai/*.html` 快照，`LAICAI_LEGAL_DOCS_DIR` 仅作为显式覆盖入口。
 - `ObjectStorageAdapterFactory` 按进程内 cache 复用 adapter；任何 binding config 变更后必须重启 API，避免旧 adapter 继续持有旧 bucket / domain / credentials。
 
 ### provider 迁移 playbook（正式协议）

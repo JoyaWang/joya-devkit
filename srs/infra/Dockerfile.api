@@ -68,6 +68,8 @@ COPY --from=builder /app/dist-seed ./dist-seed
 COPY --from=builder /app/apps/api/src/generated ./apps/api/src/generated
 # Keep source seed scripts available for diagnostics; deploy uses dist-seed.
 COPY --from=builder /app/scripts ./scripts
+# Keep legal document HTML snapshots available for runtime legal seed.
+COPY --from=builder /app/scripts/legal-docs ./scripts/legal-docs
 
 EXPOSE 3010
 CMD ["node", "dist/index.js"]

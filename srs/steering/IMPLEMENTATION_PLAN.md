@@ -87,14 +87,15 @@
 1. 文档与 `.env.example` 先统一到 `SHARED_COS_*` 合同。
 2. `scripts/seed-projects-config.ts` 作为唯一 COS config resolver，仅读取 `SHARED_COS_*`。
 3. `scripts/seed-projects.ts` 继续作为 canonical seed 逻辑，幂等写入 manifests 与 bindings。
-4. deploy workflows 删除 inline `resolveConfig` / raw SQL seed，改为在 API 容器内执行 canonical seed 入口。
-5. API runtime image 必须具备执行 seed 入口所需的脚本、Prisma generated client 与运行时依赖。
-6. binding 变更后必须重启 API，因为 `ObjectStorageAdapterFactory` 有进程内 adapter cache。
+4. `scripts/seed-legal-docs.ts` 继续作为 legal document canonical seed 逻辑，幂等写入 `laicai` / `infov` 的用户协议与隐私政策；seed 源文件固定为仓库内 `scripts/legal-docs/laicai/*.html` 快照，避免 runtime 依赖开发机 `$JOYA_ROOT/infinex-site`。
+5. deploy workflows 删除 inline `resolveConfig` / raw SQL seed，改为在 API 容器内依次执行 canonical project seed 与 legal seed 入口。
+6. API runtime image 必须具备执行 seed 入口所需的脚本、legal HTML 快照、Prisma generated client 与运行时依赖。
+7. binding 变更后必须重启 API，因为 `ObjectStorageAdapterFactory` 有进程内 adapter cache。
 
 ### 验收标准
 - [ ] `resolveObjectStorageSeedConfig()` 只读取 `SHARED_COS_*`。
 - [ ] deploy workflows 不再维护第二套 COS env reader。
-- [ ] deploy 在 migration 后调用 API 容器内 canonical seed 入口。
+- [ ] deploy 在 migration 后调用 API 容器内 canonical project seed 与 legal seed 入口。
 - [ ] deploy gate 校验 `SHARED_COS_*` 五个键。
 - [ ] seed config tests 只覆盖单一路径，并验证 dev/prod 由不同 env object 表达。
 

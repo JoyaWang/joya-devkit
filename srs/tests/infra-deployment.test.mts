@@ -161,6 +161,54 @@ describe("deploy-remote-ssh.sh - remote git fetch resilience", () => {
     expect(script).toContain("cp \"$incoming_runtime_env\" \"$runtime_env\"");
     expect(workflow).toContain("bash srs/scripts/deploy-remote-ssh.sh prod --skip-code-pull --image-bundle incoming/srs-images-${{ github.sha }}.tar.gz --image-tag ${{ github.sha }}");
   });
+
+  it("MUST run legal document seed after project seed during remote deploy", () => {
+    const script = readRepoFileContent("srs/scripts/deploy-remote-ssh.sh");
+    const projectSeedIndex = lineIndex(script, "node dist-seed/scripts/seed-projects.js");
+    const legalSeedIndex = lineIndex(script, "node dist-seed/scripts/seed-legal-docs.js");
+
+    expect(projectSeedIndex).toBeGreaterThanOrEqual(0);
+    expect(legalSeedIndex).toBeGreaterThanOrEqual(0);
+    expect(projectSeedIndex).toBeLessThan(legalSeedIndex);
+    expect(script).toContain("[OK] Legal seed done");
+  });
+});
+
+describe("SRS legal document seed deployment contract", () => {
+  it("MUST expose a package script for legal document seed", () => {
+    const packageJson = JSON.parse(readFileContent("package.json")) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts["seed:legal"]).toBe("node dist-seed/scripts/seed-legal-docs.js");
+  });
+
+  it("MUST compile seed-legal-docs into dist-seed", () => {
+    const tsconfig = readFileContent("tsconfig.seed.json");
+
+    expect(tsconfig).toContain("scripts/seed-legal-docs.ts");
+  });
+
+  it("MUST package legal document HTML snapshots into the API runtime image", () => {
+    const dockerfile = readFileContent("infra/Dockerfile.api");
+
+    expect(dockerfile).toContain("COPY --from=builder /app/scripts/legal-docs ./scripts/legal-docs");
+  });
+
+  it("MUST keep Laicai legal HTML snapshots in-repo for runtime seeding", () => {
+    expect(existsSync(resolve(ROOT_DIR, "scripts/legal-docs/laicai/user-agreement.html"))).toBe(true);
+    expect(existsSync(resolve(ROOT_DIR, "scripts/legal-docs/laicai/privacy-policy.html"))).toBe(true);
+  });
+
+  it("MUST resolve legal HTML snapshots from source and dist-seed runtime locations", () => {
+    const seedScript = readFileContent("scripts/seed-legal-docs.ts");
+
+    expect(seedScript).toContain('path.resolve(process.cwd(), "scripts/legal-docs/laicai")');
+    expect(seedScript).toContain('path.resolve(import.meta.dirname, "legal-docs/laicai")');
+    expect(seedScript).toContain('path.resolve(import.meta.dirname, "../../scripts/legal-docs/laicai")');
+    expect(seedScript).toContain("legalDocsBaseHasRequiredFiles");
+    expect(seedScript).toContain("LAICAI_LEGAL_DOCS_DIR");
+  });
 });
 
 describe("Dockerfile.api - workspace manifests", () => {

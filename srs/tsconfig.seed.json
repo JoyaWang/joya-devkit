@@ -12,6 +12,7 @@
   "include": [
     "scripts/seed-projects.ts",
     "scripts/seed-projects-config.ts",
+    "scripts/seed-legal-docs.ts",
     "apps/api/src/generated/prisma/**/*.ts"
   ]
 }

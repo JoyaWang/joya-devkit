@@ -22,14 +22,16 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Current Slice
 - Phase: `shared-delivery-plane`
-- Status: **SRS public auth / InfoV VersionCheck 401 本地修复完成，待 prod 部署复验** — `/v1/releases/check`、`/v1/releases/latest` 与 feedback public intake 已统一到 route-level `config.skipAuth` + defensive allowlist 合同；query string 与反代 `/api/` 前缀均已纳入 public auth path normalization。
-- Active slice: `public-auth-versioncheck-401`
-- Latest checkpoint: InfoV prod iOS local-run 中 `/v1/releases/check?...` 曾返回 `401 missing token`。根因锁定为 SRS 全局 `preHandler` 未读取 route-level `config.skipAuth`、旧 allowlist 缺少 release public endpoints、且 raw `request.url` exact match 会被 query string 破坏。已新增 `apps/api/src/public-auth.ts`，并让 `apps/api/src/index.ts` 以 `hasRouteSkipAuth(request) || shouldSkipAuth(request.url, request.method)` 决定是否跳过 service-token auth。
+- Status: **SRS legal docs seed/deploy contract 本地修复完成，待 prod 播种复验** — `/v1/legal/user-agreement|privacy-policy?projectKey=infov|laicai` 线上 404 根因是 `legal_documents` 未播种；route 可达且 query/header contract 正确。
+- Active slice: `legal-docs-seed-prod-404`
+- Latest checkpoint: 已补 `seed:legal`、`tsconfig.seed.json`、`deploy-remote-ssh.sh`、API image legal HTML 快照，以及 `seed-legal-docs.ts` runtime path resolver；本地验证通过，尚未部署 prod / 执行线上 seed。
 - 已通过的验证：
-  - `pnpm exec vitest run tests/public-auth.test.mts tests/releases-channel-control.test.mts tests/feedback-minimal-closure.test.mts` → 3 files / 46 tests ✅
-  - `pnpm --filter @srs/api run typecheck` → 通过 ✅
-  - `pnpm --filter @srs/api run build` → 通过 ✅
-  - 证据报告：`test-reports/2026-04-28_20-06_public-auth-versioncheck-401.md`
+  - `pnpm run build:seed` → 通过 ✅
+  - `pnpm run typecheck` → 通过 ✅
+  - `pnpm run build` → 通过 ✅
+  - `pnpm exec vitest run tests/infra-deployment.test.mts -t "SRS legal document seed deployment contract"` → 5 tests ✅
+  - `git diff --check` → 通过 ✅
+  - 全量 `tests/infra-deployment.test.mts` 仍有 12 个历史失败，均属既存 GitHub workflow / docker-compose / `.dockerignore` 合同漂移，不属于本次 legal seed 新增合同；本次新增 legal seed 合同已全部通过。
 
 ## Locked Decisions
 - joya-devkit 是 Joya 统一开发工具库：Flutter SDK + Shared Runtime Services（SRS）。
@@ -46,13 +48,14 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - **Seed 安全**：seed-projects.ts 执行时先检查 manifests 是否存在，不存在则创建，保证幂等性。
 
 ## Next Default Action
-1. 提交并同步 `dev` / `main`，push SRS public auth 修复，触发 prod deploy。
-2. prod deploy 完成后 curl 验证 `https://srs.infinex.cn/v1/releases/check?env=prod&platform=ios&currentVersion=...&channel=official&deviceId=...` + `X-Project-Key: infov` 不再返回 `missing token` 401。
-3. 回到 InfoV 执行 prod iOS local-run，确认 `[VersionCheck] Error ... 401` 消失，并把证据写入 InfoV test report / progress。
-4. 再恢复原 shared delivery plane 后续：沉淀 `dl-dev` infra baseline、prod shared COS 抽检、Laicai feedback live metadata 抽检。
+1. 将 legal docs seed/deploy 补丁提交并推送到 SRS prod 部署源分支，触发或执行 prod deploy，使 API 容器运行 `seed-legal-docs.js`。
+2. curl 验证 `https://srs.infinex.cn/v1/legal/user-agreement?projectKey=infov` 与 `privacy-policy?projectKey=infov` 不再 404；顺带验证 `projectKey=laicai`。
+3. 回到 InfoV prod iOS local-run，点击登录/注册页协议，确认 WebView 展示正文。
+4. 再恢复原 shared delivery plane 后续或 InfoV T-004 screenshot detector QA 验证。
 
 ## Blockers / Watchouts
-- 当前待线上关闭项：本地代码已修复 VersionCheck 401，但 prod `srs.infinex.cn` 仍需部署最新 API 后才会生效；部署前线上 endpoint 可能继续返回旧的 `401 missing token`。
+- 当前线上待关闭项：prod legal URLs 仍可能返回 `Document not found`，直到 SRS prod 运行本补丁并执行 `seed-legal-docs.js`。
+- `VersionCheck 401` 已关闭；后续若再出现 release check 401，优先检查 prod 是否运行最新 SRS API，以及 route-level `config.skipAuth` 是否被全局 preHandler 正确读取。
 - 旧 blocker `24868683261 / Deploy via SSH` 已由重跑 `24873253269` 成功暂时解除；当前未复现固定脚本故障，更像一次性环境 / 远端状态波动，后续仍需观察是否偶发。
 - 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；本次 deploy 成功说明 pre-clean + 构建链路可工作。定时 Docker cleanup 已从 GitHub-hosted runner SSH 改为服务器本机 cron：`/opt/joya-governance/bin/joya-devkit-docker-cleanup.sh`。
 - 当前主要 watchout：`dl-dev` 现阶段依赖 CDN 回源 `119.29.221.161:80` + Host `dl-dev.infinex.cn`；若要切回 HTTPS 回源，需先补源站 `dl-dev.infinex.cn` 证书。
