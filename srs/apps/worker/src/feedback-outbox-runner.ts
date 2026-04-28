@@ -91,9 +91,13 @@ interface FeedbackSubmissionRecord {
 
 interface FeedbackProjectConfigRecord {
   projectKey: string;
+  issueTracker: string;
   githubRepoOwner: string | null;
   githubRepoName: string | null;
   githubToken: string | null;
+  cnbRepoNamespace: string | null;
+  cnbRepoName: string | null;
+  cnbToken: string | null;
   githubIssueSyncEnabled: boolean;
 }
 
@@ -163,6 +167,54 @@ export interface RunFeedbackOutboxInput {
 
 export interface FeedbackOutboxLoop {
   stop(): void;
+}
+
+// ---------------------------------------------------------------------------
+// Issue tracker platform abstraction
+// ---------------------------------------------------------------------------
+
+interface IssueTrackerConfig {
+  createIssueUrl: string;
+  authHeader: string;
+  extraHeaders: Record<string, string>;
+  parseResponse: (json: unknown) => { number: number | null; html_url: string | null };
+}
+
+function buildIssueTracker(config: FeedbackProjectConfigRecord): IssueTrackerConfig {
+  if (config.issueTracker === "cnb") {
+    return {
+      createIssueUrl: `https://api.cnb.cool/${config.cnbRepoNamespace}/${config.cnbRepoName}/-/issues`,
+      authHeader: `Bearer ${config.cnbToken}`,
+      extraHeaders: { Accept: "application/vnd.cnb.api+json" },
+      parseResponse: (json: any) => ({
+        number: json.number ?? null,
+        html_url: json.html_url ?? null,
+      }),
+    };
+  }
+  // Default: GitHub
+  return {
+    createIssueUrl: `https://api.github.com/repos/${config.githubRepoOwner}/${config.githubRepoName}/issues`,
+    authHeader: `Bearer ${config.githubToken}`,
+    extraHeaders: { Accept: "application/vnd.github+json" },
+    parseResponse: (json: any) => ({
+      number: json.number ?? null,
+      html_url: json.html_url ?? null,
+    }),
+  };
+}
+
+function validateTrackerConfig(config: FeedbackProjectConfigRecord): string | null {
+  if (config.issueTracker === "cnb") {
+    if (!config.cnbRepoNamespace || !config.cnbRepoName || !config.cnbToken) {
+      return "missing_cnb_config";
+    }
+    return null;
+  }
+  if (!config.githubRepoOwner || !config.githubRepoName || !config.githubToken) {
+    return "missing_github_config";
+  }
+  return null;
 }
 
 function parseJsonField(value: string | null | undefined): unknown {
@@ -372,9 +424,10 @@ export async function runFeedbackOutbox(
       continue;
     }
 
-    if (!config.githubRepoOwner || !config.githubRepoName || !config.githubToken) {
+    const trackerConfigError = validateTrackerConfig(config);
+    if (trackerConfigError) {
       result.failed += 1;
-      const errorMessage = "missing_github_config";
+      const errorMessage = trackerConfigError;
       const nextAttemptCount = job.attemptCount + 1;
       const finalFailure = nextAttemptCount >= maxAttempts;
       await input.prisma.feedbackIssueOutbox.update({
@@ -474,30 +527,28 @@ export async function runFeedbackOutbox(
       }
 
       // No existing issue on group - create one
-      const response = await fetchImpl(
-        `https://api.github.com/repos/${config.githubRepoOwner}/${config.githubRepoName}/issues`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/vnd.github+json",
-            Authorization: `Bearer ${config.githubToken}`,
-            "User-Agent": "shared-runtime-services-feedback-worker",
-          },
-          body: JSON.stringify({
-            title: buildIssueTitle(submission, group),
-            body: buildIssueBody(submission),
-            labels: ["feedback", `project:${submission.projectKey}`, `channel:${submission.channel}`],
-          }),
+      const tracker = buildIssueTracker(config);
+      const response = await fetchImpl(tracker.createIssueUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...tracker.extraHeaders,
+          Authorization: tracker.authHeader,
+          "User-Agent": "shared-runtime-services-feedback-worker",
         },
-      );
+        body: JSON.stringify({
+          title: buildIssueTitle(submission, group),
+          body: buildIssueBody(submission),
+          labels: ["feedback", `project:${submission.projectKey}`, `channel:${submission.channel}`],
+        }),
+      });
 
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(`github_issue_create_failed:${response.status}:${text.slice(0, 300)}`);
+        throw new Error(`${config.issueTracker}_issue_create_failed:${response.status}:${text.slice(0, 300)}`);
       }
 
-      const issue = (await response.json()) as { number?: number; html_url?: string };
+      const issue = tracker.parseResponse(await response.json());
       const issueNumber = issue.number ?? null;
       const issueUrl = issue.html_url ?? null;
 

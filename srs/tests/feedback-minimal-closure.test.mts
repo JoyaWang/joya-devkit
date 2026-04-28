@@ -1104,6 +1104,7 @@ describe("feedback minimal closure routes", () => {
     expect(reply.statusCode).toBe(200);
     expect(reply.payload).toEqual({
       projectKey: "laicai",
+      issueTracker: "github",
       githubRepoOwner: "joya",
       githubRepoName: "laicai",
       githubIssueSyncEnabled: true,
@@ -1111,6 +1112,9 @@ describe("feedback minimal closure routes", () => {
       errorReportingEnabled: true,
       crashReportingEnabled: true,
       hasGithubToken: true,
+      cnbRepoNamespace: null,
+      cnbRepoName: null,
+      hasCnbToken: false,
     });
   });
 
@@ -1266,6 +1270,7 @@ describe("feedback outbox worker loop", () => {
       feedbackProjectConfig: {
         findUnique: vi.fn().mockResolvedValue({
           projectKey: "laicai",
+          issueTracker: "github",
           githubRepoOwner: "joya",
           githubRepoName: "laicai",
           githubToken: "ghs_test_token",
@@ -1384,6 +1389,7 @@ describe("feedback outbox worker loop", () => {
       feedbackProjectConfig: {
         findUnique: vi.fn().mockResolvedValue({
           projectKey: "laicai",
+          issueTracker: "github",
           githubRepoOwner: "joya",
           githubRepoName: "laicai",
           githubToken: "ghs_test_token",
@@ -1565,6 +1571,7 @@ describe("feedback outbox worker loop", () => {
       feedbackProjectConfig: {
         findUnique: vi.fn().mockResolvedValue({
           projectKey: "laicai",
+          issueTracker: "github",
           githubRepoOwner: "joya",
           githubRepoName: "laicai",
           githubToken: "ghs_test_token",
@@ -1676,6 +1683,7 @@ describe("feedback outbox worker loop", () => {
       feedbackProjectConfig: {
         findUnique: vi.fn().mockResolvedValue({
           projectKey: "laicai",
+          issueTracker: "github",
           githubRepoOwner: "joya",
           githubRepoName: "laicai",
           githubToken: "ghs_test_token",
@@ -1779,6 +1787,7 @@ describe("feedback outbox worker loop", () => {
       feedbackProjectConfig: {
         findUnique: vi.fn().mockResolvedValue({
           projectKey: "laicai",
+          issueTracker: "github",
           githubRepoOwner: "joya",
           githubRepoName: "laicai",
           githubToken: "ghs_test_token",
