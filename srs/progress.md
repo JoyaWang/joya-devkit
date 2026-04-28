@@ -15,7 +15,7 @@
 - [x] prod 部署复验：CNB main deploy `cnb-rt3-1jna66ljp` 成功，deploy log 显示 `seed-projects.js` 后执行 `seed-legal-docs.js`；InfoV / Laicai 四个 legal URL 均已从 404 变为 200。
 - [x] 二次根因修复：InfoV 用户协议 seed adapter 未覆盖中文引号源文，导致线上正文仍残留 Laicai 的“邻里/闲置共享/交易”等业务语义；已补 `tests/seed-legal-docs.test.mts` 锁定 InfoV 协议/隐私政策不得残留 Laicai 业务词。
 - [x] 验证通过：`pnpm run build:seed`、`pnpm run typecheck`、`pnpm run build`、`pnpm exec vitest run tests/infra-deployment.test.mts -t "SRS legal document seed deployment contract|MUST run legal document seed"`、`pnpm exec vitest run tests/seed-legal-docs.test.mts`。
-- [~] 待线上关闭项：需将 InfoV legal content adapter 补丁部署到 SRS prod 并执行 legal seed，随后 curl InfoV 用户协议正文不应再包含 `邻里为本` / `闲置共享` / `帖子、图片、报价、私聊内容` / `线下交易行为`。
+- [x] InfoV legal content adapter prod 复验通过：CNB main deploy `cnb-ote-1jna7iq52` 成功；curl 验证 InfoV / Laicai 四个 legal URL 均为 200，InfoV 用户协议与隐私政策正文不再包含 `邻里为本` / `闲置共享` / `帖子、图片、报价、私聊内容` / `法律限制交易的物品` / `线下交易行为` / `反馈中心` / `百度地图` / `个推` / `人情分` 等 Laicai 业务残留，并包含 `家信柜（InfoV）` 与家庭信息语义。
 
 ### 2026-04-28 public auth / VersionCheck 401 修复
 - [x] 根因确认：SRS 全局 `preHandler` 未读取 route-level `config.skipAuth`，且旧 public allowlist 缺少 `/v1/releases/check` / `/v1/releases/latest`，同时 raw `request.url` 带 query string 时 exact match 失败，导致 InfoV prod iOS `/v1/releases/check?...` 被误拦截为 `401 missing token`
