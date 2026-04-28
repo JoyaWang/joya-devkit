@@ -14,7 +14,7 @@ class AuthApiClient {
     required this.projectKey,
     Duration timeout = const Duration(seconds: 10),
   }) : _dio = Dio(BaseOptions(
-          baseUrl: '$srsBaseUrl/api',
+          baseUrl: srsBaseUrl,
           connectTimeout: timeout,
           receiveTimeout: timeout,
           sendTimeout: timeout,
