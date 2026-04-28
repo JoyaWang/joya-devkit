@@ -1,6 +1,6 @@
 dev:
   push:
-    - name: deploy-dev-srs
+    - name: deploy-dev-srs-auto
       imports:
         - https://cnb.cool/joyawang/secrets/-/blob/main/pipeline-envs.yml
       services:
@@ -13,7 +13,7 @@ dev:
             set -euo pipefail
             apk add --no-cache bash curl python3 openssh-client sshpass git docker-cli
             chmod +x scripts/cnb/*.sh scripts/gen-env-runtime.sh srs/scripts/deploy-remote-ssh.sh
-        - name: build inspect push srs images
+        - name: build inspect push srs dev images
           script: |
             set -euo pipefail
             DEPLOY_ENV=dev FORCE_NO_CACHE=${force_no_cache:-false} bash scripts/cnb/build-push-srs.sh
@@ -21,6 +21,30 @@ dev:
           script: |
             set -euo pipefail
             DEPLOY_ENV=dev bash scripts/cnb/deploy-srs.sh
+
+main:
+  push:
+    - name: deploy-prod-srs-auto
+      imports:
+        - https://cnb.cool/joyawang/secrets/-/blob/main/pipeline-envs.yml
+      services:
+        - docker
+      docker:
+        image: alpine:3.20
+      stages:
+        - name: prepare tools
+          script: |
+            set -euo pipefail
+            apk add --no-cache bash curl python3 openssh-client sshpass git docker-cli
+            chmod +x scripts/cnb/*.sh scripts/gen-env-runtime.sh srs/scripts/deploy-remote-ssh.sh
+        - name: build inspect push srs prod images
+          script: |
+            set -euo pipefail
+            DEPLOY_ENV=prod FORCE_NO_CACHE=false bash scripts/cnb/build-push-srs.sh
+        - name: deploy srs prod
+          script: |
+            set -euo pipefail
+            DEPLOY_ENV=prod bash scripts/cnb/deploy-srs.sh
 
 $:
   api_trigger_deploy_dev:
