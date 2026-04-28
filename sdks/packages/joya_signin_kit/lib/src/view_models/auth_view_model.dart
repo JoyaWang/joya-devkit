@@ -103,6 +103,7 @@ class AuthViewModel extends StateNotifier<AuthState> {
           accessToken: result.accessToken!,
           refreshToken: result.refreshToken!,
           userId: result.user?.id ?? '',
+          phone: result.user?.phone,
         );
       }
       state = state.copyWith(

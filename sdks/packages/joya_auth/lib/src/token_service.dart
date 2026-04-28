@@ -60,6 +60,7 @@ class TokenService {
         _storage.read(key: _accessTokenKey),
         _storage.read(key: _refreshTokenKey),
         _storage.read(key: _userIdKey),
+        _storage.read(key: _phoneKey),
         _storage.read(key: _nicknameKey),
         _storage.read(key: _avatarKey),
         _storage.read(key: _realNameVerifiedKey),
@@ -67,9 +68,10 @@ class TokenService {
       _cachedAccessToken = results[0];
       _cachedRefreshToken = results[1];
       _cachedUserId = results[2];
-      _cachedNickname = _normalizeOptionalString(results[3]);
-      _cachedAvatar = _normalizeOptionalString(results[4]);
-      final verifiedRaw = results[5];
+      _cachedPhone = _normalizeOptionalString(results[3]);
+      _cachedNickname = _normalizeOptionalString(results[4]);
+      _cachedAvatar = _normalizeOptionalString(results[5]);
+      final verifiedRaw = results[6];
       _cachedIsRealNameVerified =
           verifiedRaw == null ? null : verifiedRaw.toLowerCase() == 'true';
       _cacheRestored = true;
@@ -180,12 +182,17 @@ class TokenService {
     required String accessToken,
     required String refreshToken,
     required String userId,
+    String? phone,
   }) async {
     await Future.wait([
       saveAccessToken(accessToken),
       saveRefreshToken(refreshToken),
       saveUserId(userId),
+      if (phone != null) _safeWrite(_phoneKey, phone),
     ]);
+    if (phone != null) {
+      _cachedPhone = phone;
+    }
   }
 
   Future<void> clearAll() async {
@@ -193,6 +200,7 @@ class TokenService {
       _safeDelete(_accessTokenKey),
       _safeDelete(_refreshTokenKey),
       _safeDelete(_userIdKey),
+      _safeDelete(_phoneKey),
       _safeDelete(_nicknameKey),
       _safeDelete(_avatarKey),
       _safeDelete(_realNameVerifiedKey),
@@ -200,6 +208,7 @@ class TokenService {
     _cachedAccessToken = null;
     _cachedRefreshToken = null;
     _cachedUserId = null;
+    _cachedPhone = null;
     _cachedNickname = null;
     _cachedAvatar = null;
     _cachedIsRealNameVerified = null;
@@ -220,6 +229,7 @@ class TokenService {
       _cachedAccessToken = null;
       _cachedRefreshToken = null;
       _cachedUserId = null;
+      _cachedPhone = null;
       _cachedNickname = null;
       _cachedAvatar = null;
       _cachedIsRealNameVerified = null;
