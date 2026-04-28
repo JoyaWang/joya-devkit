@@ -14,13 +14,16 @@
 import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { PrismaClient } from "../apps/api/src/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-});
-const prisma = new PrismaClient({ adapter });
+function createPrismaClient(): PrismaClient {
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+  });
+  return new PrismaClient({ adapter });
+}
 
 // ---------------------------------------------------------------------------
 // Laicai content: read from in-repo legal HTML snapshots
@@ -62,7 +65,7 @@ function readLaicaiDocument(filename: string): string {
 // InfoV variants: adapt Laicai templates
 // ---------------------------------------------------------------------------
 
-function createInfoVUserAgreement(laicaiHtml: string): { title: string; contentHtml: string; version: string } {
+export function createInfoVUserAgreement(laicaiHtml: string): { title: string; contentHtml: string; version: string } {
   let html = laicaiHtml;
 
   // Replace title
@@ -71,15 +74,23 @@ function createInfoVUserAgreement(laicaiHtml: string): { title: string; contentH
 
   // Replace product description
   html = html.replace(
-    /"来财"是一款以邻里为本的闲置共享与社区互助平台应用软件（以下简称"本软件"或"本平台"）/,
-    '"家信柜（InfoV）"是一款以家庭为单位的信息安全归档与家庭资料管理应用软件（以下简称"本软件"或"本平台"）',
+    /["“]来财["”]是一款以邻里为本的闲置共享与社区互助平台应用软件（以下简称["“]本软件["”]或["“]本平台["”]）/g,
+    '“家信柜（InfoV）”是一款以家庭为单位的信息安全归档与家庭资料管理应用软件（以下简称“本软件”或“本平台”）',
   );
 
   // Replace product name throughout
-  html = html.replace(/"来财"/g, '"家信柜（InfoV）"');
+  html = html.replace(/["“]来财["”]/g, '“家信柜（InfoV）”');
   html = html.replace(/来财/g, "家信柜（InfoV）");
 
   // Replace feature-specific references
+  html = html.replace(/邻里为本/g, "家庭为单位");
+  html = html.replace(/闲置共享与社区互助/g, "信息安全归档与家庭资料管理");
+  html = html.replace(/帖子、图片、报价、私聊内容/g, "文档、照片、备注、协作消息");
+  html = html.replace(/法律限制交易的物品/g, "法律限制传播或存储的信息");
+  html = html.replace(/信息发布和社区交流的平台/g, "家庭信息安全归档和资料管理的平台");
+  html = html.replace(/线下履约能力/g, "资料管理与协作行为");
+  html = html.replace(/线下交易行为/g, "资料共享或协作行为");
+  html = html.replace(/反馈中心/g, "反馈功能");
   html = html.replace(
     /人情分/g, "家庭档案",
   );
@@ -147,7 +158,7 @@ function createInfoVUserAgreement(laicaiHtml: string): { title: string; contentH
   };
 }
 
-function createInfoVPrivacyPolicy(laicaiHtml: string): { title: string; contentHtml: string; version: string } {
+export function createInfoVPrivacyPolicy(laicaiHtml: string): { title: string; contentHtml: string; version: string } {
   let html = laicaiHtml;
 
   // Replace title
@@ -160,7 +171,7 @@ function createInfoVPrivacyPolicy(laicaiHtml: string): { title: string; contentH
 
   // Replace core description
   html = html.replace(
-    /账号注册、身份验证、信息发布、订单交易、即时通讯、地图定位等基本功能/g,
+    /[账用]户注册、身份验证、信息发布、订单交易、即时通讯、地图定位等基本功能/g,
     "账号注册、身份验证、家庭信息归档、文件管理、家庭成员协作等基本功能",
   );
 
@@ -360,6 +371,7 @@ function createInfoVPrivacyPolicy(laicaiHtml: string): { title: string; contentH
 // ---------------------------------------------------------------------------
 
 async function main() {
+  const prisma = createPrismaClient();
   console.log("Seeding legal documents...");
 
   // Read Laicai source documents
@@ -428,8 +440,9 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((err) => {
-  console.error("Seed failed:", err);
-  prisma.$disconnect();
-  process.exit(1);
-});
+if (import.meta.url === pathToFileURL(path.resolve(process.argv[1] ?? "")).href) {
+  main().catch((err) => {
+    console.error("Seed failed:", err);
+    process.exit(1);
+  });
+}

@@ -12,8 +12,10 @@
 - [x] 修复 deploy contract：`deploy-remote-ssh.sh` 在 `seed-projects.js` 后继续执行 `seed-legal-docs.js`，保证 legal docs 随 SRS deploy 幂等播种。
 - [x] 修复 runtime seed 产物：`tsconfig.seed.json` 编译 `seed-legal-docs.ts`，`package.json` 暴露 `seed:legal`，API image 携带 `scripts/legal-docs/laicai/*.html` 快照。
 - [x] 修复 seed runtime 依赖：`seed-legal-docs.ts` 默认读取仓库内 legal HTML 快照，不再依赖开发机绝对路径；`LAICAI_LEGAL_DOCS_DIR` 仅作为显式覆盖入口。
-- [x] 验证通过：`pnpm run build:seed`、`pnpm run typecheck`、`pnpm run build`、`pnpm exec vitest run tests/infra-deployment.test.mts -t "SRS legal document seed deployment contract"`。
-- [~] 待线上关闭项：需将本补丁部署到 SRS prod 并执行 legal seed，随后 curl InfoV / Laicai legal URLs 不应再返回 404。
+- [x] prod 部署复验：CNB main deploy `cnb-rt3-1jna66ljp` 成功，deploy log 显示 `seed-projects.js` 后执行 `seed-legal-docs.js`；InfoV / Laicai 四个 legal URL 均已从 404 变为 200。
+- [x] 二次根因修复：InfoV 用户协议 seed adapter 未覆盖中文引号源文，导致线上正文仍残留 Laicai 的“邻里/闲置共享/交易”等业务语义；已补 `tests/seed-legal-docs.test.mts` 锁定 InfoV 协议/隐私政策不得残留 Laicai 业务词。
+- [x] 验证通过：`pnpm run build:seed`、`pnpm run typecheck`、`pnpm run build`、`pnpm exec vitest run tests/infra-deployment.test.mts -t "SRS legal document seed deployment contract|MUST run legal document seed"`、`pnpm exec vitest run tests/seed-legal-docs.test.mts`。
+- [~] 待线上关闭项：需将 InfoV legal content adapter 补丁部署到 SRS prod 并执行 legal seed，随后 curl InfoV 用户协议正文不应再包含 `邻里为本` / `闲置共享` / `帖子、图片、报价、私聊内容` / `线下交易行为`。
 
 ### 2026-04-28 public auth / VersionCheck 401 修复
 - [x] 根因确认：SRS 全局 `preHandler` 未读取 route-level `config.skipAuth`，且旧 public allowlist 缺少 `/v1/releases/check` / `/v1/releases/latest`，同时 raw `request.url` 带 query string 时 exact match 失败，导致 InfoV prod iOS `/v1/releases/check?...` 被误拦截为 `401 missing token`

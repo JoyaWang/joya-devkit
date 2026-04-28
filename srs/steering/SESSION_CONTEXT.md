@@ -22,14 +22,15 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Current Slice
 - Phase: `shared-delivery-plane`
-- Status: **SRS legal docs seed/deploy contract 本地修复完成，待 prod 播种复验** — `/v1/legal/user-agreement|privacy-policy?projectKey=infov|laicai` 线上 404 根因是 `legal_documents` 未播种；route 可达且 query/header contract 正确。
-- Active slice: `legal-docs-seed-prod-404`
-- Latest checkpoint: 已补 `seed:legal`、`tsconfig.seed.json`、`deploy-remote-ssh.sh`、API image legal HTML 快照，以及 `seed-legal-docs.ts` runtime path resolver；本地验证通过，尚未部署 prod / 执行线上 seed。
+- Status: **SRS legal docs seed/deploy contract 已部署，InfoV legal content adapter 二次修复待 prod 复验** — `/v1/legal/user-agreement|privacy-policy?projectKey=infov|laicai` 已从 404 变为 200；二次根因是 InfoV 用户协议转换未覆盖中文引号源文，线上正文仍残留 Laicai 的“邻里/闲置共享/交易”等业务语义。
+- Active slice: `legal-docs-infov-content-adapter`
+- Latest checkpoint: 已补 `tests/seed-legal-docs.test.mts` 与 `seed-legal-docs.ts` InfoV 文案替换规则；本地 `build:seed` / `typecheck` / `build` / legal seed content tests / legal deployment contract tests 均通过，待提交推送并触发 prod deploy。
 - 已通过的验证：
   - `pnpm run build:seed` → 通过 ✅
   - `pnpm run typecheck` → 通过 ✅
   - `pnpm run build` → 通过 ✅
-  - `pnpm exec vitest run tests/infra-deployment.test.mts -t "SRS legal document seed deployment contract"` → 5 tests ✅
+  - `pnpm exec vitest run tests/infra-deployment.test.mts -t "SRS legal document seed deployment contract|MUST run legal document seed"` → 6 tests ✅
+  - `pnpm exec vitest run tests/seed-legal-docs.test.mts` → 2 tests ✅
   - `git diff --check` → 通过 ✅
   - 全量 `tests/infra-deployment.test.mts` 仍有 12 个历史失败，均属既存 GitHub workflow / docker-compose / `.dockerignore` 合同漂移，不属于本次 legal seed 新增合同；本次新增 legal seed 合同已全部通过。
 
@@ -48,13 +49,13 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - **Seed 安全**：seed-projects.ts 执行时先检查 manifests 是否存在，不存在则创建，保证幂等性。
 
 ## Next Default Action
-1. 将 legal docs seed/deploy 补丁提交并推送到 SRS prod 部署源分支，触发或执行 prod deploy，使 API 容器运行 `seed-legal-docs.js`。
-2. curl 验证 `https://srs.infinex.cn/v1/legal/user-agreement?projectKey=infov` 与 `privacy-policy?projectKey=infov` 不再 404；顺带验证 `projectKey=laicai`。
+1. 将 InfoV legal content adapter 二次补丁提交并同步 dev/main，推送 CNB/GitHub。
+2. 等 CNB prod deploy 完成后，curl 验证 `https://srs.infinex.cn/v1/legal/user-agreement?projectKey=infov` 正文不再包含 `邻里为本` / `闲置共享` / `帖子、图片、报价、私聊内容` / `线下交易行为`；并验证 InfoV / Laicai 四个 legal URL 均为 200。
 3. 回到 InfoV prod iOS local-run，点击登录/注册页协议，确认 WebView 展示正文。
 4. 再恢复原 shared delivery plane 后续或 InfoV T-004 screenshot detector QA 验证。
 
 ## Blockers / Watchouts
-- 当前线上待关闭项：prod legal URLs 仍可能返回 `Document not found`，直到 SRS prod 运行本补丁并执行 `seed-legal-docs.js`。
+- 当前线上待关闭项：prod legal URLs 已 200；InfoV 用户协议正文仍可能残留 Laicai 业务语义，直到 SRS prod 运行 content adapter 二次补丁并重新执行 `seed-legal-docs.js`。
 - `VersionCheck 401` 已关闭；后续若再出现 release check 401，优先检查 prod 是否运行最新 SRS API，以及 route-level `config.skipAuth` 是否被全局 preHandler 正确读取。
 - 旧 blocker `24868683261 / Deploy via SSH` 已由重跑 `24873253269` 成功暂时解除；当前未复现固定脚本故障，更像一次性环境 / 远端状态波动，后续仍需观察是否偶发。
 - 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；本次 deploy 成功说明 pre-clean + 构建链路可工作。定时 Docker cleanup 已从 GitHub-hosted runner SSH 改为服务器本机 cron：`/opt/joya-governance/bin/joya-devkit-docker-cleanup.sh`。
