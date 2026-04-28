@@ -6,6 +6,7 @@ import Fastify from "fastify";
 import { loadProjectEnv } from "./env.js";
 import { authPreHandler } from "./auth.js";
 import { getPrisma } from "./db.js";
+import { hasRouteSkipAuth, shouldSkipAuth } from "./public-auth.js";
 import { registerUploadRequestsRoute } from "./routes/upload-requests.js";
 import { registerDownloadRequestsRoute } from "./routes/download-requests.js";
 import { registerCompleteRoute } from "./routes/complete.js";
@@ -39,35 +40,9 @@ const deliveryResolver = new DeliveryPolicyResolver({
   },
 });
 
-// Paths that skip admin token auth (public APIs)
-const skipAuthPaths = new Set([
-  "/v1/auth/send-code",
-  "/v1/auth/register",
-  "/v1/auth/login",
-  "/v1/auth/reset-password",
-  "/v1/auth/refresh",
-  "/v1/auth/me",        // uses internal user JWT verification
-  "/v1/auth/account",   // uses internal user JWT verification
-  "/v1/auth/email/register",
-  "/v1/auth/email/login",
-  "/v1/feedback/client-settings",
-]);
-
-function shouldSkipAuth(url: string, method: string): boolean {
-  if (url === "/health" && method === "GET") return true;
-  // Strip /api prefix if present (reverse proxy adds it)
-  const path = url.startsWith("/api/") ? url.slice(4) : url;
-  if (skipAuthPaths.has(path)) return true;
-  // legal docs: /v1/legal/:documentType
-  if (path.startsWith("/v1/legal/")) return true;
-  // public delivery
-  if (path.startsWith("/v1/delivery/")) return true;
-  return false;
-}
-
 // Auth preHandler — runs on all routes except health + public APIs
 app.addHook("preHandler", async (request, reply) => {
-  if (shouldSkipAuth(request.url, request.method)) {
+  if (hasRouteSkipAuth(request) || shouldSkipAuth(request.url, request.method)) {
     return;
   }
   await authPreHandler(request, reply);

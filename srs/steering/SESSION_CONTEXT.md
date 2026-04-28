@@ -22,19 +22,14 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 
 ## Current Slice
 - Phase: `shared-delivery-plane`
-- Status: **shared COS 配置收口 + dev public ingress 修复完成** — 文档合同、seed resolver、deploy workflow、API runtime seed 入口与 focused 测试已统一到 `SHARED_COS_*`；`dl-dev` 已恢复稳定 302
-- Active slice: `shared-cos-config-closure`
-- Latest checkpoint: 已确认 Vault 历史漂移真实存在（dev/prod 均缺 `SHARED_COS_*`，且 `LAICAI_COS_BUCKET` 仍指向项目桶）；现已把 `SHARED_COS_*` 写回 Infisical dev/prod，且本地验证 `headBucket` 命中 dev/prod 共享桶成功。同时已完成 `dl-dev` 收口：同一 laicai dev objectKey 现可经公网 `dl-dev` 返回 `302 -> origin-dev`，根因锁定为 shared dev server 缺失 `dl-dev.infinex.cn` Nginx vhost，且 CDN 回源协议 / 端口 / Host 曾未对齐；dev shared server 已新增 `/etc/nginx/sites-available/dl-dev.infinex.cn`，CDN 已收口到 `119.29.221.161:80` + Host `dl-dev.infinex.cn`
+- Status: **SRS public auth / InfoV VersionCheck 401 本地修复完成，待 prod 部署复验** — `/v1/releases/check`、`/v1/releases/latest` 与 feedback public intake 已统一到 route-level `config.skipAuth` + defensive allowlist 合同；query string 与反代 `/api/` 前缀均已纳入 public auth path normalization。
+- Active slice: `public-auth-versioncheck-401`
+- Latest checkpoint: InfoV prod iOS local-run 中 `/v1/releases/check?...` 曾返回 `401 missing token`。根因锁定为 SRS 全局 `preHandler` 未读取 route-level `config.skipAuth`、旧 allowlist 缺少 release public endpoints、且 raw `request.url` exact match 会被 query string 破坏。已新增 `apps/api/src/public-auth.ts`，并让 `apps/api/src/index.ts` 以 `hasRouteSkipAuth(request) || shouldSkipAuth(request.url, request.method)` 决定是否跳过 service-token auth。
 - 已通过的验证：
-  - `pnpm exec vitest run tests/seed-projects-config.test.mts` → 3/3 ✅
-  - `pnpm run build:seed` → 通过 ✅
-  - `scripts/check-runtime-env.sh srs/infra/env.runtime`（dev / prod）→ 通过 ✅
-  - `SHARED_COS_*` dev/prod `headBucket` → 共享桶存在且可访问 ✅
-  - `curl -I https://dl-dev.infinex.cn/{objectKey}` → `302 Found`，`Location: https://origin-dev.infinex.cn/{objectKey}` ✅
-  - `curl -I https://origin-dev.infinex.cn/{objectKey}` → `200 OK` ✅
-  - `vault SSH -> curl -I -H 'Host: dl-dev.infinex.cn' http://127.0.0.1/{objectKey}` → `302 Found` ✅
-  - GitHub Actions `Deploy to Dev` run `24873253269` → `success`，`Deploy via SSH` 通过 ✅
-  - `curl https://srs-dev.infinex.cn/health` → `{"status":"ok"...}` ✅
+  - `pnpm exec vitest run tests/public-auth.test.mts tests/releases-channel-control.test.mts tests/feedback-minimal-closure.test.mts` → 3 files / 46 tests ✅
+  - `pnpm --filter @srs/api run typecheck` → 通过 ✅
+  - `pnpm --filter @srs/api run build` → 通过 ✅
+  - 证据报告：`test-reports/2026-04-28_20-06_public-auth-versioncheck-401.md`
 
 ## Locked Decisions
 - joya-devkit 是 Joya 统一开发工具库：Flutter SDK + Shared Runtime Services（SRS）。
@@ -51,13 +46,13 @@ Do not turn this file into a dated work log. Detailed history belongs in `progre
 - **Seed 安全**：seed-projects.ts 执行时先检查 manifests 是否存在，不存在则创建，保证幂等性。
 
 ## Next Default Action
-1. 将 dev shared server 的 `dl-dev.infinex.cn` vhost 与 CDN 回源设置沉淀到 infra baseline / 操作手册，避免手工配置再次漂移
-2. 以本次 dev deploy 成功结果为基线，补一次 prod deploy / 抽检，确认 `SHARED_COS_*` canonical seed 闭环双环境一致
-3. 部署 SRS 最新 feedback worker / API 后，用 Laicai manual feedback live 样本抽检 GitHub issue `## Metadata`：`deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`、`attachments`、`metadata` 必须完整，其中 `deviceInfo` 保留平台、型号、系统版本
-4. 根据稳定结果再决定是否清理 Vault 旧 `COS_* / INFOV_* / LAICAI_*` 遗留键
-5. 若 `Deploy via SSH` 再次偶发失败，再回捞远端 `deploy.log` 与 Actions step raw log 做根因固化
+1. 提交并同步 `dev` / `main`，push SRS public auth 修复，触发 prod deploy。
+2. prod deploy 完成后 curl 验证 `https://srs.infinex.cn/v1/releases/check?env=prod&platform=ios&currentVersion=...&channel=official&deviceId=...` + `X-Project-Key: infov` 不再返回 `missing token` 401。
+3. 回到 InfoV 执行 prod iOS local-run，确认 `[VersionCheck] Error ... 401` 消失，并把证据写入 InfoV test report / progress。
+4. 再恢复原 shared delivery plane 后续：沉淀 `dl-dev` infra baseline、prod shared COS 抽检、Laicai feedback live metadata 抽检。
 
 ## Blockers / Watchouts
+- 当前待线上关闭项：本地代码已修复 VersionCheck 401，但 prod `srs.infinex.cn` 仍需部署最新 API 后才会生效；部署前线上 endpoint 可能继续返回旧的 `401 missing token`。
 - 旧 blocker `24868683261 / Deploy via SSH` 已由重跑 `24873253269` 成功暂时解除；当前未复现固定脚本故障，更像一次性环境 / 远端状态波动，后续仍需观察是否偶发。
 - 当前主要 watchout：dev 服务器曾因 Docker image / build cache 堆积导致磁盘写满；本次 deploy 成功说明 pre-clean + 构建链路可工作。定时 Docker cleanup 已从 GitHub-hosted runner SSH 改为服务器本机 cron：`/opt/joya-governance/bin/joya-devkit-docker-cleanup.sh`。
 - 当前主要 watchout：`dl-dev` 现阶段依赖 CDN 回源 `119.29.221.161:80` + Host `dl-dev.infinex.cn`；若要切回 HTTPS 回源，需先补源站 `dl-dev.infinex.cn` 证书。

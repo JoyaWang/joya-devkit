@@ -137,6 +137,7 @@ shared-runtime-services/
 
 ### Feedback Runtime contract（当前已进入正式范围）
 - intake route：至少支持 `submit-manual`、`submit-errors`、`submit-crash`
+- public intake route（`/v1/feedback/client-settings`、`/v1/feedback/submit-manual`、`/v1/feedback/submit-errors`、`/v1/feedback/submit-crash`）供业务 App 端直接调用，不要求 project service token；项目归属通过 `X-Project-Key` / `projectKey` 解析，不能被全局 service-token preHandler 误拦截
 - manual feedback metadata：`deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`、`attachmentsJson`、`metadataJson` 必须作为 submission 真相源持久化；`deviceInfo` 保留调用方传入的 parsed JSON 语义，不得丢弃手机型号、平台、系统版本等排障字段
 - user-facing list：`GET /v1/feedback/submissions` 必须回显 route/version/build 与附件/metadata 摘要，供业务 App 的反馈中心读取
 - admin route：至少支持 `submissions list/detail`、`retry-github-sync`、`process-pending`、`project-config update`
@@ -357,7 +358,7 @@ laicai/prod/release/android/1.0.1+12/apk/app-release.apk
 - changelog
 
 ### `GET /v1/releases/latest`
-用途：查询某项目某平台最新版本。
+用途：查询某项目某平台最新版本。该端点服务业务 App / 控制面查询，不要求 project service token；项目归属通过 `X-Project-Key` / `projectKey` 解析，不能被全局 service-token preHandler 误拦截。
 
 响应核心字段：
 - semanticVersion

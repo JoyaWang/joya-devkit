@@ -1,7 +1,21 @@
 # SRS → CNB Issue 迁移改造方案
 
 > 日期：2026-04-28
-> 状态：方案已出，待实施
+> 状态：已实施并通过 prod 端到端验证
+
+---
+
+## 0. 最终实施结果
+
+- 代码提交：
+  - `a38e3d7 fix(srs): parse CNB issue numbers`
+  - `6a61406 fix(srs): make feedback issue sync retry idempotent`
+- CNB prod deploy：`cnb-t5o-1jn9nroed` 成功。
+- 本地验证：`pnpm typecheck` 通过；`pnpm vitest run tests/feedback-minimal-closure.test.mts` 37/37 通过。
+- 线上配置：Laicai `FeedbackProjectConfig.issueTracker=cnb`，CNB repo=`joyawang/Laicai`。
+- 线上验证：fresh smoke submission `cmoify5qf000501n5pfljqlt0` 创建 CNB Issue #6，SRS 状态为 `githubSyncStatus=synced`。
+- 生产兼容修复：CNB Issue API 返回 `number` 为字符串，已归一化为 Prisma `Int`；CNB 缺 `html_url` 时用 `https://cnb.cool/joyawang/Laicai/-/issues/{number}` 兜底。
+- Retry 幂等修复：已有 issue number/url 的 submission 不再重复建外部 issue，并会把 stale `pending` 修复为 `synced`。
 
 ---
 

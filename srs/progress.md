@@ -7,6 +7,17 @@
 
 ## 已完成
 
+### 2026-04-28 public auth / VersionCheck 401 修复
+- [x] 根因确认：SRS 全局 `preHandler` 未读取 route-level `config.skipAuth`，且旧 public allowlist 缺少 `/v1/releases/check` / `/v1/releases/latest`，同时 raw `request.url` 带 query string 时 exact match 失败，导致 InfoV prod iOS `/v1/releases/check?...` 被误拦截为 `401 missing token`
+- [x] 新增 `apps/api/src/public-auth.ts`：集中处理 `normalizeAuthPath`、`hasRouteSkipAuth`、`shouldSkipAuth`，以 route-level skipAuth 作为 primary public contract，并保留 defensive allowlist
+- [x] 修改 `apps/api/src/index.ts`：全局鉴权 preHandler 先判断 `hasRouteSkipAuth(request) || shouldSkipAuth(request.url, request.method)`，再进入 service-token auth
+- [x] 补齐 release check/latest 与 feedback submit public intake 的无 service-token public contract 测试：`tests/public-auth.test.mts`
+- [x] 修复 release route 单测 capture helper，使其支持 Fastify `(path, opts, handler)` 签名，并补 `x-project-key` header
+- [x] 验证通过：`pnpm exec vitest run tests/public-auth.test.mts tests/releases-channel-control.test.mts tests/feedback-minimal-closure.test.mts` → 3 files / 46 tests passed
+- [x] 验证通过：`pnpm --filter @srs/api run typecheck`、`pnpm --filter @srs/api run build`
+- [~] 待线上部署后复验：curl `https://srs.infinex.cn/v1/releases/check?...` 不应再返回 `missing token` 401；随后回到 InfoV prod iOS local-run 验证 `[VersionCheck] 401` 消失
+- [x] 证据报告：`test-reports/2026-04-28_20-06_public-auth-versioncheck-401.md`
+
 ### 2026-04-19 统一 release 控制面收口
 - [x] `AppRelease` 新增 `channel` 字段，并补 Prisma migration `20260419_add_release_channel_to_app_releases`
 - [x] `apps/api/src/routes/releases.ts` 收口为完整 release 控制面：

@@ -248,14 +248,30 @@
 - 返回 releaseNotes
 - 返回 forceUpdate / minSupportedVersion（即使默认值为空也要结构正确）
 
+### R-02b: Release public 查询端点不要求 project service token
+**优先级**: P0 | **阶段**: 1
+
+**前置条件**:
+- 业务 App 调用 `/v1/releases/check` 或 `/v1/releases/latest`
+- 请求携带 `X-Project-Key` 或 `projectKey`
+- 请求不携带 `Authorization` service token
+
+**断言（必须全部通过）**:
+- 全局鉴权 preHandler 不应拦截该请求
+- `/v1/releases/check` 对合法查询返回 200 的版本决策响应；缺失 release 时也返回 `reason: "no_active_release"`，不得返回 `missing token` 401
+- `/v1/releases/latest` 在合法查询下进入 release 查询逻辑；无 release 时可返回业务态 404，但不得返回 `missing token` 401
+- URL 带 query string 时仍按 path 判断 public 端点，不得因 exact-match 含 query 漂移而误拦截
+
 ### F-01: 提交 manual feedback 并持久化排障元信息
 **优先级**: P0 | **阶段**: 1
 
 **前置条件**:
 - 提供合法 project token / projectKey
 - 请求体包含 `deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`、`attachments`、`metadata`
+- 业务 App 端不携带 project service token，只携带 `X-Project-Key` / `projectKey`
 
 **断言（必须全部通过）**:
+- `/v1/feedback/submit-manual`、`/v1/feedback/submit-errors`、`/v1/feedback/submit-crash` 作为 public intake route 不应被全局鉴权 preHandler 拦截，不得返回 `missing token` 401
 - `FeedbackSubmission` 写入 `deviceInfo`、`currentRoute`、`appVersion`、`buildNumber`，不得只把这些字段塞进 opaque metadata
 - `deviceInfo` 保留调用方传入的手机型号、平台、系统版本、物理设备标识等 JSON 字段
 - user-facing `GET /v1/feedback/submissions` 回显 route/version/build，供业务 App 反馈中心读取

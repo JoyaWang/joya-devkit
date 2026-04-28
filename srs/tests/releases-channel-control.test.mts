@@ -49,18 +49,21 @@ function makeReply() {
 
 async function captureRoutes(register: (app: any) => Promise<void>) {
   const handlers = new Map<string, any>();
+  const captureHandler = (method: string, path: string, optsOrHandler: any, maybeHandler?: any) => {
+    handlers.set(`${method} ${path}`, typeof maybeHandler === "function" ? maybeHandler : optsOrHandler);
+  };
   const app = {
-    post: vi.fn((path: string, fn: any) => {
-      handlers.set(`POST ${path}`, fn);
+    post: vi.fn((path: string, optsOrHandler: any, maybeHandler?: any) => {
+      captureHandler("POST", path, optsOrHandler, maybeHandler);
     }),
-    get: vi.fn((path: string, fn: any) => {
-      handlers.set(`GET ${path}`, fn);
+    get: vi.fn((path: string, optsOrHandler: any, maybeHandler?: any) => {
+      captureHandler("GET", path, optsOrHandler, maybeHandler);
     }),
-    patch: vi.fn((path: string, fn: any) => {
-      handlers.set(`PATCH ${path}`, fn);
+    patch: vi.fn((path: string, optsOrHandler: any, maybeHandler?: any) => {
+      captureHandler("PATCH", path, optsOrHandler, maybeHandler);
     }),
-    delete: vi.fn((path: string, fn: any) => {
-      handlers.set(`DELETE ${path}`, fn);
+    delete: vi.fn((path: string, optsOrHandler: any, maybeHandler?: any) => {
+      captureHandler("DELETE", path, optsOrHandler, maybeHandler);
     }),
   };
 
@@ -133,6 +136,7 @@ describe("Release Service channel control", () => {
     const reply = makeReply();
     await latestHandler(
       {
+        headers: { "x-project-key": "laicai" },
         projectKey: "laicai",
         runtimeEnv: "prod",
         query: {
@@ -179,6 +183,7 @@ describe("Release Service channel control", () => {
     const reply = makeReply();
     await checkHandler(
       {
+        headers: { "x-project-key": "laicai" },
         projectKey: "laicai",
         runtimeEnv: "prod",
         query: {
