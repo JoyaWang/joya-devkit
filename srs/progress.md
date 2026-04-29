@@ -7,6 +7,20 @@
 
 ## 已完成
 
+### 2026-04-29 infra SDK cache project 接入
+- [x] SRS 支持公共 SDK 缓存对象：`sdk-cache` scope 新增允许 `android-sdk`、`ios-vendors`、`sdk-cache` domain。
+- [x] `seed-projects.ts` 纳入 `infra` manifest，并为 `infra/dev`、`infra/prod` 幂等播种 `object_storage` binding，复用 `SHARED_COS_*` 配置。
+- [x] 已在 prod 热部署 SRS API / worker 后验证：`infra:prod` service token 可创建 upload request，SDK archive 可上传并 complete。
+- [x] 已上传 Laicai Android SDK 与 iOS Vendors 到 `infra/prod/*/sdk-cache/*`，下载 URL 已写入 Vault infra `/providers`：`ANDROID_LOCAL_SDKS_URL`、`IOS_VENDORS_URL`，并同步 objectKey。
+- [x] 回归测试已补充 `tests/scopes.test.mts`，覆盖 `sdk-cache` + `android-sdk` / `ios-vendors`。
+
+验证：
+- [x] `pnpm --dir srs --filter @srs/object-service run build` 通过。
+- [x] `pnpm --dir srs exec vitest run tests/scopes.test.mts` 通过（12/12）。
+
+待跟进：
+- [ ] 本次 main push 后查看 CNB prod deploy 日志，确认 `sdk-cache` scope 与 `infra` seed 已通过正常部署链路固化。
+
 ### 2026-04-28 legal docs seed / deploy contract 修复
 - [x] 根因确认：prod `/v1/legal/user-agreement|privacy-policy?projectKey=infov|laicai` 返回 `Document not found`，route 可达且参数合同正确，真实缺口为 prod DB 未播种 `legal_documents`。
 - [x] 修复 deploy contract：`deploy-remote-ssh.sh` 在 `seed-projects.js` 后继续执行 `seed-legal-docs.js`，保证 legal docs 随 SRS deploy 幂等播种。

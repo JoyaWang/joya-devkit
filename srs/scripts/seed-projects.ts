@@ -27,6 +27,7 @@ async function ensureManifests(): Promise<string[]> {
   const requiredManifests = [
     { projectKey: "infov", displayName: "InfoV" },
     { projectKey: "laicai", displayName: "Laicai" },
+    { projectKey: "infra", displayName: "Infra" },
     { projectKey: "unbound", displayName: "Unbound Test Project" },
   ];
 
@@ -114,6 +115,8 @@ async function main() {
     { projectKey: "infov", runtimeEnv: "prod" },
     { projectKey: "laicai", runtimeEnv: "dev" },
     { projectKey: "laicai", runtimeEnv: "prod" },
+    { projectKey: "infra", runtimeEnv: "dev" },
+    { projectKey: "infra", runtimeEnv: "prod" },
   ] as const) {
     const config = resolveObjectStorageSeedConfig({
       projectKey: target.projectKey,

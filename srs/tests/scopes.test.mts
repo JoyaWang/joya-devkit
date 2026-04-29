@@ -14,6 +14,8 @@ describe("validateScope", () => {
     expect(validateScope("release", "desktop")).toEqual({ valid: true });
     expect(validateScope("attachment", "message")).toEqual({ valid: true });
     expect(validateScope("log", "system")).toEqual({ valid: true });
+    expect(validateScope("sdk-cache", "android-sdk")).toEqual({ valid: true });
+    expect(validateScope("sdk-cache", "ios-vendors")).toEqual({ valid: true });
   });
 
   it("rejects unknown scope", () => {

@@ -14,6 +14,7 @@ const ALLOWED_SCOPES: Record<string, string[]> = {
   identity: ["member"],
   log: ["system", "audit"],
   feedback: ["public", "system"],
+  "sdk-cache": ["android-sdk", "ios-vendors", "sdk-cache"],
 };
 
 export interface ScopeValidationResult {
