@@ -7,6 +7,12 @@
 
 ## 已完成
 
+### 2026-04-29 Laicai legacy public media metadata import 方案启动
+- [ ] CNB issue #20 根因：Laicai 旧 `https://dl.infinex.cn/laicai/prd/...` 商品图/头像经 SRS public delivery 返回 `object not found`，但 provider origin 可 200，说明物理对象存在而 SRS metadata 缺失。
+- [ ] 修复方向锁定：新增显式 legacy public object metadata import/backfill 脚本，默认 dry-run、幂等、run-id 审计、支持 rollback dry-run。
+- [ ] 边界锁定：不在 public-delivery 加 request-time fallback，不把 `laicai/prd/...` objectKey 改写为 `laicai/prod/...`，不要求 Laicai CloudBase 批量改 URL 到 origin。
+- [ ] 待验证：SRS DB sample metadata、CloudBase legacy URL 分布、sample import 后 `dl.infinex.cn` 302/最终 200。
+
 ### 2026-04-29 infra SDK cache project 接入
 - [x] SRS 支持公共 SDK 缓存对象：`sdk-cache` scope 新增允许 `android-sdk`、`ios-vendors`、`sdk-cache` domain。
 - [x] `seed-projects.ts` 纳入 `infra` manifest，并为 `infra/dev`、`infra/prod` 幂等播种 `object_storage` binding，复用 `SHARED_COS_*` 配置。

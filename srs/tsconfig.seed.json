@@ -13,6 +13,7 @@
     "scripts/seed-projects.ts",
     "scripts/seed-projects-config.ts",
     "scripts/seed-legal-docs.ts",
+    "scripts/import-legacy-public-objects.ts",
     "apps/api/src/generated/prisma/**/*.ts"
   ]
 }

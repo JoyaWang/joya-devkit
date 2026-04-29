@@ -366,7 +366,10 @@ describe("shared public delivery entrypoint", () => {
     );
 
     expect(reply.statusCode).toBe(404);
-    expect(reply.payload).toEqual({ error: "object not found" });
+    expect(reply.payload).toMatchObject({
+      error: "object not found",
+      debug: { objectKey: "infov/dev/release/android/1.0.0+100/apk/2026/04/uuid-app-release.apk" },
+    });
     expect(historicalAdapter.headObject).toHaveBeenCalledWith({ objectKey });
     expect(currentAdapter.headObject).toHaveBeenCalledWith({ objectKey });
     expect(historicalAdapter.createDownloadRequest).not.toHaveBeenCalled();
@@ -506,5 +509,30 @@ describe("shared public delivery entrypoint", () => {
 
     expect(reply.statusCode).toBe(403);
     expect(mockAdapter.createDownloadRequest).not.toHaveBeenCalled();
+  });
+
+  // -----------------------------------------------------------------------
+  // Legacy laicai/prd regression
+  // -----------------------------------------------------------------------
+
+  it("redirects legacy laicai/prd objectKey with Object.env=prod on dl.infinex.cn without rewriting objectKey", async () => {
+    const objectKey = "laicai/prd/post/attachment/2042583502301429760/image/2026/04/751e4fc9-thumb.jpg";
+    mockPrisma.object.findUnique.mockResolvedValue(
+      makeObjectRecord({ projectKey: "laicai", env: "prod", objectKey, accessClass: "public-stable" })
+    );
+
+    const reply = makeReply();
+    await handler(
+      {
+        hostname: "dl.infinex.cn",
+        params: { "*": objectKey },
+      },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(302);
+    expect(mockResolver.resolve).toHaveBeenCalledWith("laicai", "prod", "object_storage");
+    // Verify the objectKey passed to createDownloadRequest is NOT rewritten
+    expect(mockAdapter.createDownloadRequest).toHaveBeenCalledWith({ objectKey });
   });
 });

@@ -204,6 +204,14 @@ shared-runtime-services/
 - 若该 host 走腾讯云 CDN / 自定义下载域名，COS adapter 生成签名下载 URL 时必须显式使用 `Domain=<custom-domain>`，并关闭 `ForceSignHost`，避免 Host 被强签名后与自定义域名不一致
 - `downloadDomain` 允许随着 provider / CDN / 回源策略演进而变化；但 `dl-dev` / `dl` 这类稳定公共入口合同应保持独立
 
+### legacy public object metadata import（显式修复机制）
+
+- 当业务项目历史数据已保存 `https://dl*.infinex.cn/{objectKey}` stable URL，但 SRS `objects` / `object_storage_locations` 缺对应 metadata 时，正确修复方式是显式导入 legacy object metadata，而不是在 public-delivery request-time 静默 fallback 到 provider origin。
+- import 必须保持用户侧 objectKey 不变。例如 Laicai 旧 URL `laicai/prd/...` 必须继续以该 objectKey 交付；不得为了匹配 runtime env 把历史 key 批量改写为 `laicai/prod/...`。
+- metadata 的 `env` 应指向当前可解析的 runtime binding（如 `prod`），legacy key env（如 `prd`）只作为 audit detail 记录；这样 resolver 继续使用正式 `projectKey + runtimeEnv + object_storage` binding。
+- import 前必须通过对应 provider adapter 执行 `headObject({ objectKey })`；只有物理对象存在才允许创建 `active + public-stable` 的 `Object` 和 active primary `ObjectStorageLocation`。
+- import CLI 必须默认 dry-run、幂等、带 run-id、写 AuditLog，并提供 rollback dry-run；rollback 仅作用于带同一 `objectProfile=legacy_public_delivery` 与 `purpose=legacy_public_delivery_import:<run-id>` 的导入对象，不删除 provider 物理文件。
+
 ### runtime object storage 配置合同
 - **业务 env 唯一 canonical 真相源**：Vault / Infisical Vault。服务器 `.env` / `env.runtime` 只是 Vault 生成的 mirror，不得作为 canonical 来源。
 - GitHub Secrets 只保留 Vault bootstrap / SSH bootstrap 用途，不承载业务 env canonical。
