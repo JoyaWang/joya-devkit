@@ -235,7 +235,7 @@ function parseJsonField(value: string | null | undefined): unknown {
   }
 }
 
-function buildIssueBody(submission: FeedbackSubmissionRecord): string {
+async function buildIssueBody(submission: FeedbackSubmissionRecord, fetchImpl: typeof fetch): Promise<string> {
   const lines = [
     `## Channel`,
     submission.channel,
@@ -258,6 +258,37 @@ function buildIssueBody(submission: FeedbackSubmissionRecord): string {
     lines.push("## Stack Trace", "```", submission.stackTrace, "```", "");
   }
 
+  // Fetch log content from log attachments
+  const attachmentsRaw = parseJsonField(submission.attachmentsJson);
+  const attachments = Array.isArray(attachmentsRaw)
+    ? (attachmentsRaw as Array<{ url: string; name: string; kind: string }>)
+    : null;
+
+  if (attachments) {
+    const logAttachment = attachments.find((a) => a.kind === "log");
+    if (logAttachment?.url) {
+      try {
+        const response = await fetchImpl(logAttachment.url);
+        if (response.ok) {
+          let logText = await response.text();
+          // Truncate to 50KB to avoid oversized issue bodies
+          const MAX_LOG_BYTES = 50 * 1024;
+          const encoded = new TextEncoder().encode(logText);
+          if (encoded.length > MAX_LOG_BYTES) {
+            const truncated = new TextDecoder().decode(encoded.slice(0, MAX_LOG_BYTES));
+            logText = truncated + "\n\n[Log truncated at 50KB]";
+          }
+          lines.push("## Logs", "```", logText, "```", "");
+        } else {
+          lines.push("## Logs", "```", `[日志下载失败: HTTP ${response.status}]`, "```", "");
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        lines.push("## Logs", "```", `[日志下载失败: ${message}]`, "```", "");
+      }
+    }
+  }
+
   const metadata = {
     userId: submission.userId,
     username: submission.username,
@@ -265,7 +296,7 @@ function buildIssueBody(submission: FeedbackSubmissionRecord): string {
     appVersion: submission.appVersion,
     buildNumber: submission.buildNumber,
     deviceInfo: parseJsonField(submission.deviceInfo),
-    attachments: parseJsonField(submission.attachmentsJson),
+    attachments,
     metadata: parseJsonField(submission.metadataJson),
   };
 
@@ -556,7 +587,7 @@ export async function runFeedbackOutbox(
         },
         body: JSON.stringify({
           title: buildIssueTitle(submission, group),
-          body: buildIssueBody(submission),
+          body: await buildIssueBody(submission, fetchImpl),
           labels: ["feedback", `project:${submission.projectKey}`, `channel:${submission.channel}`],
         }),
       });
