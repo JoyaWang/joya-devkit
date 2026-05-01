@@ -12,6 +12,12 @@
 
 ## 日期日志
 
+### 2026-05-01（joya_logger 反馈日志公共化）
+- [x] 将 Laicai 已验证的反馈日志机制沉淀到 `sdks/packages/joya_logger`：新增 `FeedbackLogCollector`，支持显式日志优先、`occurrenceTime` 前后 10 分钟、`entryTime/defaultLookback`、file logs + memory logs 分段拼装，双空返回空字符串。
+- [x] 新增 release-safe logger helper：`createJoyaLogger()` 固定使用 `ProductionFilter()`，并通过 `resolveJoyaLoggerLevel()` 在 release 使用 `Level.info`、非 release 使用 `Level.debug`，避免 `logger` 默认 `DevelopmentFilter` 在 release 丢日志。
+- [x] 测试合同已补齐：`feedback_log_collector_test.dart` 覆盖 explicit / occurrence / entry / now fallback / memory-only / empty；`joya_logger_factory_test.dart` 覆盖 filter、level 与输出行为；同步修复 `file_rotation_output_test.dart` 的固定日期 retention 脆弱性。
+- [x] 验证通过：`cd sdks/packages/joya_logger && dart format --set-exit-if-changed lib test && flutter test`（28/28）。
+
 ### 2026-04-26（SRS CNB 部署迁移启动）
 - [x] 用户决定不再等待 GitHub Actions → TCR 慢速 push，已取消三条 5 分钟跟踪定时任务：`c0fcbad6`、`6f7614a4`、`0296f13f`。
 - [x] CNB CLI 已通过 `npm install -g @cnbcool/cnb-cli` 安装，`cnb --help` 可用；本机用 Vault 注入 `CNB_TOKEN` 后能访问 `https://api.cnb.cool`。

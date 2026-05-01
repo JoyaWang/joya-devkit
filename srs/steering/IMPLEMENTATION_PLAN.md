@@ -10,6 +10,34 @@
 - Slice 1–8：已交付 provider migration 骨架（dual-write metadata / read fallback / backfill runner）。
 - **当前 Slice**：`shared-cos-config-closure` — 将 shared object storage runtime 配置收口为 Infisical 环境隔离下的单一 `SHARED_COS_*` 合同。
 
+## joya_logger 反馈日志公共收集器（2026-05-01）
+
+### 目标
+
+把 Laicai 已验证的“release 包可写日志 + 反馈提交时收集 file logs 与 memory logs”机制沉淀到 `joya_logger`，供 InfoV 等 Flutter App 复用，避免各项目复制私有实现或只读取内存日志导致反馈 issue 缺失 `logs.txt`。
+
+### 范围
+
+- 包含：`FeedbackLogCollector` 公共收集器、release-safe logger factory、对应单元测试与公开 export。
+- 不包含：App UI、SRS manual feedback payload、截图/日志上传 API、压缩包格式、Laicai CloudBase 后端逻辑。
+- Laicai 本轮仅作为参考实现，不强制迁移；公共 API 必须保持与 Laicai 当前日志段落格式兼容，便于后续独立收口。
+
+### 实施步骤
+
+1. 在 `sdks/packages/joya_logger/lib/src/feedback_log_collector.dart` 新增 `FeedbackLogCollector`：支持显式 logs 优先、`occurrenceTime ± 10min`、`entryTime/default now - 10min -> end`、file + memory 段落拼装。
+2. 在 `sdks/packages/joya_logger/lib/src/joya_logger_factory.dart` 新增 release-safe logger helper：默认使用 `ProductionFilter()`，release level 为 `Level.info`，debug level 为 `Level.debug`，输出走 `MultiOutput`。
+3. 在 `sdks/packages/joya_logger/lib/joya_logger.dart` 导出公共 API。
+4. 新增 `sdks/packages/joya_logger/test/feedback_log_collector_test.dart` 与 logger factory 测试，覆盖时间范围、空日志和 release-safe 配置。
+
+### 验收标准
+
+- [ ] `FeedbackLogCollector` 可在 memory 为空但 file logs 存在时返回带 `=== FILE LOGS START ===` 的日志文本。
+- [ ] file 与 memory 同时存在时，返回文本包含 Laicai 兼容的 file/memory section markers。
+- [ ] file 与 memory 都为空时，返回空字符串，不伪造日志。
+- [ ] `occurrenceTime` 与 `entryTime` 两种时间范围策略均有单测覆盖。
+- [ ] logger factory 在 release mode 使用 `ProductionFilter()` 且 level 为 `Level.info`，避免 logger 默认 `DevelopmentFilter` 在 release 丢弃日志。
+- [ ] `joya_logger` package targeted tests 通过。
+
 ## CNB 云原生构建部署迁移（2026-04-26）
 
 ### 目标

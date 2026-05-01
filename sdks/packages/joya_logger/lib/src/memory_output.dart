@@ -22,8 +22,7 @@ class MemoryOutput extends LogOutput {
   final int bufferSize;
   final ListQueue<_MemoryLogRecord> _buffer;
 
-  MemoryOutput({this.bufferSize = 100})
-    : _buffer = ListQueue(bufferSize);
+  MemoryOutput({this.bufferSize = 100}) : _buffer = ListQueue(bufferSize);
 
   @override
   void output(OutputEvent event) {

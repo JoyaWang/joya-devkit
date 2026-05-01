@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:joya_logger/src/file_rotation_output.dart';
 import 'package:logger/logger.dart';
@@ -47,7 +48,8 @@ void main() {
       final oldFile = File('${tempDir.path}/log_20250101_12.txt');
       await oldFile.writeAsString('old log');
 
-      final recentFile = File('${tempDir.path}/log_20260417_12.txt');
+      final recentFileName = _logFileNameFor(DateTime.now());
+      final recentFile = File('${tempDir.path}/$recentFileName');
       await recentFile.writeAsString('recent log');
 
       // Re-init triggers _cleanOldLogs
@@ -127,4 +129,12 @@ void main() {
       expect(content, isNot(contains('│───│')));
     });
   });
+}
+
+String _logFileNameFor(DateTime time) {
+  final year = time.year.toString().padLeft(4, '0');
+  final month = time.month.toString().padLeft(2, '0');
+  final day = time.day.toString().padLeft(2, '0');
+  final hour = time.hour.toString().padLeft(2, '0');
+  return 'log_${year}${month}${day}_$hour.txt';
 }

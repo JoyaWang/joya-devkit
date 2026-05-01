@@ -30,13 +30,37 @@
 
 | 阶段 | 优先级 | 数量 | 说明 |
 |------|--------|------|------|
-| 阶段 1 | P0 | 14 项 | Object / Release / Feedback / 鉴权 / 项目归属校验 / 基础设施核心闭环 |
+| 阶段 1 | P0 | 16 项 | Object / Release / Feedback / 鉴权 / 项目归属校验 / 基础设施核心闭环 / joya_logger 反馈日志收集 |
 | 阶段 2 | P1 | 4 项 | 删除、列表、rollout、审计 |
 | 阶段 3 | P2 | 预留 | 扩展能力与边界场景 |
 
 ---
 
 ## 三、阶段 1：P0 核心路径
+
+### JL-01: `FeedbackLogCollector` 收集反馈日志
+**优先级**: P0 | **阶段**: 1 | **文件**: `sdks/packages/joya_logger/test/feedback_log_collector_test.dart`
+
+**前置条件**:
+- 准备 `MemoryOutput` 与可控测试目录下的 `FileRotationOutput`
+- 准备包含范围内 / 范围外 timestamp 的测试日志文件
+
+**断言（必须全部通过）**:
+- `explicitLogsText` 非空时直接返回传入日志，不重新拼接 file / memory section
+- 提供 `occurrenceTime` 时，收集窗口为 `occurrenceTime - 10min` 到 `occurrenceTime + 10min`
+- 未提供 `occurrenceTime` 时，以 `entryTime ?? now()` 为结束时间，收集前 10 分钟 file logs
+- file logs 存在时输出包含 `=== FILE LOGS START ===` 与 `=== FILE LOGS END ===`
+- memory logs 存在时输出包含 `=== MEMORY LOGS START ===` 与 `=== MEMORY LOGS END ===`
+- file / memory 都为空时返回空字符串，不伪造日志内容
+
+### JL-02: `createJoyaLogger` release-safe 配置
+**优先级**: P0 | **阶段**: 1 | **文件**: `sdks/packages/joya_logger/test/joya_logger_factory_test.dart`
+
+**断言（必须全部通过）**:
+- 创建出的 logger 使用 `ProductionFilter()`，避免 release 包被 logger 默认 `DevelopmentFilter` 丢弃全部日志
+- `releaseMode=true` 时 level 为 `Level.info`
+- `releaseMode=false` 时 level 为 `Level.debug`
+- 传入多个 output 时使用 `MultiOutput` 写入，不破坏 memory/file 双输出能力
 
 ### O-01: 申请上传签名
 **优先级**: P0 | **阶段**: 1
